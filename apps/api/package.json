@@ -10,17 +10,29 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
-    "db:proof": "tsx scripts/db-proof.ts"
+    "db:proof": "tsx scripts/db-proof.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "seed:master": "tsx scripts/seed-master.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "11.1.5",
+    "@fastify/rate-limit": "11.2.2",
     "@healthcare/shared": "*",
+    "@node-rs/argon2": "2.2.2",
+    "drizzle-orm": "0.45.4",
     "fastify": "5.12.8",
+    "jsonwebtoken": "9.0.2",
+    "nodemailer": "10.3.1",
     "pg": "8.23.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "9.0.10",
     "@types/node": "26.6.6",
+    "@types/nodemailer": "8.0.2",
     "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
     "tsx": "4.23.15",
     "vitest": "4.1.12"
   }

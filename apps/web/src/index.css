@@ -7,24 +7,173 @@
     sans-serif;
   color: #1f2933;
   background-color: #f7f9fb;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
 }
 
-.app-shell {
+h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.5rem;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
+  padding: 1.75rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.auth-subtitle {
+  margin: 0 0 1.25rem;
+  color: #52606d;
+  font-size: 0.95rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+input:focus {
+  outline: 2px solid #2f6fed;
+  outline-offset: 1px;
+  border-color: #2f6fed;
+}
+
+button {
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid #2f6fed;
+  background: #2f6fed;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-secondary {
+  background: #ffffff;
+  color: #2f6fed;
+}
+
+.button-link {
+  background: transparent;
+  border: none;
+  color: #2f6fed;
+  font-weight: 500;
+  text-decoration: underline;
+  padding: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.form-hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: #52606d;
+}
+
+.banner {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.banner-error {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.banner-notice {
+  background: #e6f4ea;
+  color: #1e6b34;
+}
+
+.app-frame {
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid #d9e2ec;
+}
+
+.app-title {
+  font-weight: 700;
+}
+
+.app-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.app-user-name {
+  font-weight: 600;
+}
+
+.role-badge {
+  text-transform: capitalize;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #e4e7eb;
+  color: #323f4b;
+}
+
+.role-master {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.app-main {
   max-width: 720px;
   margin: 0 auto;
-  padding: 3rem 1.25rem;
-}
-
-.app-shell h1 {
-  margin: 0 0 0.5rem;
-  font-size: 1.75rem;
-}
-
-.app-shell p {
-  margin: 0;
-  line-height: 1.5;
+  padding: 2rem 1.25rem;
 }
