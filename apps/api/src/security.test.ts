@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { loadConfig } from './config';
 import { createTestContext, type TestContext } from './test/helpers';
 
 let context: TestContext;
@@ -36,6 +37,28 @@ describe('origin secret', () => {
     context = await createTestContext();
     const response = await context.app.inject({ method: 'GET', url: '/api/health' });
     expect(response.statusCode).toBe(200);
+  });
+
+  it('requires origin-secret enforcement and a secret in production config', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://db.example.test/app',
+        JWT_SECRET: 'test-secret-value-with-at-least-32-chars',
+        ORIGIN_SECRET: 'origin-secret-value-123456',
+        ORIGIN_SECRET_ENFORCED: 'false',
+      }),
+    ).toThrow('ORIGIN_SECRET_ENFORCED must be true in production');
+
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://db.example.test/app',
+        JWT_SECRET: 'test-secret-value-with-at-least-32-chars',
+        ORIGIN_SECRET: 'origin-secret-value-123456',
+        ORIGIN_SECRET_ENFORCED: 'true',
+      }),
+    ).not.toThrow();
   });
 });
 

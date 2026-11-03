@@ -17,6 +17,9 @@ One entry per decision: date, decision, reason.
 - **Retention:** nightly job deletes `news_items` older than 90 days and `deliveries` older than 180 days, both configurable.
 
 - **Node/package pinning:** Node 20.19.5, npm 10.8.2, TypeScript 6.0.3, ESLint 10 flat config, Prettier 3.9.10, Vitest 4.1.12. Exact versions are pinned in each `package.json`; `npm ci` is used in CI and Docker. Reason: reproducible builds on free CI minutes.
+- **Fastify cookie compatibility:** use `@fastify/cookie` 10.0.1 and pin its test injector dependency `light-my-request` to 6.6.0. Reason: the newer cookie plugin/injector dependency chain selected `cookie@2`, which requires Node 22 while this project targets Node 20.
+- **Auth race protection:** enforce one master with a PostgreSQL partial unique index and consume OTPs with a conditional update. Reason: service-level check-then-write logic alone cannot prevent concurrent seed or OTP verification requests from violating those invariants.
+- **API test workers:** run the API Vitest suite in one thread with file parallelism disabled. Reason: default worker forks crashed with V8 zone out-of-memory errors in the Windows environment; the serialized suite passes.
 - **`packages/shared` build order:** the root `typecheck`, `test`, and `build` scripts build `@healthcare/shared` first so the API can import its compiled types. Reason: workspace consumers resolve `dist`, avoiding cross-package TS project references in Phase 0.
 - **arm64 image proof (2026-11-03):** `docker buildx build --platform linux/arm64` succeeds with the multi-stage Dockerfile; runtime Chromium 156.0.8078.73 launches (`--version`). Headless render (`--dump-dom`) hangs under QEMU on the x86 dev host, so rendering is deferred to a real arm64 VM. Reason: QEMU emulation limitation, not an image defect.
 

@@ -56,7 +56,8 @@ export type OtpRepository = {
   create(otp: NewOtp): Promise<OtpRecord>;
   findLatest(userId: string, purpose: OtpPurpose): Promise<OtpRecord | null>;
   findLatestActive(userId: string, purpose: OtpPurpose, now: Date): Promise<OtpRecord | null>;
-  incrementAttempts(id: string): Promise<number>;
+  incrementAttempts(id: string, maxAttempts: number): Promise<number>;
+  consumeIfActive(id: string, now: Date, maxAttempts: number): Promise<boolean>;
   markUsed(id: string, when: Date): Promise<void>;
   invalidateActive(userId: string, purpose: OtpPurpose, when: Date): Promise<void>;
 };

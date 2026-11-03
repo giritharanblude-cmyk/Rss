@@ -93,13 +93,16 @@ export class OtpService {
 
     const matches = await verifyPassword(latest.codeHash, code);
     if (!matches) {
-      const attempts = await this.options.otps.incrementAttempts(latest.id);
+      const attempts = await this.options.otps.incrementAttempts(latest.id, this.maxAttempts);
       if (attempts >= this.maxAttempts) {
         await this.options.otps.markUsed(latest.id, now);
       }
       throw new OtpError('That code is incorrect.');
     }
 
-    await this.options.otps.markUsed(latest.id, now);
+    const consumed = await this.options.otps.consumeIfActive(latest.id, now, this.maxAttempts);
+    if (!consumed) {
+      throw new OtpError();
+    }
   }
 }

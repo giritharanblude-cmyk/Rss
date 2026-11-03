@@ -21,8 +21,8 @@ Each item has the default that will be used if no answer arrives.
 
 ## Phase 0 blockers / credentials
 
-15. **Neon database credentials.** Default: free-stack proof is documented as "needs credentials"; a `db:proof` script is ready and runs the trivial migration once `DATABASE_URL` is set. **Finding (2026-11-03):** the shell's current `DATABASE_URL` is `postgresql+psycopg2://...@localhost/sangad` — an unrelated local project database, not Neon, and the scheme is not supported by `pg`. It was not used. Provide the Neon pooled string to complete the proof.
-16. **Hostinger SMTP credentials and admin email.** Default: emailed OTP and status light remain "needs credentials" until provided; adapters are mockable.
+15. **Neon database credentials.** Default: free-stack proof is documented as "needs credentials"; a `db:proof` script is ready and runs the trivial migration once `DATABASE_URL` is set. **Finding (2026-11-03):** the shell's current `DATABASE_URL` is an unrelated local project database, not Neon and not supported by `pg`; it was not used. Phase 1 migrations and the master seed are implemented, but remain unapplied/unverified against a live database until the Neon pooled string is provided.
+16. **Hostinger SMTP credentials and admin email.** Default: emailed OTP and status light remain "needs credentials" until provided; mock and SMTP adapters are implemented, but real delivery and SMTP verification are unconfirmed.
 17. **OpenWA / WhatsApp admin number.** Default: WhatsApp connection and QR panel remain "needs credentials" until the VM is provisioned.
 18. **Netlify secret header substitution.** `netlify.toml` header values may not support environment substitution. Default: restrict the VM at Caddy/firewall to Netlify egress or use Cloudflare Access; record the final mechanism before deployment. Never ship an open origin.
 19. **Oracle Always Free capacity.** A1 instances can fail with "out of host capacity." Default: retry across availability domains; fall back to a home machine behind Cloudflare Tunnel.

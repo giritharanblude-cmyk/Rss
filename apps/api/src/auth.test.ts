@@ -114,6 +114,29 @@ describe('sign in with name, password and emailed code', () => {
     expect(second.statusCode).toBe(400);
   });
 
+  it('allows only one concurrent request to consume a code', async () => {
+    context = await createTestContext();
+    await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+    const code = latestOtpCode(context.email);
+
+    const responses = await Promise.all(
+      Array.from({ length: 2 }, () =>
+        context.app.inject({
+          method: 'POST',
+          url: '/api/auth/verify-otp',
+          payload: { name: 'Admin', code },
+        }),
+      ),
+    );
+
+    expect(responses.filter((response) => response.statusCode === 200)).toHaveLength(1);
+    expect(responses.filter((response) => response.statusCode === 400)).toHaveLength(1);
+  });
+
   it('rejects the correct code after five wrong attempts', async () => {
     context = await createTestContext();
     await context.app.inject({
@@ -199,6 +222,43 @@ describe('sign in with name, password and emailed code', () => {
       payload: { name: 'Admin', password: 'master-password-1' },
     });
     expect(unlocked.statusCode).toBe(202);
+  });
+});
+
+describe('authentication rate limits', () => {
+  it('limits login and OTP verification requests', async () => {
+    context = await createTestContext({
+      rateLimits: { login: 1, verify: 1, resend: 1, password: 1, windowMs: 60_000 },
+    });
+
+    const login = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+    expect(login.statusCode).toBe(202);
+
+    const limitedLogin = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Admin', password: 'wrong-password' },
+    });
+    expect(limitedLogin.statusCode).toBe(429);
+
+    const code = latestOtpCode(context.email);
+    const verified = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: 'Admin', code },
+    });
+    expect(verified.statusCode).toBe(200);
+
+    const limitedVerification = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: 'Admin', code },
+    });
+    expect(limitedVerification.statusCode).toBe(429);
   });
 });
 

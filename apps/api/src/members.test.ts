@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createMasterIfNone, DuplicateMasterError } from './auth/seed';
-import {
-  createTestContext,
-  loginAndVerify,
-  seedMember,
-  type TestContext,
-} from './test/helpers';
+import { createMasterIfNone } from './auth/seed';
+import { DuplicateMasterError } from './errors';
+import { MemoryUserRepository } from './repositories/memory';
+import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
 
 let context: TestContext;
 
@@ -136,5 +133,26 @@ describe('single master rule', () => {
       }),
     ).rejects.toBeInstanceOf(DuplicateMasterError);
     expect(await context.users.countMasters()).toBe(1);
+  });
+
+  it('refuses concurrent attempts to seed a second master', async () => {
+    context = await createTestContext();
+    const users = new MemoryUserRepository(context.clock.now);
+    const results = await Promise.allSettled([
+      createMasterIfNone(users, {
+        name: 'Second A',
+        email: 'second-a@example.com',
+        password: 'second-password-1',
+      }),
+      createMasterIfNone(users, {
+        name: 'Second B',
+        email: 'second-b@example.com',
+        password: 'second-password-2',
+      }),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(await users.countMasters()).toBe(1);
   });
 });

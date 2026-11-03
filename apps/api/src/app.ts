@@ -77,24 +77,26 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const memberService = new MemberService(deps.users);
 
-  registerAuthRoutes(app, {
-    auth: authService,
-    jwtSecret: deps.jwtSecret,
-    sessionTtlSeconds,
-    cookieSecure: deps.cookieSecure ?? false,
-    rateLimits: {
-      login: deps.rateLimits?.login ?? 10,
-      verify: deps.rateLimits?.verify ?? 20,
-      resend: deps.rateLimits?.resend ?? 5,
-      password: deps.rateLimits?.password ?? 5,
-      windowMs: deps.rateLimits?.windowMs ?? 60_000,
-    },
-  });
+  void app.register(async (routes) => {
+    registerAuthRoutes(routes, {
+      auth: authService,
+      jwtSecret: deps.jwtSecret,
+      sessionTtlSeconds,
+      cookieSecure: deps.cookieSecure ?? false,
+      rateLimits: {
+        login: deps.rateLimits?.login ?? 10,
+        verify: deps.rateLimits?.verify ?? 20,
+        resend: deps.rateLimits?.resend ?? 5,
+        password: deps.rateLimits?.password ?? 5,
+        windowMs: deps.rateLimits?.windowMs ?? 60_000,
+      },
+    });
 
-  registerMemberRoutes(app, {
-    auth: authService,
-    members: memberService,
-    jwtSecret: deps.jwtSecret,
+    registerMemberRoutes(routes, {
+      auth: authService,
+      members: memberService,
+      jwtSecret: deps.jwtSecret,
+    });
   });
 
   app.get('/api/health', async (): Promise<HealthResponse> => {

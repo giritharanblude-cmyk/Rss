@@ -34,12 +34,10 @@ export type TestContext = {
 
 export type TestContextOptions = Pick<
   AppDeps,
-  'originSecret' | 'originSecretEnforced' | 'otp' | 'lockout'
+  'originSecret' | 'originSecretEnforced' | 'otp' | 'lockout' | 'rateLimits'
 >;
 
-export async function createTestContext(
-  options: TestContextOptions = {},
-): Promise<TestContext> {
+export async function createTestContext(options: TestContextOptions = {}): Promise<TestContext> {
   const clock = createClock();
   const users = new MemoryUserRepository(clock.now);
   const otps = new MemoryOtpRepository(clock.now);

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { DuplicateMasterError } from '../errors';
 import type {
   NewOtp,
   NewUser,
@@ -52,6 +53,12 @@ export class MemoryUserRepository implements UserRepository {
   }
 
   async create(user: NewUser): Promise<UserRecord> {
+    if (
+      user.role === 'master' &&
+      [...this.users.values()].some((candidate) => candidate.role === 'master')
+    ) {
+      throw new DuplicateMasterError();
+    }
     const key = user.name.trim().toLowerCase();
     const exists = [...this.users.values()].some(
       (candidate) => candidate.name.trim().toLowerCase() === key,
@@ -168,13 +175,30 @@ export class MemoryOtpRepository implements OtpRepository {
     return latest ? cloneOtp(latest) : null;
   }
 
-  async incrementAttempts(id: string): Promise<number> {
+  async incrementAttempts(id: string, maxAttempts: number): Promise<number> {
     const otp = this.otps.find((candidate) => candidate.id === id);
     if (!otp) {
       return 0;
     }
+    if (otp.usedAt || otp.attempts >= maxAttempts) {
+      return otp.attempts;
+    }
     otp.attempts += 1;
     return otp.attempts;
+  }
+
+  async consumeIfActive(id: string, now: Date, maxAttempts: number): Promise<boolean> {
+    const otp = this.otps.find((candidate) => candidate.id === id);
+    if (
+      !otp ||
+      otp.usedAt ||
+      otp.expiresAt.getTime() <= now.getTime() ||
+      otp.attempts >= maxAttempts
+    ) {
+      return false;
+    }
+    otp.usedAt = now;
+    return true;
   }
 
   async markUsed(id: string, when: Date): Promise<void> {

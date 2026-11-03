@@ -44,6 +44,12 @@ export class DuplicateNameError extends HttpError {
   }
 }
 
+export class DuplicateMasterError extends HttpError {
+  constructor() {
+    super(409, 'A master user already exists. Refusing to create another.');
+  }
+}
+
 export class EmailUnavailableError extends HttpError {
   constructor(message = 'We could not send the email. Check the email settings and try again.') {
     super(503, message);

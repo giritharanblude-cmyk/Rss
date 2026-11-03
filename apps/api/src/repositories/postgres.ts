@@ -1,6 +1,7 @@
 import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { otpCodes, users } from '../db/schema';
+import { DuplicateMasterError } from '../errors';
 import type {
   NewOtp,
   NewUser,
@@ -78,16 +79,32 @@ export class PostgresUserRepository implements UserRepository {
   }
 
   async create(user: NewUser): Promise<UserRecord> {
-    const rows = await this.db
-      .insert(users)
-      .values({
-        name: user.name.trim(),
-        nameKey: user.name.trim().toLowerCase(),
-        email: user.email.trim().toLowerCase(),
-        passwordHash: user.passwordHash,
-        role: user.role,
-      })
-      .returning();
+    let rows: UserRow[];
+    try {
+      rows = await this.db
+        .insert(users)
+        .values({
+          name: user.name.trim(),
+          nameKey: user.name.trim().toLowerCase(),
+          email: user.email.trim().toLowerCase(),
+          passwordHash: user.passwordHash,
+          role: user.role,
+        })
+        .returning();
+    } catch (error) {
+      if (
+        user.role === 'master' &&
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === '23505' &&
+        'constraint' in error &&
+        error.constraint === 'users_single_master_unique'
+      ) {
+        throw new DuplicateMasterError();
+      }
+      throw error;
+    }
     const row = rows[0];
     if (!row) {
       throw new Error('User was not created');
@@ -96,11 +113,7 @@ export class PostgresUserRepository implements UserRepository {
   }
 
   async setDisabled(id: string, disabled: boolean): Promise<UserRecord | null> {
-    const rows = await this.db
-      .update(users)
-      .set({ disabled })
-      .where(eq(users.id, id))
-      .returning();
+    const rows = await this.db.update(users).set({ disabled }).where(eq(users.id, id)).returning();
     const row = rows[0];
     return row ? toUser(row) : null;
   }
@@ -178,13 +191,35 @@ export class PostgresOtpRepository implements OtpRepository {
     return row ? toOtp(row) : null;
   }
 
-  async incrementAttempts(id: string): Promise<number> {
+  async incrementAttempts(id: string, maxAttempts: number): Promise<number> {
     const rows = await this.db
       .update(otpCodes)
       .set({ attempts: sql`${otpCodes.attempts} + 1` })
-      .where(eq(otpCodes.id, id))
+      .where(
+        and(
+          eq(otpCodes.id, id),
+          isNull(otpCodes.usedAt),
+          sql`${otpCodes.attempts} < ${maxAttempts}`,
+        ),
+      )
       .returning({ attempts: otpCodes.attempts });
-    return Number(rows[0]?.attempts ?? 0);
+    return Number(rows[0]?.attempts ?? maxAttempts);
+  }
+
+  async consumeIfActive(id: string, now: Date, maxAttempts: number): Promise<boolean> {
+    const rows = await this.db
+      .update(otpCodes)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(otpCodes.id, id),
+          isNull(otpCodes.usedAt),
+          sql`${otpCodes.expiresAt} > ${now}`,
+          sql`${otpCodes.attempts} < ${maxAttempts}`,
+        ),
+      )
+      .returning({ id: otpCodes.id });
+    return rows.length === 1;
   }
 
   async markUsed(id: string, when: Date): Promise<void> {
@@ -196,11 +231,7 @@ export class PostgresOtpRepository implements OtpRepository {
       .update(otpCodes)
       .set({ usedAt: when })
       .where(
-        and(
-          eq(otpCodes.userId, userId),
-          eq(otpCodes.purpose, purpose),
-          isNull(otpCodes.usedAt),
-        ),
+        and(eq(otpCodes.userId, userId), eq(otpCodes.purpose, purpose), isNull(otpCodes.usedAt)),
       );
   }
 }

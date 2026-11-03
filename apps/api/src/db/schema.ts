@@ -11,6 +11,7 @@ import {
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const userRole = pgEnum('user_role', ['master', 'member']);
 export const otpPurpose = pgEnum('otp_purpose', ['login', 'password_change']);
@@ -41,7 +42,12 @@ export const users = pgTable(
     loginFailures: integer('login_failures').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
   },
-  (table) => [uniqueIndex('users_name_key_unique').on(table.nameKey)],
+  (table) => [
+    uniqueIndex('users_name_key_unique').on(table.nameKey),
+    uniqueIndex('users_single_master_unique')
+      .on(table.role)
+      .where(sql`${table.role} = 'master'`),
+  ],
 );
 
 export const otpCodes = pgTable(

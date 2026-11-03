@@ -1,6 +1,6 @@
 # PROGRESS
 
-Current phase: 0
+Current phase: 1
 Gate mode: MANUAL
 Last green commit: 4ad10c1
 
@@ -18,3 +18,15 @@ Last green commit: 4ad10c1
 - [x] Free-stack proof: arm64 image build (built `linux/arm64`, Chromium 156 launches `--version`)
 - [x] Headless Chromium render smoke — documented "needs real arm64 VM"; QEMU hangs locally (OPEN_QUESTIONS 20)
 - [x] Run gate checklist and write docs/phase-reports/PHASE-0.md
+
+## Phase 1: Database and Authentication
+
+- [x] Audit existing Phase 1 snapshot against requirements and identify fixes
+- [x] Verify full data-model migrations and single-master seed behavior
+- [x] Verify login, OTP, password-change, member-management, and origin protection
+- [x] Verify rate limiting, generic errors, lockout, and secret-safe logging
+- [x] Verify mock and Hostinger SMTP adapters, including status verification (real SMTP needs credentials)
+- [x] Verify login and app-shell UI requirements
+- [x] Run lint, typecheck, test, and build; resolve Phase 1 regressions
+- [x] Complete acceptance-criteria and secret review; document credential blockers
+- [x] Write docs/phase-reports/PHASE-1.md and commit completed Phase 1 work
