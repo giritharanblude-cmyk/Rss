@@ -2,7 +2,7 @@
 
 Current phase: 1
 Gate mode: MANUAL
-Last green commit: 4ad10c1
+Last green commit: 6684ef3
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -29,4 +29,4 @@ Last green commit: 4ad10c1
 - [x] Verify login and app-shell UI requirements
 - [x] Run lint, typecheck, test, and build; resolve Phase 1 regressions
 - [x] Complete acceptance-criteria and secret review; document credential blockers
-- [x] Write docs/phase-reports/PHASE-1.md and commit completed Phase 1 work
+- [x] Write docs/phase-reports/PHASE-1.md and commit completed Phase 1 work (commit 6684ef3)
