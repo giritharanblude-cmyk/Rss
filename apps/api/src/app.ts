@@ -8,13 +8,21 @@ import { AuthService } from './auth/service';
 import type { EmailSender } from './email';
 import { HttpError } from './errors';
 import type { OtpRepository, UserRepository } from './repositories/types';
+import type { NewsRepository, SourceRepository } from './repositories/feeds';
+import type { FeedTestJobRepository } from './repositories/feed-jobs';
 import { registerAuthRoutes } from './routes/auth';
 import { registerMemberRoutes } from './routes/members';
+import { registerSourceRoutes } from './routes/sources';
 import { registerOriginSecret } from './security/origin';
+import { FeedTestQueue } from './rss/background';
+import { FeedService } from './rss/service';
 
 export type AppDeps = {
   users: UserRepository;
   otps: OtpRepository;
+  sources: SourceRepository;
+  news: NewsRepository;
+  feedJobs: FeedTestJobRepository;
   email: EmailSender;
   adminEmail: string;
   jwtSecret: string;
@@ -76,6 +84,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   const memberService = new MemberService(deps.users);
+  const feedService = new FeedService(deps.sources, deps.news);
+  const feedTests = new FeedTestQueue(feedService, deps.feedJobs);
 
   void app.register(async (routes) => {
     registerAuthRoutes(routes, {
@@ -96,6 +106,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       auth: authService,
       members: memberService,
       jwtSecret: deps.jwtSecret,
+    });
+
+    registerSourceRoutes(routes, {
+      auth: authService,
+      jwtSecret: deps.jwtSecret,
+      sources: deps.sources,
+      tests: feedTests,
     });
   });
 

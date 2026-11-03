@@ -4,6 +4,15 @@ import { createDatabase, createPool, waitForDatabase } from './db/client';
 import { runMigrations } from './db/migrate';
 import { createEmailSender } from './email';
 import { PostgresOtpRepository, PostgresUserRepository } from './repositories/postgres';
+import { PostgresFeedRepository } from './repositories/postgres-feeds';
+import { PostgresFeedTestJobRepository } from './repositories/postgres-feed-jobs';
+import {
+  startFeedScheduler,
+  startFeedTestWorker,
+  startRetentionJob,
+  FeedTestQueue,
+} from './rss/background';
+import { FeedService } from './rss/service';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -24,9 +33,15 @@ async function main(): Promise<void> {
   await runMigrations(pool);
 
   const db = createDatabase(pool);
+  const feeds = new PostgresFeedRepository(db);
+  const feedJobs = new PostgresFeedTestJobRepository(db);
+  const feedService = new FeedService(feeds, feeds);
   const app = buildApp({
     users: new PostgresUserRepository(db),
     otps: new PostgresOtpRepository(db),
+    sources: feeds,
+    news: feeds,
+    feedJobs,
     email: createEmailSender(config),
     adminEmail,
     jwtSecret: config.JWT_SECRET,
@@ -38,6 +53,18 @@ async function main(): Promise<void> {
 
   const address = await app.listen({ port: config.PORT, host: config.HOST });
   process.stdout.write(`API listening on ${address}\n`);
+  const stopFeeds = startFeedScheduler(feeds, feedService, {
+    log: (message, error) => app.log.error({ err: error }, message),
+  });
+  const stopFeedTests = startFeedTestWorker(
+    new FeedTestQueue(feedService, feedJobs),
+    (message, error) => app.log.error({ err: error }, message),
+  );
+  const stopRetention = startRetentionJob(feeds, {
+    newsDays: config.RETENTION_NEWS_DAYS,
+    deliveryDays: config.RETENTION_DELIVERIES_DAYS,
+    log: (message) => app.log.info(message),
+  });
 
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
@@ -46,6 +73,9 @@ async function main(): Promise<void> {
     }
     closing = true;
     process.stdout.write(`Received ${signal}, shutting down.\n`);
+    stopFeeds();
+    stopFeedTests();
+    stopRetention();
     await app.close();
     await pool.end();
     process.exit(0);

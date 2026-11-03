@@ -23,8 +23,10 @@
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.8",
     "jsonwebtoken": "9.0.2",
+    "node-cron": "4.6.0",
     "nodemailer": "10.3.1",
     "pg": "8.23.1",
+    "rss-parser": "3.13.0",
     "zod": "4.6.7"
   },
   "devDependencies": {

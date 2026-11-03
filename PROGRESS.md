@@ -1,6 +1,6 @@
 # PROGRESS
 
-Current phase: 1
+Current phase: 2
 Gate mode: MANUAL
 Last green commit: 6684ef3
 
@@ -30,3 +30,17 @@ Last green commit: 6684ef3
 - [x] Run lint, typecheck, test, and build; resolve Phase 1 regressions
 - [x] Complete acceptance-criteria and secret review; document credential blockers
 - [x] Write docs/phase-reports/PHASE-1.md and commit completed Phase 1 work (commit 6684ef3)
+
+## Phase 2: RSS Engine
+
+- [x] Inspect existing schema, implement source/news repositories and API routes
+- [x] Implement RSS/Atom parsing, normalization, categorization, topic filtering, and deduplication
+- [x] Implement background feed fetching with timeout, retry, conditional requests, and isolated failures
+- [x] Implement retention job for old news and delivery rows
+- [x] Add source management UI with validation, test-feed job, pause, edit, and delete
+- [x] Add fixtures and focused tests for RSS, Atom, filtering, categories, dedupe, failures, retention, and schema
+- [x] Run lint, typecheck, test, build, and focused format checks (full format check reports 16 untouched files)
+- [x] Complete Phase 2 acceptance and secret review; document credential/environment blockers
+- [x] Write docs/phase-reports/PHASE-2.md and commit Phase 2 work
+
+Phase 2 implementation is complete. Stop at the manual gate; do not begin Phase 3 until the user types `APPROVED PHASE 2`.

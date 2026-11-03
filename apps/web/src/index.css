@@ -67,6 +67,15 @@ input {
   font-size: 1rem;
 }
 
+select {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #bcccdc;
+  border-radius: 8px;
+  font: inherit;
+  background: #ffffff;
+}
+
 input:focus {
   outline: 2px solid #2f6fed;
   outline-offset: 1px;
@@ -176,4 +185,82 @@ button:disabled {
   max-width: 720px;
   margin: 0 auto;
   padding: 2rem 1.25rem;
+}
+
+.sources-main {
+  max-width: 900px;
+}
+
+.section-heading,
+.source-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.section-heading {
+  margin-bottom: 1.25rem;
+}
+
+.source-form,
+.source-card {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.source-form-actions,
+.source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.source-card h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.source-card p {
+  margin: 0.6rem 0;
+  color: #52606d;
+}
+
+.source-card a {
+  overflow-wrap: anywhere;
+}
+
+.source-state {
+  background: #fff3c4;
+  color: #7c5e10;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.15rem 0.6rem;
+}
+
+.source-active {
+  background: #d3f9d8;
+  color: #1b6b36;
+}
+
+.button-danger {
+  background: #fff;
+  border-color: #c92a2a;
+  color: #a51111;
+}
+
+.category-config {
+  margin-top: 1.5rem;
+  color: #52606d;
+}
+
+@media (max-width: 520px) {
+  .section-heading,
+  .source-card-header {
+    flex-direction: column;
+  }
 }

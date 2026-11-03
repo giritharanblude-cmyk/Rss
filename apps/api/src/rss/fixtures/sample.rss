@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Healthcare Sample</title>
+    <link>https://news.example.test</link>
+    <description>Sample feed for RSS parsing tests</description>
+    <item>
+      <title>New vaccine advisory follows regional outbreak</title>
+      <link>https://news.example.test/articles/vaccine</link>
+      <guid>vaccine-1</guid>
+      <pubDate>Tue, 03 Nov 2026 10:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Health officials issue a new <strong>vaccine</strong> advisory.</p>]]></description>
+      <content:encoded xmlns:content="http://purl.org/rss/1.0/modules/content/"><![CDATA[<p>Long article body that must never be stored.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Regional hospital announces new funding partnership</title>
+      <link>https://news.example.test/articles/hospital</link>
+      <guid>hospital-1</guid>
+      <pubDate>Tue, 03 Nov 2026 09:00:00 GMT</pubDate>
+      <description>Hospital group reports new funding.</description>
+    </item>
+  </channel>
+</rss>

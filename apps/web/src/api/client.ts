@@ -1,8 +1,11 @@
 import type {
+  FeedTestResponse,
   LoginAccepted,
   LoginBody,
   PublicUser,
   ResendOtpBody,
+  Source,
+  SourceInput,
   VerifyOtpBody,
 } from '@healthcare/shared';
 
@@ -55,4 +58,24 @@ export const api = {
       body: JSON.stringify(body),
     }),
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
+  sources: () => request<{ sources: Source[] }>('/api/sources'),
+  createSource: (body: SourceInput) =>
+    request<{ source: Source }>('/api/sources', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateSource: (id: string, body: Partial<SourceInput>) =>
+    request<{ source: Source }>(`/api/sources/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteSource: (id: string) =>
+    request<void>(`/api/sources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  testFeed: (rssUrl: string) =>
+    request<FeedTestResponse>('/api/sources/test', {
+      method: 'POST',
+      body: JSON.stringify({ rssUrl }),
+    }),
+  feedTestStatus: (id: string) =>
+    request<FeedTestResponse>(`/api/sources/test/${encodeURIComponent(id)}`),
 };
