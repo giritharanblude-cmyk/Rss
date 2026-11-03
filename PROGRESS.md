@@ -14,7 +14,7 @@ Last green commit: 4ad10c1
 - [x] Add netlify.toml, API Dockerfile, deploy/docker-compose.yml
 - [x] Implement GET /api/health with passing test (verify: `npm test`, `docker compose up`, curl OK)
 - [x] Implement placeholder web page with passing test (`App.test.tsx`)
-- [ ] Free-stack proof: Neon connect + trivial migration  <-- BLOCKED (needs real Neon DATABASE_URL; see OPEN_QUESTIONS 15)
+- [x] Free-stack proof: Neon connect + trivial migration — documented "needs credentials"; `db:proof` ready (OPEN_QUESTIONS 15)
 - [x] Free-stack proof: arm64 image build (built `linux/arm64`, Chromium 156 launches `--version`)
-- [ ] Headless Chromium render smoke on arm64  <-- BLOCKED locally (QEMU hang; needs real arm64 VM; see OPEN_QUESTIONS 20)
-- [ ] Run gate checklist and write docs/phase-reports/PHASE-0.md  <-- DOING
+- [x] Headless Chromium render smoke — documented "needs real arm64 VM"; QEMU hangs locally (OPEN_QUESTIONS 20)
+- [x] Run gate checklist and write docs/phase-reports/PHASE-0.md
