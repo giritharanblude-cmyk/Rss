@@ -1,0 +1,30 @@
+{
+  "name": "healthcare-rss-reader",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Healthcare RSS News Reader - free-tier, single-URL web app",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run build -w @healthcare/shared && npm run typecheck --workspaces --if-present",
+    "test": "npm run build -w @healthcare/shared && npm run test --workspaces --if-present",
+    "build": "npm run build -w @healthcare/shared && npm run build -w @healthcare/api && npm run build -w @healthcare/web",
+    "dev": "npm run dev --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}

@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: #1f2933;
+  background-color: #f7f9fb;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.25rem;
+}
+
+.app-shell h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+}
+
+.app-shell p {
+  margin: 0;
+  line-height: 1.5;
+}

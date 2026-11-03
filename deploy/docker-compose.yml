@@ -1,0 +1,24 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: healthcare-rss-api:local
+    restart: unless-stopped
+    mem_limit: 1536m
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: production
+      PORT: '3001'
+      HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:-}
+      ORIGIN_SECRET: ${ORIGIN_SECRET:-}
+      ORIGIN_SECRET_ENFORCED: ${ORIGIN_SECRET_ENFORCED:-false}
+      TIMEZONE: ${TIMEZONE:-Asia/Kolkata}
+      CHROME_PATH: /usr/bin/chromium
+    volumes:
+      - openwa_session:/data/openwa
+
+volumes:
+  openwa_session:

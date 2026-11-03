@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# WhatsApp session data
+data/openwa/
+whatsapp-session/
+
+# Logs and coverage
+*.log
+logs/
+coverage/
+.nyc_output/
+
+# Editor and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Test artefacts
+playwright-report/
+test-results/
+
+# Netlify
+.netlify/
