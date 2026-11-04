@@ -111,6 +111,7 @@ Implementation in progress following human approval of the Phase 6 plan.
 - [x] Stabilize the web test runner for constrained CI memory and fix strict TypeScript test typing regressions.
 - [x] Add focused API and UI role checks; on 2026-11-04 `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` all exited 0.
 - [ ] Run demo seed and clear against a confirmed disposable review database and record their successful results.
+- [ ] Latest pre-commit validation attempt: lint 0, isolated typecheck 0, `npm test` 1 (Vitest API worker exits); bundled typecheck also exited 134 once from V8 out-of-memory. See OPEN_QUESTIONS.md item 23.
 - [ ] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
 
 ### Phase 6 acceptance criteria

@@ -12,6 +12,7 @@ const envSchema = z.object({
     .string()
     .min(1, 'SETTINGS_ENCRYPTION_KEY is required for encrypted contact data'),
   DATABASE_URL: z.string().min(1).optional(),
+  DEMO_DATA_ENABLED: booleanString.default(false),
   ORIGIN_SECRET: z.string().min(16).optional(),
   ORIGIN_SECRET_ENFORCED: booleanString.default(false),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
