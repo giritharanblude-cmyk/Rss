@@ -53,6 +53,7 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     otps,
     sources: feeds,
     news: feeds,
+    dashboard: feeds,
     feedJobs,
     email,
     adminEmail: 'admin@example.com',

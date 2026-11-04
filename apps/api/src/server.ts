@@ -6,6 +6,7 @@ import { createEmailSender } from './email';
 import { PostgresOtpRepository, PostgresUserRepository } from './repositories/postgres';
 import { PostgresFeedRepository } from './repositories/postgres-feeds';
 import { PostgresFeedTestJobRepository } from './repositories/postgres-feed-jobs';
+import { PostgresDashboardRepository } from './repositories/postgres-dashboard';
 import {
   startFeedScheduler,
   startFeedTestWorker,
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
     otps: new PostgresOtpRepository(db),
     sources: feeds,
     news: feeds,
+    dashboard: new PostgresDashboardRepository(db),
     feedJobs,
     email: createEmailSender(config),
     adminEmail,

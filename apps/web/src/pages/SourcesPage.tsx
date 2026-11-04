@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import {
   NEWS_CATEGORIES,
   SOURCE_INTERVALS,
@@ -9,6 +9,7 @@ import {
   type SourceInput,
 } from '@healthcare/shared';
 import { api, ApiError } from '../api/client';
+import { AppHeader } from '../components/AppHeader';
 
 const blankSource: SourceInput = {
   name: '',
@@ -166,7 +167,6 @@ async function waitForFeedTest(id: string) {
 }
 
 export function SourcesPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Source | null>(null);
   const [adding, setAdding] = useState(false);
@@ -240,16 +240,7 @@ export function SourcesPage() {
 
   return (
     <div className="app-frame">
-      <header className="app-header">
-        <span className="app-title">Healthcare News Reader · Sources</span>
-        <div className="app-user">
-          <span className="app-user-name">{me.data.user.name}</span>
-          <span className={`role-badge role-${me.data.user.role}`}>{me.data.user.role}</span>
-          <button type="button" className="button-link" onClick={() => navigate('/')}>
-            Home
-          </button>
-        </div>
-      </header>
+      <AppHeader user={me.data.user} />
       <main className="app-main sources-main">
         <div className="section-heading">
           <div>

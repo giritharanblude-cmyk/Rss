@@ -21,10 +21,12 @@ export type NewsRecord = {
   category: NewsCategory;
   publishedAt: Date | null;
   fetchedAt: Date;
+  important: boolean;
   duplicateOf: string | null;
 };
 
-export type NewNews = Omit<NewsRecord, 'id' | 'fetchedAt' | 'duplicateOf'> & {
+export type NewNews = Omit<NewsRecord, 'id' | 'fetchedAt' | 'important' | 'duplicateOf'> & {
+  important?: boolean;
   duplicateOf?: string | null;
 };
 

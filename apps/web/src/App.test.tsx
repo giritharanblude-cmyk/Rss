@@ -11,8 +11,20 @@ function jsonResponse(status: number, body: unknown): Response {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
+    headers: new Headers(),
   } as Response;
 }
+
+const emptyDashboard = {
+  itemsToday: 0,
+  activeSources: 0,
+  recipients: 0,
+  deliveriesToday: 0,
+  failedDeliveries: 0,
+  latestItems: [],
+  lastFetchAt: null,
+  connections: { whatsapp: false, email: false },
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -39,15 +51,23 @@ describe('App', () => {
       name: 'Admin',
       role: 'master',
     };
-    const responses = [
-      jsonResponse(401, { error: 'Please sign in to continue.' }),
-      jsonResponse(202, { status: 'otp_sent', message: 'Check the admin email.' }),
-      jsonResponse(200, { user }),
-      jsonResponse(200, { user }),
-    ];
+    let hasSession = false;
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => responses.shift() ?? jsonResponse(500, { error: 'Unexpected request' })),
+      vi.fn(async (input: string | URL | Request) => {
+        const path = String(input);
+        if (path === '/api/auth/login') {
+          return jsonResponse(202, { status: 'otp_sent', message: 'Check the admin email.' });
+        }
+        if (path === '/api/auth/verify-otp') {
+          hasSession = true;
+          return jsonResponse(200, { user });
+        }
+        if (path === '/api/dashboard/live') return jsonResponse(200, emptyDashboard);
+        return hasSession
+          ? jsonResponse(200, { user })
+          : jsonResponse(401, { error: 'Please sign in to continue.' });
+      }),
     );
 
     render(<App />);
@@ -70,14 +90,16 @@ describe('App', () => {
   it('shows the username and role when signed in', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        jsonResponse(200, {
-          user: {
-            id: '00000000-0000-4000-8000-000000000000',
-            name: 'Admin',
-            role: 'master',
-          },
-        }),
+      vi.fn(async (input: string | URL | Request) =>
+        String(input) === '/api/dashboard/live'
+          ? jsonResponse(200, emptyDashboard)
+          : jsonResponse(200, {
+              user: {
+                id: '00000000-0000-4000-8000-000000000000',
+                name: 'Admin',
+                role: 'master',
+              },
+            }),
       ),
     );
 

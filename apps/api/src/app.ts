@@ -9,8 +9,10 @@ import type { EmailSender } from './email';
 import { HttpError } from './errors';
 import type { OtpRepository, UserRepository } from './repositories/types';
 import type { NewsRepository, SourceRepository } from './repositories/feeds';
+import type { DashboardRepository } from './repositories/dashboard';
 import type { FeedTestJobRepository } from './repositories/feed-jobs';
 import { registerAuthRoutes } from './routes/auth';
+import { registerDashboardRoutes } from './routes/dashboard';
 import { registerMemberRoutes } from './routes/members';
 import { registerSourceRoutes } from './routes/sources';
 import { registerOriginSecret } from './security/origin';
@@ -22,6 +24,7 @@ export type AppDeps = {
   otps: OtpRepository;
   sources: SourceRepository;
   news: NewsRepository;
+  dashboard: DashboardRepository;
   feedJobs: FeedTestJobRepository;
   email: EmailSender;
   adminEmail: string;
@@ -113,6 +116,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       jwtSecret: deps.jwtSecret,
       sources: deps.sources,
       tests: feedTests,
+    });
+
+    registerDashboardRoutes(routes, {
+      auth: authService,
+      jwtSecret: deps.jwtSecret,
+      dashboard: deps.dashboard,
+      now,
     });
   });
 

@@ -9,6 +9,12 @@ import type {
   SourceRecord,
   SourceRepository,
 } from './feeds';
+import type {
+  DashboardNewsItem,
+  DashboardRepository,
+  DashboardSummary,
+  NewsFeedFilters,
+} from './dashboard';
 import type { FeedTestJobRepository } from './feed-jobs';
 
 function cloneSource(source: SourceRecord): SourceRecord {
@@ -27,10 +33,14 @@ function cloneNews(news: NewsRecord): NewsRecord {
   };
 }
 
-export class MemoryFeedRepository implements SourceRepository, NewsRepository, RetentionRepository {
+export class MemoryFeedRepository
+  implements SourceRepository, NewsRepository, RetentionRepository, DashboardRepository
+{
   private readonly sources = new Map<string, SourceRecord>();
   private readonly news = new Map<string, NewsRecord>();
-  private readonly deliveries: { id: string; queuedAt: Date }[] = [];
+  private readonly deliveries: { id: string; queuedAt: Date; status: string }[] = [];
+  private recipientsCount = 0;
+  private readonly connections = { whatsapp: false, email: false };
 
   async listSources(): Promise<SourceRecord[]> {
     return [...this.sources.values()].sort((a, b) => a.name.localeCompare(b.name)).map(cloneSource);
@@ -109,6 +119,7 @@ export class MemoryFeedRepository implements SourceRepository, NewsRepository, R
       ...input,
       id: randomUUID(),
       fetchedAt: new Date(),
+      important: input.important ?? false,
       duplicateOf: input.duplicateOf ?? null,
     };
     this.news.set(item.id, item);
@@ -148,7 +159,19 @@ export class MemoryFeedRepository implements SourceRepository, NewsRepository, R
   }
 
   async addDeliveryForTest(queuedAt: Date): Promise<void> {
-    this.deliveries.push({ id: randomUUID(), queuedAt });
+    this.deliveries.push({ id: randomUUID(), queuedAt, status: 'pending' });
+  }
+
+  async addDeliveryStatusForTest(queuedAt: Date, status: string): Promise<void> {
+    this.deliveries.push({ id: randomUUID(), queuedAt, status });
+  }
+
+  setRecipientsCountForTest(count: number): void {
+    this.recipientsCount = count;
+  }
+
+  setConnectionStatusForTest(service: 'whatsapp' | 'email', connected: boolean): void {
+    this.connections[service] = connected;
   }
 
   async addNewsForTest(
@@ -167,6 +190,7 @@ export class MemoryFeedRepository implements SourceRepository, NewsRepository, R
       category: input.category ?? 'Uncategorized',
       publishedAt: input.publishedAt ?? null,
       fetchedAt,
+      important: input.important ?? false,
       duplicateOf: input.duplicateOf ?? null,
     });
   }
@@ -177,6 +201,84 @@ export class MemoryFeedRepository implements SourceRepository, NewsRepository, R
 
   async countDeliveriesForTest(): Promise<number> {
     return this.deliveries.length;
+  }
+
+  async getSummary(todayStart: Date, latestLimit: number): Promise<DashboardSummary> {
+    const activeSources = [...this.sources.values()].filter((source) => source.active).length;
+    const visibleNews = [...this.news.values()].filter((item) => !item.duplicateOf);
+    const latestItems = visibleNews
+      .sort((a, b) => this.sortDate(b).getTime() - this.sortDate(a).getTime())
+      .slice(0, latestLimit)
+      .map((item) => this.toDashboardItem(item));
+    const todayDeliveries = this.deliveries.filter((delivery) => delivery.queuedAt >= todayStart);
+    const lastFetch = [...this.sources.values()]
+      .map((source) => source.lastFetchedAt)
+      .filter((date): date is Date => date !== null)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+
+    return {
+      itemsToday: visibleNews.filter((item) => this.sortDate(item) >= todayStart).length,
+      activeSources,
+      recipients: this.recipientsCount,
+      deliveriesToday: todayDeliveries.length,
+      failedDeliveries: this.deliveries.filter((delivery) => delivery.status === 'failed').length,
+      latestItems,
+      lastFetchAt: lastFetch ?? null,
+      connections: { ...this.connections },
+    };
+  }
+
+  async listNews(filters: NewsFeedFilters): Promise<{ items: DashboardNewsItem[]; total: number }> {
+    const query = filters.query?.toLocaleLowerCase();
+    const matching = [...this.news.values()]
+      .filter((item) => !item.duplicateOf)
+      .filter((item) => !filters.category || item.category === filters.category)
+      .filter((item) => !filters.sourceId || item.sourceId === filters.sourceId)
+      .filter((item) => !filters.from || (item.publishedAt && item.publishedAt >= filters.from))
+      .filter(
+        (item) =>
+          !filters.toExclusive || (item.publishedAt && item.publishedAt < filters.toExclusive),
+      )
+      .filter(
+        (item) =>
+          !query ||
+          item.headline.toLocaleLowerCase().includes(query) ||
+          item.summary.toLocaleLowerCase().includes(query),
+      )
+      .sort((a, b) => this.sortDate(b).getTime() - this.sortDate(a).getTime());
+    const start = (filters.page - 1) * filters.pageSize;
+    return {
+      items: matching
+        .slice(start, start + filters.pageSize)
+        .map((item) => this.toDashboardItem(item)),
+      total: matching.length,
+    };
+  }
+
+  async setImportant(id: string, important: boolean): Promise<boolean> {
+    const item = this.news.get(id);
+    if (!item || item.duplicateOf) return false;
+    item.important = important;
+    return true;
+  }
+
+  private sortDate(item: NewsRecord): Date {
+    return item.publishedAt ?? item.fetchedAt;
+  }
+
+  private toDashboardItem(item: NewsRecord): DashboardNewsItem {
+    return {
+      id: item.id,
+      sourceId: item.sourceId,
+      sourceName: this.sources.get(item.sourceId)?.name ?? 'Unknown source',
+      headline: item.headline,
+      summary: item.summary,
+      link: item.link,
+      category: item.category,
+      publishedAt: item.publishedAt,
+      fetchedAt: item.fetchedAt,
+      important: item.important,
+    };
   }
 }
 

@@ -8,6 +8,46 @@ import type {
   SourceInput,
   VerifyOtpBody,
 } from '@healthcare/shared';
+import type { NEWS_CATEGORIES } from '@healthcare/shared';
+
+export type NewsCategory = (typeof NEWS_CATEGORIES)[number];
+export type DashboardNewsItem = {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  headline: string;
+  summary: string;
+  link: string;
+  category: NewsCategory;
+  publishedAt: string | null;
+  fetchedAt: string;
+  important: boolean;
+};
+export type DashboardLive = {
+  itemsToday: number;
+  activeSources: number;
+  recipients: number;
+  deliveriesToday: number;
+  failedDeliveries: number;
+  latestItems: DashboardNewsItem[];
+  lastFetchAt: string | null;
+  connections: { whatsapp: boolean; email: boolean };
+};
+export type NewsFeedFilters = {
+  category?: NewsCategory;
+  sourceId?: string;
+  from?: string;
+  to?: string;
+  q?: string;
+  page: number;
+  pageSize: number;
+};
+export type NewsFeedPage = {
+  items: DashboardNewsItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
 
 export class ApiError extends Error {
   constructor(
@@ -38,6 +78,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, data.error ?? 'Something went wrong. Please try again.');
   }
   return data as T;
+}
+
+let dashboardEtag: string | null = null;
+let dashboardSnapshot: DashboardLive | null = null;
+
+async function requestDashboardLive(): Promise<DashboardLive> {
+  const response = await fetch('/api/dashboard/live', {
+    credentials: 'include',
+    headers: dashboardEtag ? { 'if-none-match': dashboardEtag } : {},
+  });
+  if (response.status === 304) {
+    if (dashboardSnapshot) return dashboardSnapshot;
+    return request<DashboardLive>('/api/dashboard/live');
+  }
+  const data = (await response.json().catch(() => ({}))) as DashboardLive & { error?: string };
+  if (!response.ok) {
+    throw new ApiError(response.status, data.error ?? 'Something went wrong. Please try again.');
+  }
+  dashboardEtag = response.headers.get('etag');
+  dashboardSnapshot = data;
+  return data;
 }
 
 export const api = {
@@ -78,4 +139,17 @@ export const api = {
     }),
   feedTestStatus: (id: string) =>
     request<FeedTestResponse>(`/api/sources/test/${encodeURIComponent(id)}`),
+  dashboardLive: requestDashboardLive,
+  news: (filters: NewsFeedFilters) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    return request<NewsFeedPage>(`/api/news?${params.toString()}`);
+  },
+  setImportant: (id: string, important: boolean) =>
+    request<{ id: string; important: boolean }>(`/api/news/${encodeURIComponent(id)}/important`, {
+      method: 'PATCH',
+      body: JSON.stringify({ important }),
+    }),
 };

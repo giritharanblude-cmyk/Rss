@@ -1,8 +1,8 @@
 # PROGRESS
 
-Current phase: 2
+Current phase: 3
 Gate mode: MANUAL
-Last green commit: 04f41ce
+Last green commit: d15909c
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -43,4 +43,16 @@ Last green commit: 04f41ce
 - [x] Complete Phase 2 acceptance and secret review; document credential/environment blockers
 - [x] Write docs/phase-reports/PHASE-2.md and commit Phase 2 work
 
-Phase 2 implementation is complete. Stop at the manual gate; do not begin Phase 3 until the user types `APPROVED PHASE 2`.
+Phase 2 approval recorded on 2026-11-04: `APPROVED PHASE 2` for gate commit `d15909c`.
+
+Open items carried forward: `OPEN_QUESTIONS.md` items 15 (live Neon/PostgreSQL verification needs credentials) and 20 (headless Chromium render smoke needs a real arm64 VM); Phase 2 also used fixture feeds rather than live external feeds (see `docs/phase-reports/PHASE-2.md`).
+
+## Phase 3: Landing Page, Live Dashboard, and News Feed
+
+- [x] Implement authenticated live dashboard API, ETag polling, and news-feed queries/importance action
+- [x] Build six-module landing navigation and responsive dashboard/news feed UI
+- [x] Add focused API and UI tests, including filtering, polling, and 360px layout
+- [x] Run lint, typecheck, test, build, and Phase 3 acceptance checks
+- [x] Write `docs/phase-reports/PHASE-3.md` and stop at the manual gate
+
+Phase 3 is complete. Stop at the manual gate; do not begin Phase 4 until the user types `APPROVED PHASE 3`.

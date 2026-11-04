@@ -46,6 +46,7 @@ function toNews(row: NewsRow): NewsRecord {
     category: row.category as NewsCategory,
     publishedAt: row.publishedAt,
     fetchedAt: row.fetchedAt,
+    important: row.important,
     duplicateOf: row.duplicateOf,
   };
 }
