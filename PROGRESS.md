@@ -101,7 +101,7 @@ Phase 5 approved on 2026-11-04: `APPROVED PHASE 5` for code commit `7552f5b`. Th
 
 Planning only; awaiting human approval of these tasks and acceptance criteria before implementation.
 
-- [ ] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
+- [x] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
 - [ ] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
 - [ ] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
 - [ ] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only.

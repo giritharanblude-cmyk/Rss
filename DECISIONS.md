@@ -24,6 +24,10 @@ One entry per decision: date, decision, reason.
 - **`packages/shared` build order:** the root `typecheck`, `test`, and `build` scripts build `@healthcare/shared` first so the API can import its compiled types. Reason: workspace consumers resolve `dist`, avoiding cross-package TS project references in Phase 0.
 - **arm64 image proof (2026-11-03):** `docker buildx build --platform linux/arm64` succeeds with the multi-stage Dockerfile; runtime Chromium 156.0.8078.73 launches (`--version`). Headless render (`--dump-dom`) hangs under QEMU on the x86 dev host, so rendering is deferred to a real arm64 VM. Reason: QEMU emulation limitation, not an image defect.
 
+## 2026-11-04
+
+- **Phase 6 member permissions:** The master can perform all actions. Members can browse and filter News Feed, view Delivery Log, and view Sources and Recipients read-only; they cannot access Settings, Alerts, or member management. Marking news important remains master-only because that action can trigger an instant delivery. Reason: keep the specified member access while reserving actions that can initiate sends or change configuration for the master. The existing member API supports create/list/disable but has no reset-access flow; the health endpoint currently has no database-size field.
+
 ## Verified free-tier limits (checked 2026-11-03)
 
 - **Netlify Free:** 300 credits/month, 1 concurrent build, 1 team owner. Production deploy = 15 credits; compute = 5–10 credits/GB-hour; bandwidth = 10–20 credits/GB; web requests = 2–3 credits per 10k. Projects pause when credits run out. Implication: keep the bundle small, cache aggressively, keep API calls short, and do long work as background jobs. The ~26 s proxy cut-off is treated as the operational ceiling.
