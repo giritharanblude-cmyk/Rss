@@ -1,8 +1,8 @@
 # PROGRESS
 
-Current phase: 4
+Current phase: 5
 Gate mode: MANUAL
-Last green commit: d8bddd7
+Last green commit: 2a3d33c
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -66,4 +66,14 @@ Phase 3 approval recorded on 2026-11-04: `APPROVED PHASE 3` for gate commit `9a0
 - [x] Run lint, typecheck, test, build, and Phase 4 acceptance checks
 - [x] Write `docs/phase-reports/PHASE-4.md` and stop at the manual gate
 
-Phase 4 implementation and verification are complete. Manual gate is awaiting exact `APPROVED PHASE 4`; Phase 5 has not started. Live Neon verification and real SMTP/WhatsApp credentials remain open (see `OPEN_QUESTIONS.md` items 15–17).
+Phase 4 approved on 2026-11-04: `APPROVED PHASE 4` for gate commit `2a3d33c`. Clean worktree validation passed (`npm ci`, lint, typecheck, unit tests, build, and Playwright; Playwright passed on three consecutive runs). Live Neon verification and real SMTP/WhatsApp credentials remain open (see `OPEN_QUESTIONS.md` items 15–17).
+
+## Phase 5: Delivery (WhatsApp, Email, Queue, Delivery Log)
+
+- [ ] Implement WhatsApp and email adapters, with safe mock implementations for tests
+- [ ] Build message templates, consent-safe durable delivery queue, retries, and STOP handling
+- [ ] Add Settings connection controls, Delivery Log filters/exports/resend, and Send now actions
+- [ ] Add periodic and on-demand connection status checks for the dashboard
+- [ ] Add end-to-end queue, retry, restart-resume, STOP, exports, and connection status tests
+- [ ] Run lint, typecheck, test, build, and Phase 5 acceptance checks
+- [ ] Write `docs/phase-reports/PHASE-5.md` and stop at the manual gate
