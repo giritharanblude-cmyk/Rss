@@ -2,7 +2,7 @@
 
 Current phase: 3
 Gate mode: MANUAL
-Last green commit: d15909c
+Last green commit: d3b7d98
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -53,6 +53,6 @@ Open items carried forward: `OPEN_QUESTIONS.md` items 15 (live Neon/PostgreSQL v
 - [x] Build six-module landing navigation and responsive dashboard/news feed UI
 - [x] Add focused API and UI tests, including filtering, polling, and 360px layout
 - [x] Run lint, typecheck, test, build, and Phase 3 acceptance checks
-- [x] Write `docs/phase-reports/PHASE-3.md` and stop at the manual gate
+- [x] Write `docs/phase-reports/PHASE-3.md` and stop at the manual gate (commit d3b7d98)
 
 Phase 3 is complete. Stop at the manual gate; do not begin Phase 4 until the user types `APPROVED PHASE 3`.
