@@ -1,8 +1,8 @@
 # PROGRESS
 
-Current phase: 5
+Current phase: 6
 Gate mode: MANUAL
-Last green commit: 4bc6d58
+Last green commit: 7552f5b
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -96,3 +96,28 @@ Phase 5 approved on 2026-11-04: `APPROVED PHASE 5` for code commit `7552f5b`. Th
 - Recipient phone/email filtering runs in application memory after decryption; these values cannot be searched with ordinary database ciphertext predicates. There are no database-level uniqueness checks on recipient phone or email.
 - **Before running the backfill on a copy:** it skips any non-null phone or email value prefixed `contact:` (`apps/api/src/db/migrate.ts:28-32`). Check for legacy plaintext values with that prefix on the copy run, because they would be skipped as though encrypted.
 - **Open item:** The live database migration/backfill has not yet been run; verify it against a database copy before production.
+
+## Phase 6: Settings, Roles, and UX Completion
+
+Planning only; awaiting human approval of these tasks and acceptance criteria before implementation.
+
+- [ ] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
+- [ ] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
+- [ ] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
+- [ ] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only.
+- [ ] Complete consistent empty states, loading skeletons, error banners, toasts, and destructive-action confirmation dialogs.
+- [ ] Complete an accessibility pass for keyboard navigation, labels, contrast, and non-color status cues.
+- [ ] Add a demo-data seed and clear workflow for clearly marked sample sources, items, and recipients.
+- [ ] Add focused API, UI, role-authorization, demo-data, and accessibility verification; run lint, typecheck, tests, build, and the Phase 6 acceptance checks.
+- [ ] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
+
+### Phase 6 acceptance criteria
+
+- [ ] Settings contains both connection panels with status and last-checked time, plus a database-size warning above 70% of the known cap.
+- [ ] Member management is available only to masters in Settings; members are blocked from Settings writes and member management.
+- [ ] Role behavior is verified: masters can do everything; members can use News Feed, view Delivery Log, and view Sources and Recipients without write access.
+- [ ] The primary navigation contains exactly six modules.
+- [ ] Empty, loading, and error states are present where applicable; destructive actions require confirmation; feedback uses toasts; accessibility supports keyboard navigation, labels, sufficient contrast, and cues beyond color alone.
+- [ ] Demo data can be seeded and cleared cleanly, and sample sources, items, and recipients are identifiable as demo data.
+- [ ] Lighthouse accessibility score is at least 90 on the main pages; record the page names, scores, and check output in the Phase 6 report.
+- [ ] Lint, typecheck, tests, and build pass; the phase report records evidence for every criterion.
