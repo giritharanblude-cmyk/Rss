@@ -78,7 +78,7 @@ Phase 4 approved on 2026-11-04: `APPROVED PHASE 4` for gate commit `2a3d33c`. Cl
 - [x] Run lint, typecheck, test, build, and Phase 5 acceptance checks
 - [x] Write `docs/phase-reports/PHASE-5.md` and stop at the manual gate
 
-Phase 5 implementation and validation are complete on `phase/5-delivery`; awaiting manual approval. Real Neon, SMTP, and WhatsApp verification remain blocked on credentials (items 15–17). The OpenWA socket client does not expose QR or linked-account status; scan QR on the external OpenWA service host and treat the app's status as socket connectivity only.
+Phase 5 approved on 2026-11-04: `APPROVED PHASE 5` for gate commit `3ae9b45`. Real Neon, SMTP, and WhatsApp verification remain blocked on credentials (items 15–17). The OpenWA socket client does not expose QR or linked-account status; scan QR on the external OpenWA service host and treat the app's status as socket connectivity only.
 
 ### Open Phase 5 items — WhatsApp session and contact data
 
