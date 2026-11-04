@@ -3,8 +3,10 @@ import type {
   AlertPreviewInput,
   AlertRule,
   AlertRuleInput,
+  CreateMemberBody,
   LoginAccepted,
   LoginBody,
+  Member,
   PublicUser,
   Recipient,
   RecipientInput,
@@ -274,6 +276,22 @@ export const api = {
   logoutWhatsApp: () =>
     request<{ status: { connected: boolean; detail?: string } }>('/api/settings/whatsapp/logout', {
       method: 'POST',
+    }),
+  members: () => request<{ members: Member[] }>('/api/members'),
+  createMember: (body: CreateMemberBody) =>
+    request<{ member: Member }>('/api/members', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateMember: (id: string, disabled: boolean) =>
+    request<{ member: Member }>(`/api/members/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ disabled }),
+    }),
+  resetMemberPassword: (id: string, password: string) =>
+    request<void>(`/api/members/${encodeURIComponent(id)}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
     }),
   recipients: (query = '') =>
     request<{ recipients: Recipient[] }>(

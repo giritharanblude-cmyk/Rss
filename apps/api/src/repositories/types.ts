@@ -6,6 +6,7 @@ export type UserRecord = {
   email: string;
   role: UserRole;
   passwordHash: string;
+  sessionVersion: number;
   disabled: boolean;
   loginFailures: number;
   lockedUntil: Date | null;
@@ -26,7 +27,7 @@ export type UserRepository = {
   countMasters(): Promise<number>;
   create(user: NewUser): Promise<UserRecord>;
   setDisabled(id: string, disabled: boolean): Promise<UserRecord | null>;
-  updatePasswordHash(id: string, passwordHash: string): Promise<void>;
+  updatePasswordHash(id: string, passwordHash: string): Promise<boolean>;
   recordLoginFailure(id: string): Promise<number>;
   resetLoginFailures(id: string): Promise<void>;
   lockUntil(id: string, when: Date): Promise<void>;

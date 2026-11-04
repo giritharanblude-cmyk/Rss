@@ -89,6 +89,7 @@ export class AuthService {
       user.id,
       this.options.jwtSecret,
       this.options.sessionTtlSeconds,
+      user.sessionVersion,
     );
     return { user, token };
   }
@@ -98,10 +99,7 @@ export class AuthService {
     if (!user || user.disabled) {
       throw new UnauthorizedError();
     }
-    await this.options.otp.request(
-      { userId: user.id, name: user.name },
-      'password_change',
-    );
+    await this.options.otp.request({ userId: user.id, name: user.name }, 'password_change');
   }
 
   async changePassword(
@@ -121,14 +119,12 @@ export class AuthService {
       await this.registerFailure(user);
     }
 
-    await this.options.otp.verify(
-      { userId: user.id, name: user.name },
-      'password_change',
-      code,
-    );
+    await this.options.otp.verify({ userId: user.id, name: user.name }, 'password_change', code);
 
     const passwordHash = await hashPassword(newPassword);
-    await this.options.users.updatePasswordHash(user.id, passwordHash);
+    if (!(await this.options.users.updatePasswordHash(user.id, passwordHash))) {
+      throw new UnauthorizedError();
+    }
   }
 
   async authenticate(session: SessionPayload | null): Promise<UserRecord> {
@@ -136,7 +132,7 @@ export class AuthService {
       throw new UnauthorizedError();
     }
     const user = await this.options.users.findById(session.userId);
-    if (!user || user.disabled) {
+    if (!user || user.disabled || session.sessionVersion !== user.sessionVersion) {
       throw new UnauthorizedError();
     }
     return user;

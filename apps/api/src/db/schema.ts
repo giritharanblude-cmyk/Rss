@@ -38,6 +38,7 @@ export const users = pgTable(
     role: userRole('role').notNull().default('member'),
     email: text('email').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    sessionVersion: integer('session_version').notNull().default(0),
     disabled: boolean('disabled').notNull().default(false),
     loginFailures: integer('login_failures').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),

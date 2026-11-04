@@ -72,6 +72,7 @@ export class MemoryUserRepository implements UserRepository {
       email: user.email.trim().toLowerCase(),
       role: user.role,
       passwordHash: user.passwordHash,
+      sessionVersion: 0,
       disabled: false,
       loginFailures: 0,
       lockedUntil: null,
@@ -90,14 +91,16 @@ export class MemoryUserRepository implements UserRepository {
     return cloneUser(user);
   }
 
-  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+  async updatePasswordHash(id: string, passwordHash: string): Promise<boolean> {
     const user = this.users.get(id);
     if (!user) {
-      return;
+      return false;
     }
     user.passwordHash = passwordHash;
+    user.sessionVersion += 1;
     user.loginFailures = 0;
     user.lockedUntil = null;
+    return true;
   }
 
   async recordLoginFailure(id: string): Promise<number> {

@@ -22,6 +22,7 @@ function toUser(row: UserRow): UserRecord {
     email: row.email,
     role: row.role,
     passwordHash: row.passwordHash,
+    sessionVersion: row.sessionVersion,
     disabled: row.disabled,
     loginFailures: row.loginFailures,
     lockedUntil: row.lockedUntil,
@@ -118,11 +119,18 @@ export class PostgresUserRepository implements UserRepository {
     return row ? toUser(row) : null;
   }
 
-  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
-    await this.db
+  async updatePasswordHash(id: string, passwordHash: string): Promise<boolean> {
+    const rows = await this.db
       .update(users)
-      .set({ passwordHash, loginFailures: 0, lockedUntil: null })
-      .where(eq(users.id, id));
+      .set({
+        passwordHash,
+        sessionVersion: sql`${users.sessionVersion} + 1`,
+        loginFailures: 0,
+        lockedUntil: null,
+      })
+      .where(eq(users.id, id))
+      .returning({ id: users.id });
+    return rows.length === 1;
   }
 
   async recordLoginFailure(id: string): Promise<number> {

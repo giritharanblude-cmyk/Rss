@@ -27,6 +27,7 @@ One entry per decision: date, decision, reason.
 ## 2026-11-04
 
 - **Phase 6 member permissions:** The master can perform all actions. Members can browse and filter News Feed, view Delivery Log, and view Sources and Recipients read-only; they cannot access Settings, Alerts, or member management. Marking news important remains master-only because that action can trigger an instant delivery. Reason: keep the specified member access while reserving actions that can initiate sends or change configuration for the master. The existing member API supports create/list/disable but has no reset-access flow; the health endpoint currently has no database-size field.
+- **Phase 6 member reset access:** A master sets a replacement member password. The account's disabled state is preserved, and updating the password increments `session_version` so the member's existing sessions are rejected. Reason: provide the requested administrative reset while immediately invalidating sessions that may have been exposed.
 
 ## Verified free-tier limits (checked 2026-11-03)
 

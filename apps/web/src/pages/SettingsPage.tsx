@@ -5,6 +5,7 @@ import { DATABASE_STORAGE_LIMIT_BYTES } from '@healthcare/shared';
 import type { SmtpSettings } from '../api/client';
 import { api } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { MemberManagementPanel } from '../components/MemberManagementPanel';
 
 const emptySettings: SmtpSettings = {
   host: '',
@@ -304,6 +305,7 @@ export function SettingsPage() {
             </p>
           ) : null}
         </section>
+        <MemberManagementPanel />
       </main>
     </div>
   );

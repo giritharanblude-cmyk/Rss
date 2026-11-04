@@ -103,7 +103,7 @@ Implementation in progress following human approval of the Phase 6 plan.
 
 - [x] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
 - [x] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
-- [ ] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
+- [x] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
 - [ ] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only.
 - [ ] Complete consistent empty states, loading skeletons, error banners, toasts, and destructive-action confirmation dialogs.
 - [ ] Complete an accessibility pass for keyboard navigation, labels, contrast, and non-color status cues.
