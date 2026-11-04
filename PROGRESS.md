@@ -104,14 +104,14 @@ Implementation in progress following human approval of the Phase 6 plan.
 - [x] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
 - [x] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
 - [x] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
-- [x] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only.
-- [x] Add shared loading skeletons and toasts, error/retry states, and destructive-action confirmations across the relevant pages.
+- [x] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only. (commit `7429253`)
+- [x] Add shared loading skeletons and toasts, error/retry states, and destructive-action confirmations across the relevant pages. (commit `c915845`)
 - [ ] Complete and verify the accessibility pass for keyboard navigation, labels, contrast, and non-color status cues; Lighthouse scores are **needs human** (see OPEN_QUESTIONS.md item 22).
-- [x] Add demo-data seed and clear commands for clearly marked sample sources, items, and recipients; database execution remains blocked pending safe review credentials (see OPEN_QUESTIONS.md item 21).
-- [x] Stabilize the web test runner for constrained CI memory and fix strict TypeScript test typing regressions.
+- [x] Add demo-data seed and clear commands for clearly marked sample sources, items, and recipients; database execution remains blocked pending safe review credentials (commit `500f48f`; see OPEN_QUESTIONS.md item 21).
+- [x] Stabilize the web test runner for constrained CI memory and fix strict TypeScript test typing regressions (commit `57f6014`).
 - [x] Add focused API and UI role checks; on 2026-11-04 `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` all exited 0.
 - [ ] Run demo seed and clear against a confirmed disposable review database and record their successful results.
-- [ ] Latest pre-commit validation attempt: lint 0, isolated typecheck 0, `npm test` 1 (Vitest API worker exits); bundled typecheck also exited 134 once from V8 out-of-memory. See OPEN_QUESTIONS.md item 23.
+- [ ] Per-commit checks: `7429253` and `c915845` had lint/typecheck/test exit 0/0/0. `500f48f` last had 0/0/1 (Vitest API worker exits); `57f6014` had 0/134/1 (V8 out-of-memory and Vitest worker exits). The latest documentation-commit precheck printed 134/-1073740791 for typecheck/test after additional OOM failures. See OPEN_QUESTIONS.md item 23.
 - [ ] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
 
 ### Phase 6 acceptance criteria
