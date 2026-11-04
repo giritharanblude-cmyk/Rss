@@ -9,6 +9,8 @@ import {
 } from '@healthcare/shared';
 import { api, ApiError } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 const blankRecipient: RecipientInput = {
   name: '',
@@ -141,6 +143,7 @@ export function RecipientsPage() {
   const [adding, setAdding] = useState(false);
   const [consentFor, setConsentFor] = useState<string | null>(null);
   const [consentNote, setConsentNote] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
   const list = useQuery({
@@ -172,26 +175,46 @@ export function RecipientsPage() {
   if (me.isLoading || list.isLoading)
     return (
       <main className="app-main">
-        <p role="status">Loading recipients…</p>
+        <LoadingState label="Loading recipients…" />
       </main>
     );
-  if (me.isError || !me.data || list.isError || !list.data) return <Navigate to="/login" replace />;
+  if (me.isError || !me.data) return <Navigate to="/login" replace />;
+  if (list.isError || !list.data) {
+    return (
+      <div className="app-frame">
+        <AppHeader user={me.data.user} />
+        <main className="app-main sources-main" id="main-content" tabIndex={-1}>
+          <h1>Recipients</h1>
+          <p className="banner banner-error" role="alert">
+            Recipients could not be loaded.
+          </p>
+          <button type="button" onClick={() => void list.refetch()}>
+            Retry
+          </button>
+        </main>
+      </div>
+    );
+  }
   const canEdit = me.data.user.role === 'master';
 
   async function save(input: RecipientInput) {
+    setNotice(null);
     if (editing) await update.mutateAsync({ id: editing.id, body: input });
     else await create.mutateAsync(input);
     setEditing(null);
     setAdding(false);
+    setNotice(editing ? 'Recipient updated.' : 'Recipient added.');
   }
 
   async function submitConsent(event: FormEvent<HTMLFormElement>, recipientId: string) {
     event.preventDefault();
+    setNotice(null);
     try {
       await consent.mutateAsync({ id: recipientId, status: 'granted', note: consentNote });
       setConsentFor(null);
       setConsentNote('');
       setError(null);
+      setNotice('Consent recorded.');
     } catch (caught) {
       setError(messageOf(caught));
     }
@@ -204,9 +227,11 @@ export function RecipientsPage() {
       )
     )
       return;
+    setNotice(null);
     try {
       await consent.mutateAsync({ id: recipient.id, status: 'revoked' });
       setError(null);
+      setNotice(`Consent revoked for ${recipient.name}.`);
     } catch (caught) {
       setError(messageOf(caught));
     }
@@ -214,9 +239,11 @@ export function RecipientsPage() {
 
   async function deleteRecipient(recipient: Recipient) {
     if (!window.confirm(`Delete ${recipient.name}?`)) return;
+    setNotice(null);
     try {
       await remove.mutateAsync(recipient.id);
       setError(null);
+      setNotice(`${recipient.name} deleted.`);
     } catch (caught) {
       setError(messageOf(caught));
     }
@@ -225,7 +252,7 @@ export function RecipientsPage() {
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
-      <main className="app-main sources-main">
+      <main className="app-main sources-main" id="main-content" tabIndex={-1}>
         <div className="section-heading">
           <div>
             <h1>Recipients</h1>
@@ -245,6 +272,7 @@ export function RecipientsPage() {
             </button>
           ) : null}
         </div>
+        <Toast message={notice} onDismiss={() => setNotice(null)} />
         <label htmlFor="recipient-search">Search recipients</label>
         <input
           id="recipient-search"

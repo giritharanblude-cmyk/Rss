@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateMemberBody, Member } from '@healthcare/shared';
 import { api } from '../api/client';
+import { LoadingState } from './LoadingState';
+import { Toast } from './Toast';
 
 const emptyMember: CreateMemberBody = {
   name: '',
@@ -68,11 +70,7 @@ export function MemberManagementPanel() {
     <section className="settings-section">
       <h2>Member management</h2>
       <p className="form-hint">Add team accounts, manage access, or reset a member’s password.</p>
-      {notice ? (
-        <p className="banner banner-notice" role="status">
-          {notice}
-        </p>
-      ) : null}
+      <Toast message={notice} onDismiss={() => setNotice(null)} />
       {error ? (
         <p className="banner banner-error" role="alert">
           {error.message}
@@ -115,7 +113,7 @@ export function MemberManagementPanel() {
         </button>
       </form>
       <h3>Team members</h3>
-      {members.isLoading ? <p role="status">Loading members…</p> : null}
+      {members.isLoading ? <LoadingState label="Loading members…" /> : null}
       {members.isError ? (
         <p className="banner banner-error" role="alert">
           Member accounts could not be loaded.

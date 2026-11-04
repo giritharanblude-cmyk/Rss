@@ -4,6 +4,7 @@ import { Navigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { DashboardNewsItem } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { LoadingState } from '../components/LoadingState';
 
 export function HomePage() {
   const { data, isLoading, isError } = useQuery({
@@ -39,7 +40,7 @@ export function HomePage() {
   if (isLoading) {
     return (
       <main className="auth-page">
-        <p role="status">Loading…</p>
+        <LoadingState label="Loading your account…" />
       </main>
     );
   }
@@ -51,7 +52,7 @@ export function HomePage() {
   return (
     <div className="app-frame">
       <AppHeader user={data.user} />
-      <main className="app-main dashboard-main">
+      <main className="app-main dashboard-main" id="main-content" tabIndex={-1}>
         <div className="section-heading">
           <div>
             <h1>Dashboard</h1>
@@ -114,7 +115,7 @@ export function HomePage() {
             </section>
           </>
         ) : live.isLoading ? (
-          <p role="status">Loading dashboard…</p>
+          <LoadingState label="Loading dashboard…" />
         ) : null}
       </main>
     </div>

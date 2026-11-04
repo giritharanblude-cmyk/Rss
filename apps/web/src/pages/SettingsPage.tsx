@@ -6,6 +6,8 @@ import type { SmtpSettings } from '../api/client';
 import { api } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
 import { MemberManagementPanel } from '../components/MemberManagementPanel';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 const emptySettings: SmtpSettings = {
   host: '',
@@ -23,17 +25,20 @@ export function SettingsPage() {
     queryKey: ['email-settings'],
     queryFn: api.emailSettings,
     retry: false,
+    enabled: me.data?.user.role === 'master',
   });
   const connections = useQuery({
     queryKey: ['connection-settings'],
     queryFn: api.connectionSettings,
     retry: false,
+    enabled: me.data?.user.role === 'master',
   });
   const health = useQuery({
     queryKey: ['health'],
     queryFn: api.health,
     retry: false,
     refetchInterval: 60_000,
+    enabled: me.data?.user.role === 'master',
   });
   const [settings, setSettings] = useState<SmtpSettings>(emptySettings);
   const [password, setPassword] = useState('');
@@ -54,15 +59,24 @@ export function SettingsPage() {
   });
   const check = useMutation({
     mutationFn: api.checkConnections,
-    onSuccess: (result) => queryClient.setQueryData(['connection-settings'], result),
+    onSuccess: (result) => {
+      queryClient.setQueryData(['connection-settings'], result);
+      setNotice('Connection status refreshed.');
+    },
   });
   const connectWhatsApp = useMutation({
     mutationFn: api.connectWhatsApp,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['connection-settings'] }),
+    onSuccess: () => {
+      setNotice('WhatsApp connection requested.');
+      void queryClient.invalidateQueries({ queryKey: ['connection-settings'] });
+    },
   });
   const logoutWhatsApp = useMutation({
     mutationFn: api.logoutWhatsApp,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['connection-settings'] }),
+    onSuccess: () => {
+      setNotice('WhatsApp logout requested.');
+      void queryClient.invalidateQueries({ queryKey: ['connection-settings'] });
+    },
   });
 
   useEffect(() => {
@@ -72,7 +86,7 @@ export function SettingsPage() {
   if (me.isLoading)
     return (
       <main className="app-main">
-        <p role="status">Loading…</p>
+        <LoadingState label="Loading your account…" />
       </main>
     );
   if (me.isError || !me.data) return <Navigate to="/login" replace />;
@@ -101,16 +115,12 @@ export function SettingsPage() {
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
-      <main className="app-main feed-main">
+      <main className="app-main feed-main" id="main-content" tabIndex={-1}>
         <h1>Settings</h1>
         <p className="auth-subtitle">
           Configure delivery services and check their current connection status.
         </p>
-        {notice ? (
-          <p className="banner banner-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <Toast message={notice} onDismiss={() => setNotice(null)} />
         {mutationError ? (
           <p className="banner banner-error" role="alert">
             {mutationError.message}
@@ -241,7 +251,10 @@ export function SettingsPage() {
                 type="button"
                 className="button-secondary"
                 disabled={connectWhatsApp.isPending}
-                onClick={() => connectWhatsApp.mutate()}
+                onClick={() => {
+                  setNotice(null);
+                  connectWhatsApp.mutate();
+                }}
               >
                 Connect
               </button>
@@ -249,7 +262,10 @@ export function SettingsPage() {
                 type="button"
                 className="button-danger"
                 disabled={logoutWhatsApp.isPending}
-                onClick={() => logoutWhatsApp.mutate()}
+                onClick={() => {
+                  setNotice(null);
+                  logoutWhatsApp.mutate();
+                }}
               >
                 Log out
               </button>
@@ -263,7 +279,10 @@ export function SettingsPage() {
               type="button"
               className="button-secondary"
               disabled={check.isPending}
-              onClick={() => check.mutate()}
+              onClick={() => {
+                setNotice(null);
+                check.mutate();
+              }}
             >
               Check now
             </button>

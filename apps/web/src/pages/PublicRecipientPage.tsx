@@ -4,6 +4,8 @@ import { useParams } from 'react-router-dom';
 import { TOPIC_CATEGORIES } from '@healthcare/shared';
 import type { RecipientInput } from '@healthcare/shared';
 import { api, ApiError } from '../api/client';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 function errorText(error: unknown): string {
   if (error instanceof ApiError) return error.message;
@@ -31,7 +33,7 @@ export function ManageTopicsPage() {
   if (preferences.isLoading)
     return (
       <main className="auth-page">
-        <p role="status">Loading preferences…</p>
+        <LoadingState label="Loading preferences…" />
       </main>
     );
   if (preferences.isError || !preferences.data) {
@@ -83,11 +85,7 @@ export function ManageTopicsPage() {
               </label>
             ))}
           </fieldset>
-          {notice ? (
-            <p className="banner banner-notice" role="status">
-              {notice}
-            </p>
-          ) : null}
+          <Toast message={notice} onDismiss={() => setNotice(null)} />
           {update.isError ? (
             <p className="banner banner-error" role="alert">
               {errorText(update.error)}

@@ -4,6 +4,8 @@ import { Navigate } from 'react-router-dom';
 import type { DeliveryFilters } from '../api/client';
 import { api } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 const pageSize = 25;
 
@@ -19,6 +21,7 @@ export function DeliveryLogPage() {
   const [draft, setDraft] = useState<DeliveryFilters>({});
   const [page, setPage] = useState(1);
   const [filterError, setFilterError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const deliveries = useQuery({
     queryKey: ['delivery-list', filters, page],
     queryFn: () => api.deliveries({ ...filters, page, pageSize }),
@@ -27,6 +30,7 @@ export function DeliveryLogPage() {
   const resend = useMutation({
     mutationFn: api.resendDelivery,
     onSuccess: () => {
+      setNotice('Delivery queued again.');
       void queryClient.invalidateQueries({ queryKey: ['delivery-list'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard-live'] });
     },
@@ -35,7 +39,7 @@ export function DeliveryLogPage() {
   if (me.isLoading)
     return (
       <main className="app-main">
-        <p role="status">Loading…</p>
+        <LoadingState label="Loading your account…" />
       </main>
     );
   if (me.isError || !me.data) return <Navigate to="/login" replace />;
@@ -56,7 +60,7 @@ export function DeliveryLogPage() {
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
-      <main className="app-main feed-main">
+      <main className="app-main feed-main" id="main-content" tabIndex={-1}>
         <div className="section-heading">
           <div>
             <h1>Delivery Log</h1>
@@ -159,7 +163,8 @@ export function DeliveryLogPage() {
             {resend.error.message}
           </p>
         ) : null}
-        {deliveries.isLoading ? <p role="status">Loading deliveries…</p> : null}
+        <Toast message={notice} onDismiss={() => setNotice(null)} />
+        {deliveries.isLoading ? <LoadingState label="Loading deliveries…" /> : null}
         {deliveries.data?.items.length === 0 ? (
           <p className="empty-state">No deliveries match these filters.</p>
         ) : null}

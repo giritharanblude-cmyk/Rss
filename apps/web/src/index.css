@@ -86,12 +86,21 @@ button {
   margin-top: 0.85rem;
   padding: 0.65rem 0.9rem;
   border-radius: 8px;
-  border: 1px solid #2f6fed;
-  background: #2f6fed;
+  border: 1px solid #2458c6;
+  background: #2458c6;
   color: #ffffff;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #173b8f;
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -101,17 +110,35 @@ button:disabled {
 
 .button-secondary {
   background: #ffffff;
-  color: #2f6fed;
+  color: #1e3a8a;
+  border-color: #1e3a8a;
 }
 
 .button-link {
   background: transparent;
   border: none;
-  color: #2f6fed;
+  color: #1e3a8a;
   font-weight: 500;
   text-decoration: underline;
   padding: 0.3rem;
   margin-top: 0.4rem;
+}
+
+.skip-link {
+  position: absolute;
+  z-index: 20;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  transform: translateY(-160%);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 .form-hint {
@@ -135,6 +162,78 @@ button:disabled {
 .banner-notice {
   background: #e6f4ea;
   color: #1e6b34;
+}
+
+.toast {
+  position: fixed;
+  z-index: 10;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: 0.75rem 1rem;
+  border: 1px solid #1e6b34;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1e6b34;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
+.toast-dismiss {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border-color: #1e3a8a;
+  background: #ffffff;
+  color: #1e3a8a;
+  font-size: 0.85rem;
+}
+
+.loading-state {
+  display: grid;
+  gap: 0.75rem;
+  color: #334e68;
+}
+
+.loading-skeletons {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.loading-skeletons span {
+  display: block;
+  height: 1.1rem;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e4e7eb 25%, #f0f4f8 50%, #e4e7eb 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.loading-skeletons span:nth-child(2) {
+  width: 82%;
+}
+
+.loading-skeletons span:nth-child(3) {
+  width: 64%;
+}
+
+@keyframes skeleton-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .app-frame {

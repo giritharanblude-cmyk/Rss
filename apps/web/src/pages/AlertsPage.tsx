@@ -9,6 +9,8 @@ import {
 } from '@healthcare/shared';
 import { api, ApiError, type AlertPreview } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 const defaultRule: AlertRuleInput = {
   kind: 'digest',
@@ -29,12 +31,18 @@ function messageOf(error: unknown): string {
 export function AlertsPage() {
   const client = useQueryClient();
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
-  const rules = useQuery({ queryKey: ['alert-rules'], queryFn: api.alertRules, retry: false });
+  const rules = useQuery({
+    queryKey: ['alert-rules'],
+    queryFn: api.alertRules,
+    retry: false,
+    enabled: me.data?.user.role === 'master',
+  });
   const [values, setValues] = useState<AlertRuleInput>(defaultRule);
   const [editing, setEditing] = useState<string | null>(null);
   const [limit, setLimit] = useState(10);
   const [preview, setPreview] = useState<AlertPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const refresh = () => client.invalidateQueries({ queryKey: ['alert-rules'] });
   const save = useMutation({
     mutationFn: () =>
@@ -44,15 +52,25 @@ export function AlertsPage() {
       setEditing(null);
       setValues(defaultRule);
       setPreview(null);
+      setNotice('Alert rule saved.');
     },
   });
-  const remove = useMutation({ mutationFn: api.deleteAlertRule, onSuccess: refresh });
+  const remove = useMutation({
+    mutationFn: api.deleteAlertRule,
+    onSuccess: async () => {
+      await refresh();
+      setNotice('Alert rule deleted.');
+    },
+  });
   const toggle = useMutation({
     mutationFn: (rule: AlertRule) => {
       const { id: _id, createdAt: _createdAt, ...input } = rule;
       return api.updateAlertRule(rule.id, { ...input, active: !rule.active });
     },
-    onSuccess: refresh,
+    onSuccess: async () => {
+      await refresh();
+      setNotice('Alert rule updated.');
+    },
   });
   const previewMutation = useMutation({
     mutationFn: () =>
@@ -71,23 +89,17 @@ export function AlertsPage() {
   if (me.isLoading || rules.isLoading)
     return (
       <main className="app-main">
-        <p role="status">Loading alert rules…</p>
+        <LoadingState label="Loading alert rules…" />
       </main>
     );
   if (me.isError || !me.data) return <Navigate to="/login" replace />;
+  if (me.data.user.role !== 'master') return <Navigate to="/news" replace />;
   if (rules.isError || !rules.data)
     return (
       <main className="app-main">
         <p role="alert">Alert rules could not be loaded.</p>
       </main>
     );
-  if (me.data.user.role !== 'master')
-    return (
-      <main className="app-main">
-        <p role="alert">Only the master can manage alert rules.</p>
-      </main>
-    );
-
   function updateList<K extends keyof AlertRuleInput>(key: K, value: AlertRuleInput[K]) {
     setValues({ ...values, [key]: value });
   }
@@ -121,6 +133,7 @@ export function AlertsPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setNotice(null);
     const result = alertRuleInputSchema.safeParse(values);
     if (!result.success) {
       setError(result.error.issues[0]?.message ?? 'Check the schedule settings.');
@@ -136,6 +149,7 @@ export function AlertsPage() {
 
   async function deleteRule(rule: AlertRule) {
     if (!window.confirm(`Delete this ${rule.kind} rule?`)) return;
+    setNotice(null);
     try {
       await remove.mutateAsync(rule.id);
       setError(null);
@@ -145,6 +159,7 @@ export function AlertsPage() {
   }
 
   async function toggleRule(rule: AlertRule) {
+    setNotice(null);
     try {
       await toggle.mutateAsync(rule);
       setError(null);
@@ -163,7 +178,7 @@ export function AlertsPage() {
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
-      <main className="app-main sources-main">
+      <main className="app-main sources-main" id="main-content" tabIndex={-1}>
         <div className="section-heading">
           <div>
             <h1>Alerts &amp; Schedule</h1>
@@ -172,6 +187,7 @@ export function AlertsPage() {
             </p>
           </div>
         </div>
+        <Toast message={notice} onDismiss={() => setNotice(null)} />
         {error ? (
           <p className="banner banner-error" role="alert">
             {error}

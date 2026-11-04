@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../api/client';
+import { Toast } from '../components/Toast';
 
 type Step = 'credentials' | 'otp';
 
@@ -80,11 +81,7 @@ export function LoginPage() {
             {error}
           </p>
         ) : null}
-        {notice ? (
-          <p className="banner banner-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <Toast message={notice} onDismiss={() => setNotice(null)} />
 
         {step === 'credentials' ? (
           <form onSubmit={handleCredentials} noValidate>
@@ -132,7 +129,12 @@ export function LoginPage() {
             <button type="submit" disabled={busy || code.length !== 6}>
               {busy ? 'Checking…' : 'Verify and sign in'}
             </button>
-            <button type="button" className="button-secondary" onClick={handleResend} disabled={busy}>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={handleResend}
+              disabled={busy}
+            >
               Send a new code
             </button>
             <button
