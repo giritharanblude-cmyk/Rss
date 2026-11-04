@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
@@ -108,5 +108,70 @@ describe('App', () => {
     expect(await screen.findByText('Admin')).toBeInTheDocument();
     expect(screen.getByText('master')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('navigation', { name: 'Modules' })).getAllByRole('link'),
+    ).toHaveLength(6);
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute(
+      'href',
+      '#main-content',
+    );
+    expect(await screen.findByRole('main')).toHaveAttribute('id', 'main-content');
+  });
+
+  it('shows members only the modules allowed by their role', async () => {
+    const member = {
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Mina',
+      role: 'member',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) =>
+        String(input) === '/api/auth/me'
+          ? jsonResponse(200, { user: member })
+          : String(input) === '/api/dashboard/live'
+            ? jsonResponse(200, emptyDashboard)
+            : jsonResponse(204, {}),
+      ),
+    );
+
+    render(<App />);
+
+    const navigation = await screen.findByRole('navigation', { name: 'Modules' });
+    expect(
+      within(navigation)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['News Feed', 'Sources', 'Recipients', 'Delivery Log']);
+  });
+
+  it.each(['/alerts', '/settings'])('redirects members away from %s', async (path) => {
+    const calls: string[] = [];
+    const member = {
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Mina',
+      role: 'member',
+    };
+    window.history.pushState({}, '', path);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        calls.push(url);
+        if (url === '/api/auth/me') return jsonResponse(200, { user: member });
+        if (url === '/api/sources') return jsonResponse(200, { sources: [] });
+        if (url.startsWith('/api/news?')) {
+          return jsonResponse(200, { page: 1, pageSize: 20, total: 0, items: [] });
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'News Feed' })).toBeInTheDocument();
+    expect(calls).not.toContain('/api/alert-rules');
+    expect(calls).not.toContain('/api/settings/email');
+    expect(calls).not.toContain('/api/settings/connections');
   });
 });

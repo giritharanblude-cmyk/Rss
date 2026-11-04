@@ -339,14 +339,39 @@ describe('delivery pipeline', () => {
       url: '/api/settings/connections',
       headers: { cookie },
     });
+    const deliveries = await context.app.inject({
+      method: 'GET',
+      url: '/api/deliveries',
+      headers: { cookie },
+    });
+    const resend = await context.app.inject({
+      method: 'POST',
+      url: '/api/deliveries/00000000-0000-4000-8000-000000000001/resend',
+      headers: { cookie },
+    });
     const saveEmail = await context.app.inject({
       method: 'PUT',
       url: '/api/settings/email',
       headers: { cookie },
       payload: {},
     });
+    const checkConnections = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/connections/check',
+      headers: { cookie },
+    });
+    const resetMember = await context.app.inject({
+      method: 'PATCH',
+      url: `/api/members/${member.id}`,
+      headers: { cookie },
+      payload: { disabled: true },
+    });
     expect(connections.statusCode).toBe(403);
     expect(saveEmail.statusCode).toBe(403);
+    expect(checkConnections.statusCode).toBe(403);
+    expect(deliveries.statusCode).toBe(200);
+    expect(resend.statusCode).toBe(403);
+    expect(resetMember.statusCode).toBe(403);
   });
 });
 

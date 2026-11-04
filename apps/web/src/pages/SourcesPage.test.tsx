@@ -17,6 +17,54 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SourcesPage', () => {
+  it('lets members view sources without source-management actions', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      if (String(input) === '/api/auth/me') {
+        return jsonResponse(200, {
+          user: {
+            id: '00000000-0000-4000-8000-000000000001',
+            name: 'Mina',
+            role: 'member',
+          },
+        });
+      }
+      if (String(input) === '/api/sources') {
+        return jsonResponse(200, {
+          sources: [
+            {
+              id: '00000000-0000-4000-8000-000000000002',
+              name: '[DEMO] Sample source',
+              website: 'https://example.test',
+              rssUrl: 'https://example.test/feed.xml',
+              mode: 'all',
+              topics: [],
+              region: null,
+              intervalMinutes: 60,
+              active: true,
+              lastFetchedAt: null,
+              lastStatus: null,
+              createdAt: '2026-11-04T08:00:00.000Z',
+            },
+          ],
+        });
+      }
+      return jsonResponse(204, {});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByText('[DEMO] Sample source')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add source' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([, init]) =>
+        ['POST', 'PATCH', 'DELETE'].includes(init?.method ?? ''),
+      ),
+    ).toBe(false);
+  });
+
   it('validates HTTP feed URLs and presents only supported intervals', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === '/api/auth/me') {

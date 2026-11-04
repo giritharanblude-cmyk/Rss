@@ -5,6 +5,8 @@ import { NEWS_CATEGORIES } from '@healthcare/shared';
 import type { NewsCategory } from '../api/client';
 import { api, type DashboardNewsItem, type NewsFeedFilters } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 const pageSize = 20;
 
@@ -46,7 +48,7 @@ export function NewsFeedPage() {
   if (me.isLoading)
     return (
       <main className="app-main">
-        <p role="status">Loading…</p>
+        <LoadingState label="Loading your account…" />
       </main>
     );
   if (me.isError || !me.data) return <Navigate to="/login" replace />;
@@ -70,11 +72,12 @@ export function NewsFeedPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil((news.data?.total ?? 0) / pageSize));
+  const canManage = me.data.user.role === 'master';
 
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
-      <main className="app-main feed-main">
+      <main className="app-main feed-main" id="main-content" tabIndex={-1}>
         <div className="section-heading">
           <div>
             <h1>News Feed</h1>
@@ -139,7 +142,7 @@ export function NewsFeedPage() {
             News could not be loaded. Try again.
           </p>
         ) : null}
-        {news.isLoading ? <p role="status">Loading news…</p> : null}
+        {news.isLoading ? <LoadingState label="Loading news…" /> : null}
         {news.data?.items.length === 0 ? (
           <p className="empty-state">No news matches these filters.</p>
         ) : null}
@@ -150,7 +153,8 @@ export function NewsFeedPage() {
               item={item}
               isSaving={importance.isPending && importance.variables?.id === item.id}
               onToggle={() => importance.mutate({ id: item.id, important: !item.important })}
-              canSend={me.data.user.role === 'master'}
+              canManage={canManage}
+              canSend={canManage}
               sendPending={sendNow.isPending && sendNow.variables?.id === item.id}
               onSend={(channel) => sendNow.mutate({ id: item.id, channel })}
             />
@@ -168,11 +172,7 @@ export function NewsFeedPage() {
             {sendNow.error.message}
           </p>
         ) : null}
-        {sendNotice ? (
-          <p className="banner banner-notice" role="status">
-            {sendNotice}
-          </p>
-        ) : null}
+        <Toast message={sendNotice} onDismiss={() => setSendNotice(null)} />
         {news.data && news.data.total > 0 ? (
           <nav className="pagination" aria-label="News pages">
             <button
@@ -205,6 +205,7 @@ function NewsCard({
   item,
   isSaving,
   onToggle,
+  canManage,
   canSend,
   sendPending,
   onSend,
@@ -212,6 +213,7 @@ function NewsCard({
   item: DashboardNewsItem;
   isSaving: boolean;
   onToggle: () => void;
+  canManage: boolean;
   canSend: boolean;
   sendPending: boolean;
   onSend: (channel: 'email' | 'whatsapp') => void;
@@ -230,9 +232,11 @@ function NewsCard({
         <a href={item.link} target="_blank" rel="noopener noreferrer">
           Read full article
         </a>
-        <button type="button" className="button-secondary" disabled={isSaving} onClick={onToggle}>
-          {item.important ? 'Remove importance' : 'Mark as important'}
-        </button>
+        {canManage ? (
+          <button type="button" className="button-secondary" disabled={isSaving} onClick={onToggle}>
+            {item.important ? 'Remove importance' : 'Mark as important'}
+          </button>
+        ) : null}
         {canSend ? (
           <>
             <button
