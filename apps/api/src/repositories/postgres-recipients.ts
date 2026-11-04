@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { TOPIC_CATEGORIES, type AlertRuleInput, type RecipientInput } from '@healthcare/shared';
 import type { Database } from '../db/client';
 import { alertRules, deliveries, newsItems, recipients, sources } from '../db/schema';
+import {
+  decryptRecipientContact,
+  encryptRecipientContact,
+  validateSettingsEncryptionKey,
+} from '../settings/secrets';
 import type { NewsCategory } from '../rss/categories';
 import type {
   AlertPreviewRepository,
@@ -16,16 +21,14 @@ import type {
 type RecipientRow = typeof recipients.$inferSelect;
 type AlertRuleRow = typeof alertRules.$inferSelect;
 
-function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, '\\$&');
-}
-
-function toRecipient(row: RecipientRow): RecipientRecord {
+function toRecipient(row: RecipientRow, encryptionKey: string): RecipientRecord {
   return {
     id: row.id,
     name: row.name,
-    whatsappE164: row.whatsappE164,
-    email: row.email,
+    whatsappE164: row.whatsappE164
+      ? decryptRecipientContact(row.whatsappE164, encryptionKey)
+      : null,
+    email: row.email ? decryptRecipientContact(row.email, encryptionKey) : null,
     topics: TOPIC_CATEGORIES.filter((topic) => row.topics.includes(topic)),
     channel: row.channel,
     unsubscribeToken: row.unsubscribeToken,
@@ -55,20 +58,30 @@ function toAlertRule(row: AlertRuleRow): AlertRuleRecord {
 export class PostgresRecipientRepository
   implements RecipientRepository, AlertRuleRepository, AlertPreviewRepository
 {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    private readonly encryptionKey: string,
+  ) {
+    validateSettingsEncryptionKey(encryptionKey);
+  }
 
   async listRecipients(query?: string): Promise<RecipientRecord[]> {
-    const pattern = query ? `%${escapeLike(query)}%` : undefined;
-    const where = pattern
-      ? or(ilike(recipients.name, pattern), ilike(recipients.email, pattern))
-      : undefined;
-    const rows = await this.db.select().from(recipients).where(where).orderBy(recipients.name);
-    return rows.map(toRecipient);
+    const rows = await this.db.select().from(recipients).orderBy(recipients.name);
+    const records = rows.map((row) => toRecipient(row, this.encryptionKey));
+    const needle = query?.trim().toLocaleLowerCase();
+    return needle
+      ? records.filter(
+          (recipient) =>
+            recipient.name.toLocaleLowerCase().includes(needle) ||
+            recipient.email?.toLocaleLowerCase().includes(needle) ||
+            recipient.whatsappE164?.toLocaleLowerCase().includes(needle),
+        )
+      : records;
   }
 
   async findRecipient(id: string): Promise<RecipientRecord | null> {
     const rows = await this.db.select().from(recipients).where(eq(recipients.id, id)).limit(1);
-    return rows[0] ? toRecipient(rows[0]) : null;
+    return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
   async findByUnsubscribeToken(token: string): Promise<RecipientRecord | null> {
@@ -77,16 +90,17 @@ export class PostgresRecipientRepository
       .from(recipients)
       .where(eq(recipients.unsubscribeToken, token))
       .limit(1);
-    return rows[0] ? toRecipient(rows[0]) : null;
+    return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
   async findByWhatsappE164(phone: string): Promise<RecipientRecord | null> {
-    const rows = await this.db
-      .select()
-      .from(recipients)
-      .where(eq(recipients.whatsappE164, phone))
-      .limit(1);
-    return rows[0] ? toRecipient(rows[0]) : null;
+    const rows = await this.db.select().from(recipients).where(isNotNull(recipients.whatsappE164));
+    const match = rows.find(
+      (row) =>
+        row.whatsappE164 !== null &&
+        decryptRecipientContact(row.whatsappE164, this.encryptionKey) === phone,
+    );
+    return match ? toRecipient(match, this.encryptionKey) : null;
   }
 
   async createRecipient(input: RecipientInput, unsubscribeToken: string): Promise<RecipientRecord> {
@@ -94,6 +108,10 @@ export class PostgresRecipientRepository
       .insert(recipients)
       .values({
         ...input,
+        whatsappE164: input.whatsappE164
+          ? encryptRecipientContact(input.whatsappE164, this.encryptionKey)
+          : null,
+        email: input.email ? encryptRecipientContact(input.email, this.encryptionKey) : null,
         topics: [...input.topics],
         unsubscribeToken,
         consentStatus: 'pending',
@@ -103,16 +121,23 @@ export class PostgresRecipientRepository
       .returning();
     const row = rows[0];
     if (!row) throw new Error('Recipient was not created');
-    return toRecipient(row);
+    return toRecipient(row, this.encryptionKey);
   }
 
   async updateRecipient(id: string, input: RecipientInput): Promise<RecipientRecord | null> {
     const rows = await this.db
       .update(recipients)
-      .set({ ...input, topics: [...input.topics] })
+      .set({
+        ...input,
+        whatsappE164: input.whatsappE164
+          ? encryptRecipientContact(input.whatsappE164, this.encryptionKey)
+          : null,
+        email: input.email ? encryptRecipientContact(input.email, this.encryptionKey) : null,
+        topics: [...input.topics],
+      })
       .where(eq(recipients.id, id))
       .returning();
-    return rows[0] ? toRecipient(rows[0]) : null;
+    return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
   async setConsent(
@@ -130,7 +155,7 @@ export class PostgresRecipientRepository
       })
       .where(eq(recipients.id, id))
       .returning();
-    return rows[0] ? toRecipient(rows[0]) : null;
+    return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
   async deleteRecipient(id: string): Promise<boolean> {
@@ -150,7 +175,7 @@ export class PostgresRecipientRepository
       .set({ topics })
       .where(eq(recipients.unsubscribeToken, token))
       .returning();
-    return rows[0] ? toRecipient(rows[0]) : null;
+    return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
   async listAlertRules(): Promise<AlertRuleRecord[]> {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { deliveries, jobs, newsItems, recipients, sources } from '../db/schema';
+import { decryptRecipientContact, validateSettingsEncryptionKey } from '../settings/secrets';
 import type { NewsCategory } from '../rss/categories';
 import type {
   DeliveryContext,
@@ -50,12 +51,19 @@ function deliveryContact(
   channel: string,
   email: string | null,
   phone: string | null,
+  encryptionKey: string,
 ): string | null {
-  return channel === 'email' ? email : phone;
+  const value = channel === 'email' ? email : phone;
+  return value ? decryptRecipientContact(value, encryptionKey) : null;
 }
 
 export class PostgresDeliveryRepository implements DeliveryRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    private readonly encryptionKey: string,
+  ) {
+    validateSettingsEncryptionKey(encryptionKey);
+  }
 
   async enqueue(input: DeliveryInput, now: Date): Promise<DeliveryRecord> {
     return this.db.transaction(async (tx) => {
@@ -85,7 +93,12 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
         return toRecord(
           existing[0],
           recipient?.name ?? 'Unknown recipient',
-          deliveryContact(input.channel, recipient?.email ?? null, recipient?.phone ?? null),
+          deliveryContact(
+            input.channel,
+            recipient?.email ?? null,
+            recipient?.phone ?? null,
+            this.encryptionKey,
+          ),
         );
       }
       const rows = await tx
@@ -137,7 +150,12 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
           return toRecord(
             raced[0],
             recipient?.name ?? 'Unknown recipient',
-            deliveryContact(input.channel, recipient?.email ?? null, recipient?.phone ?? null),
+            deliveryContact(
+              input.channel,
+              recipient?.email ?? null,
+              recipient?.phone ?? null,
+              this.encryptionKey,
+            ),
           );
         }
         throw new Error('Delivery was not created');
@@ -157,7 +175,12 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
       return toRecord(
         row,
         recipient?.name ?? 'Unknown recipient',
-        deliveryContact(input.channel, recipient?.email ?? null, recipient?.phone ?? null),
+        deliveryContact(
+          input.channel,
+          recipient?.email ?? null,
+          recipient?.phone ?? null,
+          this.encryptionKey,
+        ),
       );
     });
   }
@@ -192,7 +215,11 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
     ]);
     return {
       items: rows.map(({ delivery, recipientName, email, phone }) =>
-        toRecord(delivery, recipientName, deliveryContact(delivery.channel, email, phone)),
+        toRecord(
+          delivery,
+          recipientName,
+          deliveryContact(delivery.channel, email, phone, this.encryptionKey),
+        ),
       ),
       total: countRows[0]?.value ?? 0,
     };
@@ -218,13 +245,22 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
       delivery: toRecord(
         row.delivery,
         row.recipient.name,
-        deliveryContact(row.delivery.channel, row.recipient.email, row.recipient.whatsappE164),
+        deliveryContact(
+          row.delivery.channel,
+          row.recipient.email,
+          row.recipient.whatsappE164,
+          this.encryptionKey,
+        ),
       ),
       recipient: {
         id: row.recipient.id,
         name: row.recipient.name,
-        email: row.recipient.email,
-        whatsappE164: row.recipient.whatsappE164,
+        email: row.recipient.email
+          ? decryptRecipientContact(row.recipient.email, this.encryptionKey)
+          : null,
+        whatsappE164: row.recipient.whatsappE164
+          ? decryptRecipientContact(row.recipient.whatsappE164, this.encryptionKey)
+          : null,
         unsubscribeToken: row.recipient.unsubscribeToken,
         consentStatus: row.recipient.consentStatus,
       },
@@ -365,8 +401,12 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
       .map((recipient) => ({
         id: recipient.id,
         channel: recipient.channel,
-        email: recipient.email,
-        whatsappE164: recipient.whatsappE164,
+        email: recipient.email
+          ? decryptRecipientContact(recipient.email, this.encryptionKey)
+          : null,
+        whatsappE164: recipient.whatsappE164
+          ? decryptRecipientContact(recipient.whatsappE164, this.encryptionKey)
+          : null,
         topics: recipient.topics as NewsCategory[],
         unsubscribeToken: recipient.unsubscribeToken,
       }));

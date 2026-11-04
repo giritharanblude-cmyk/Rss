@@ -8,7 +8,9 @@ const envSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   TIMEZONE: z.string().default('Asia/Kolkata'),
   PUBLIC_APP_ORIGIN: z.string().url().default('http://localhost:5173'),
-  SETTINGS_ENCRYPTION_KEY: z.string().min(1).optional(),
+  SETTINGS_ENCRYPTION_KEY: z
+    .string()
+    .min(1, 'SETTINGS_ENCRYPTION_KEY is required for encrypted contact data'),
   DATABASE_URL: z.string().min(1).optional(),
   ORIGIN_SECRET: z.string().min(16).optional(),
   ORIGIN_SECRET_ENFORCED: booleanString.default(false),

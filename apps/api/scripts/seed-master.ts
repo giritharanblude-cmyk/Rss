@@ -24,7 +24,7 @@ async function main(): Promise<void> {
   const pool = createPool(config.DATABASE_URL);
   try {
     await waitForDatabase(pool);
-    await runMigrations(pool);
+    await runMigrations(pool, config.SETTINGS_ENCRYPTION_KEY);
     const users = new PostgresUserRepository(createDatabase(pool));
     const user = await createMasterIfNone(users, { name, email, password });
     process.stdout.write(`Master user created: ${user.name} <${user.email}>\n`);
@@ -34,8 +34,6 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  process.stderr.write(
-    `Seed failed: ${error instanceof Error ? error.message : String(error)}\n`,
-  );
+  process.stderr.write(`Seed failed: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
 });

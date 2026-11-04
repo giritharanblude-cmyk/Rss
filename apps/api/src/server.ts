@@ -42,14 +42,14 @@ async function main(): Promise<void> {
 
   const pool = createPool(config.DATABASE_URL);
   await waitForDatabase(pool);
-  await runMigrations(pool);
+  await runMigrations(pool, config.SETTINGS_ENCRYPTION_KEY);
 
   const db = createDatabase(pool);
   const feeds = new PostgresFeedRepository(db);
   const feedJobs = new PostgresFeedTestJobRepository(db);
   const feedService = new FeedService(feeds, feeds);
-  const recipients = new PostgresRecipientRepository(db);
-  const deliveries = new PostgresDeliveryRepository(db);
+  const recipients = new PostgresRecipientRepository(db, config.SETTINGS_ENCRYPTION_KEY);
+  const deliveries = new PostgresDeliveryRepository(db, config.SETTINGS_ENCRYPTION_KEY);
   const whatsapp = new OpenWaSocketAdapter({
     socketUrl: config.OPENWA_SOCKET_URL,
     apiKey: config.OPENWA_API_KEY,

@@ -1,5 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
+const recipientContactPrefix = 'contact:';
+
 function encryptionKey(value: string): Buffer {
   const key = /^[a-f0-9]{64}$/i.test(value)
     ? Buffer.from(value, 'hex')
@@ -10,12 +12,31 @@ function encryptionKey(value: string): Buffer {
   return key;
 }
 
+export function validateSettingsEncryptionKey(value: string): void {
+  encryptionKey(value);
+}
+
 export function encryptSettings(value: string, key: string): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', encryptionKey(key), iv);
   const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return `v1.${iv.toString('base64url')}.${tag.toString('base64url')}.${ciphertext.toString('base64url')}`;
+}
+
+export function encryptRecipientContact(value: string, key: string): string {
+  return `${recipientContactPrefix}${encryptSettings(value, key)}`;
+}
+
+export function isEncryptedRecipientContact(value: string): boolean {
+  return value.startsWith(recipientContactPrefix);
+}
+
+export function decryptRecipientContact(value: string, key: string): string {
+  if (!isEncryptedRecipientContact(value)) {
+    throw new Error('Stored recipient contact data is not encrypted.');
+  }
+  return decryptSettings(value.slice(recipientContactPrefix.length), key);
 }
 
 export function decryptSettings(value: string, key: string): string {

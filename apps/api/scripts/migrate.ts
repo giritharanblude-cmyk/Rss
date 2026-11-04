@@ -8,11 +8,17 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  const encryptionKey = process.env.SETTINGS_ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    process.stderr.write('SETTINGS_ENCRYPTION_KEY is not set.\n');
+    process.exitCode = 1;
+    return;
+  }
 
   const pool = createPool(connectionString);
   try {
     await waitForDatabase(pool);
-    await runMigrations(pool);
+    await runMigrations(pool, encryptionKey);
     process.stdout.write('Migrations applied.\n');
   } finally {
     await pool.end();
