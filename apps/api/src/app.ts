@@ -55,6 +55,7 @@ export type AppDeps = {
   email: EmailSender;
   adminEmail: string;
   jwtSecret: string;
+  databaseSizeBytes: () => Promise<number>;
   sessionTtlSeconds?: number;
   cookieSecure?: boolean;
   originSecret?: string;
@@ -194,6 +195,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       version: '0.0.0',
       uptimeSeconds: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
+      databaseSizeBytes: await deps.databaseSizeBytes(),
     };
 
     return healthResponseSchema.parse(payload);

@@ -12,6 +12,7 @@ import type {
   Source,
   SourceInput,
   VerifyOtpBody,
+  HealthResponse,
 } from '@healthcare/shared';
 import type { NEWS_CATEGORIES } from '@healthcare/shared';
 
@@ -174,6 +175,7 @@ async function requestDashboardLive(): Promise<DashboardLive> {
 }
 
 export const api = {
+  health: () => request<HealthResponse>('/api/health'),
   me: () => request<{ user: PublicUser }>('/api/auth/me'),
   login: (body: LoginBody) =>
     request<LoginAccepted>('/api/auth/login', {

@@ -99,10 +99,10 @@ Phase 5 approved on 2026-11-04: `APPROVED PHASE 5` for code commit `7552f5b`. Th
 
 ## Phase 6: Settings, Roles, and UX Completion
 
-Planning only; awaiting human approval of these tasks and acceptance criteria before implementation.
+Implementation in progress following human approval of the Phase 6 plan.
 
 - [x] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
-- [ ] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
+- [x] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
 - [ ] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
 - [ ] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only.
 - [ ] Complete consistent empty states, loading skeletons, error banners, toasts, and destructive-action confirmation dialogs.
@@ -113,7 +113,7 @@ Planning only; awaiting human approval of these tasks and acceptance criteria be
 
 ### Phase 6 acceptance criteria
 
-- [ ] Settings contains both connection panels with status and last-checked time, plus a database-size warning above 70% of the known cap.
+- [x] Settings contains both connection panels with status and last-checked time, plus a database-size warning above 70% of the known cap.
 - [ ] Member management is available only to masters in Settings; members are blocked from Settings writes and member management.
 - [ ] Role behavior is verified: masters can do everything; members can use News Feed, view Delivery Log, and view Sources and Recipients without write access.
 - [ ] The primary navigation contains exactly six modules.

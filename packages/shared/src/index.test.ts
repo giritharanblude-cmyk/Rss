@@ -9,6 +9,7 @@ describe('healthResponseSchema', () => {
       version: '0.0.0',
       uptimeSeconds: 12,
       timestamp: '2026-11-03T00:00:00.000Z',
+      databaseSizeBytes: 1234,
     });
 
     expect(result.success).toBe(true);
@@ -21,6 +22,7 @@ describe('healthResponseSchema', () => {
       version: '0.0.0',
       uptimeSeconds: 12,
       timestamp: '2026-11-03T00:00:00.000Z',
+      databaseSizeBytes: 1234,
     });
 
     expect(result.success).toBe(false);

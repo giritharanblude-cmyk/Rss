@@ -93,6 +93,16 @@ describe('Phase 5 pages', () => {
         const path = String(input);
         calls.push({ path, init });
         if (path === '/api/auth/me') return jsonResponse(200, { user });
+        if (path === '/api/health') {
+          return jsonResponse(200, {
+            status: 'ok',
+            service: 'healthcare-rss-api',
+            version: '0.0.0',
+            uptimeSeconds: 100,
+            timestamp: '2026-11-03T08:00:00.000Z',
+            databaseSizeBytes: 710_000_000,
+          });
+        }
         if (path === '/api/settings/email' && init?.method !== 'PUT') {
           return jsonResponse(200, { settings: null, passwordConfigured: false });
         }
@@ -102,6 +112,12 @@ describe('Phase 5 pages', () => {
               {
                 service: 'email',
                 state: 'working',
+                checkedAt: '2026-11-03T08:00:00.000Z',
+                detail: null,
+              },
+              {
+                service: 'whatsapp',
+                state: 'connected',
                 checkedAt: '2026-11-03T08:00:00.000Z',
                 detail: null,
               },
@@ -138,6 +154,11 @@ describe('Phase 5 pages', () => {
     );
     window.history.pushState({}, '', '/settings');
     render(<App />);
+
+    const storageWarning = await screen.findByRole('alert');
+    expect(storageWarning).toHaveTextContent('Storage has passed the 70% warning threshold.');
+    expect(storageWarning).toHaveTextContent('710.0 MB');
+    expect(screen.getAllByText(/Checked /)).toHaveLength(2);
 
     fireEvent.change(await screen.findByLabelText('SMTP host'), {
       target: { value: 'smtp.example.test' },

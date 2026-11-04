@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
+import { DATABASE_STORAGE_LIMIT_BYTES } from '@healthcare/shared';
 import type { SmtpSettings } from '../api/client';
 import { api } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
@@ -26,6 +27,12 @@ export function SettingsPage() {
     queryKey: ['connection-settings'],
     queryFn: api.connectionSettings,
     retry: false,
+  });
+  const health = useQuery({
+    queryKey: ['health'],
+    queryFn: api.health,
+    retry: false,
+    refetchInterval: 60_000,
   });
   const [settings, setSettings] = useState<SmtpSettings>(emptySettings);
   const [password, setPassword] = useState('');
@@ -83,6 +90,12 @@ export function SettingsPage() {
 
   const mutationError =
     save.error ?? test.error ?? check.error ?? connectWhatsApp.error ?? logoutWhatsApp.error;
+  const connectionByService = new Map(
+    (connections.data?.connections ?? []).map((connection) => [connection.service, connection]),
+  );
+  const storagePercent = health.data
+    ? (health.data.databaseSizeBytes / DATABASE_STORAGE_LIMIT_BYTES) * 100
+    : null;
 
   return (
     <div className="app-frame">
@@ -110,6 +123,11 @@ export function SettingsPage() {
         {connections.isError ? (
           <p className="banner banner-error" role="alert">
             Connection status could not be loaded.
+          </p>
+        ) : null}
+        {health.isError ? (
+          <p className="banner banner-error" role="alert">
+            Database size could not be loaded.
           </p>
         ) : null}
         <section className="settings-section">
@@ -249,27 +267,42 @@ export function SettingsPage() {
               Check now
             </button>
           </div>
-          {(connections.data?.connections ?? []).length ? (
-            <div className="connection-grid">
-              {connections.data?.connections.map((connection) => (
-                <article className="connection-card settings-connection" key={connection.service}>
+          <div className="connection-grid">
+            {(['email', 'whatsapp'] as const).map((service) => {
+              const connection = connectionByService.get(service);
+              return (
+                <article className="connection-card settings-connection" key={service}>
                   <span
-                    className={`connection-dot ${['working', 'connected'].includes(connection.state) ? 'connection-ok' : 'connection-off'}`}
+                    className={`connection-dot ${connection && ['working', 'connected'].includes(connection.state) ? 'connection-ok' : 'connection-off'}`}
                   />
-                  <span>{connection.service === 'email' ? 'Email' : 'WhatsApp'}</span>
-                  <strong>{connection.state}</strong>
+                  <span>{service === 'email' ? 'Email' : 'WhatsApp'}</span>
+                  <strong>{connection?.state ?? 'Not checked'}</strong>
                   <small>
-                    Checked {formatDateTime(connection.checkedAt)}
-                    {connection.detail ? ` · ${connection.detail}` : ''}
+                    {connection
+                      ? `Checked ${formatDateTime(connection.checkedAt)}`
+                      : 'No check recorded yet.'}
+                    {connection?.detail ? ` · ${connection.detail}` : ''}
                   </small>
                 </article>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">
-              No connection checks recorded yet. Use “Check now” to verify services.
+              );
+            })}
+          </div>
+        </section>
+        <section className="settings-section">
+          <h2>Database storage</h2>
+          {health.isLoading ? (
+            <p role="status">Loading database size…</p>
+          ) : health.data && storagePercent !== null ? (
+            <p
+              className={`banner ${storagePercent > 70 ? 'banner-error' : 'banner-notice'}`}
+              role={storagePercent > 70 ? 'alert' : 'status'}
+            >
+              Database uses {formatBytes(health.data.databaseSizeBytes)} of the{' '}
+              {formatBytes(DATABASE_STORAGE_LIMIT_BYTES)} free-tier limit (
+              {storagePercent.toFixed(1)}%).
+              {storagePercent > 70 ? ' Storage has passed the 70% warning threshold.' : ''}
             </p>
-          )}
+          ) : null}
         </section>
       </main>
     </div>
@@ -282,4 +315,10 @@ function formatDateTime(value: string): string {
     timeStyle: 'short',
     timeZone: 'Asia/Kolkata',
   }).format(new Date(value));
+}
+
+function formatBytes(value: number): string {
+  return value >= 1_000_000_000
+    ? `${(value / 1_000_000_000).toFixed(2)} GB`
+    : `${(value / 1_000_000).toFixed(1)} MB`;
 }
