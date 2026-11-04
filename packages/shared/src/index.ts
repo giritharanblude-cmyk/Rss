@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export * from './auth';
 export * from './sources';
+export * from './recipients';
 
 export const APP_NAME = 'Healthcare RSS Reader';
 

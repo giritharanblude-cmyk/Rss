@@ -1,8 +1,13 @@
 import type {
   FeedTestResponse,
+  AlertPreviewInput,
+  AlertRule,
+  AlertRuleInput,
   LoginAccepted,
   LoginBody,
   PublicUser,
+  Recipient,
+  RecipientInput,
   ResendOtpBody,
   Source,
   SourceInput,
@@ -47,6 +52,33 @@ export type NewsFeedPage = {
   page: number;
   pageSize: number;
   total: number;
+};
+export type AlertPreview = {
+  kind: 'digest' | 'instant';
+  rule: AlertRuleInput;
+  generatedAt: string;
+  groups: {
+    recipientId: string;
+    recipientName: string;
+    channels: ('email' | 'whatsapp')[];
+    since: string | null;
+    itemsByCategory: {
+      category: NewsCategory;
+      items: {
+        id: string;
+        headline: string;
+        summary: string;
+        link: string;
+        sourceName: string;
+        category: NewsCategory;
+        publishedAt: string | null;
+        fetchedAt: string;
+      }[];
+    }[];
+    itemCount: number;
+  }[];
+  recipientCount: number;
+  itemCount: number;
 };
 
 export class ApiError extends Error {
@@ -152,4 +184,57 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ important }),
     }),
+  recipients: (query = '') =>
+    request<{ recipients: Recipient[] }>(
+      `/api/recipients${query ? `?q=${encodeURIComponent(query)}` : ''}`,
+    ),
+  createRecipient: (body: RecipientInput) =>
+    request<{ recipient: Recipient }>('/api/recipients', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateRecipient: (id: string, body: RecipientInput) =>
+    request<{ recipient: Recipient }>(`/api/recipients/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  setConsent: (id: string, body: { status: 'pending' | 'granted' | 'revoked'; note?: string }) =>
+    request<{ recipient: Recipient }>(`/api/recipients/${encodeURIComponent(id)}/consent`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteRecipient: (id: string) =>
+    request<void>(`/api/recipients/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  alertRules: () => request<{ rules: AlertRule[] }>('/api/alert-rules'),
+  createAlertRule: (body: AlertRuleInput) =>
+    request<{ rule: AlertRule }>('/api/alert-rules', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateAlertRule: (id: string, body: AlertRuleInput) =>
+    request<{ rule: AlertRule }>(`/api/alert-rules/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteAlertRule: (id: string) =>
+    request<void>(`/api/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  alertPreview: (body: AlertPreviewInput) =>
+    request<AlertPreview>('/api/alert-rules/preview', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  publicPreferences: (token: string) =>
+    request<{ name: string; topics: RecipientInput['topics'] }>(
+      `/api/public/preferences/${encodeURIComponent(token)}`,
+    ),
+  updatePublicPreferences: (token: string, topics: RecipientInput['topics']) =>
+    request<{ name: string; topics: RecipientInput['topics'] }>(
+      `/api/public/preferences/${encodeURIComponent(token)}`,
+      { method: 'PATCH', body: JSON.stringify({ topics }) },
+    ),
+  publicUnsubscribe: (token: string) =>
+    request<{ status: 'unsubscribed'; name: string }>(
+      `/api/public/unsubscribe/${encodeURIComponent(token)}`,
+      { method: 'POST' },
+    ),
 };

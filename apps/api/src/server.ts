@@ -7,6 +7,7 @@ import { PostgresOtpRepository, PostgresUserRepository } from './repositories/po
 import { PostgresFeedRepository } from './repositories/postgres-feeds';
 import { PostgresFeedTestJobRepository } from './repositories/postgres-feed-jobs';
 import { PostgresDashboardRepository } from './repositories/postgres-dashboard';
+import { PostgresRecipientRepository } from './repositories/postgres-recipients';
 import {
   startFeedScheduler,
   startFeedTestWorker,
@@ -37,12 +38,16 @@ async function main(): Promise<void> {
   const feeds = new PostgresFeedRepository(db);
   const feedJobs = new PostgresFeedTestJobRepository(db);
   const feedService = new FeedService(feeds, feeds);
+  const recipients = new PostgresRecipientRepository(db);
   const app = buildApp({
     users: new PostgresUserRepository(db),
     otps: new PostgresOtpRepository(db),
     sources: feeds,
     news: feeds,
     dashboard: new PostgresDashboardRepository(db),
+    recipients,
+    alertRules: recipients,
+    alertPreview: recipients,
     feedJobs,
     email: createEmailSender(config),
     adminEmail,

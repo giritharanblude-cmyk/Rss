@@ -4,7 +4,10 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NewsFeedPage } from './pages/NewsFeedPage';
+import { RecipientsPage } from './pages/RecipientsPage';
+import { AlertsPage } from './pages/AlertsPage';
 import { SourcesPage } from './pages/SourcesPage';
+import { ManageTopicsPage, UnsubscribePage } from './pages/PublicRecipientPage';
 
 export function App() {
   const [queryClient] = useState(
@@ -24,6 +27,10 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="/news" element={<NewsFeedPage />} />
+          <Route path="/recipients" element={<RecipientsPage />} />
+          <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/preferences/:token" element={<ManageTopicsPage />} />
+          <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

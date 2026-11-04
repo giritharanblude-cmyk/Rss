@@ -1,8 +1,8 @@
 # PROGRESS
 
-Current phase: 3
+Current phase: 4
 Gate mode: MANUAL
-Last green commit: d3b7d98
+Last green commit: 9a0a6d9
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -55,4 +55,15 @@ Open items carried forward: `OPEN_QUESTIONS.md` items 15 (live Neon/PostgreSQL v
 - [x] Run lint, typecheck, test, build, and Phase 3 acceptance checks
 - [x] Write `docs/phase-reports/PHASE-3.md` and stop at the manual gate (commit d3b7d98)
 
-Phase 3 is complete. Stop at the manual gate; do not begin Phase 4 until the user types `APPROVED PHASE 3`.
+Phase 3 approval recorded on 2026-11-04: `APPROVED PHASE 3` for gate commit `9a0a6d9`. Clean worktree validation passed from `D:\Rss-phase3` on tag `phase-3-complete`.
+
+## Phase 4: Recipients, Consent, and Alerts and Schedule
+
+- [x] Implement validated recipient management, consent tracking, and token-based public pages
+- [x] Implement digest and instant alert rules, consent-safe preview, topic matching, and caps
+- [x] Build Recipients and Alerts & Schedule UI and add them to the six-module navigation
+- [x] Add focused API, UI, consent, validation, and preview tests
+- [x] Run lint, typecheck, test, build, and Phase 4 acceptance checks
+- [x] Write `docs/phase-reports/PHASE-4.md` and stop at the manual gate
+
+Phase 4 implementation and verification are complete. Manual gate is awaiting exact `APPROVED PHASE 4`; Phase 5 has not started. Live Neon verification and real SMTP/WhatsApp credentials remain open (see `OPEN_QUESTIONS.md` items 15–17).

@@ -10,14 +10,21 @@ import { HttpError } from './errors';
 import type { OtpRepository, UserRepository } from './repositories/types';
 import type { NewsRepository, SourceRepository } from './repositories/feeds';
 import type { DashboardRepository } from './repositories/dashboard';
+import type {
+  AlertPreviewRepository,
+  AlertRuleRepository,
+  RecipientRepository,
+} from './repositories/recipients';
 import type { FeedTestJobRepository } from './repositories/feed-jobs';
 import { registerAuthRoutes } from './routes/auth';
 import { registerDashboardRoutes } from './routes/dashboard';
+import { registerRecipientRoutes } from './routes/recipients';
 import { registerMemberRoutes } from './routes/members';
 import { registerSourceRoutes } from './routes/sources';
 import { registerOriginSecret } from './security/origin';
 import { FeedTestQueue } from './rss/background';
 import { FeedService } from './rss/service';
+import { AlertPreviewService } from './alerts/preview';
 
 export type AppDeps = {
   users: UserRepository;
@@ -25,6 +32,9 @@ export type AppDeps = {
   sources: SourceRepository;
   news: NewsRepository;
   dashboard: DashboardRepository;
+  recipients: RecipientRepository;
+  alertRules: AlertRuleRepository;
+  alertPreview: AlertPreviewRepository;
   feedJobs: FeedTestJobRepository;
   email: EmailSender;
   adminEmail: string;
@@ -89,6 +99,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const memberService = new MemberService(deps.users);
   const feedService = new FeedService(deps.sources, deps.news);
   const feedTests = new FeedTestQueue(feedService, deps.feedJobs);
+  const alertPreviews = new AlertPreviewService(
+    deps.recipients,
+    deps.alertRules,
+    deps.alertPreview,
+    now,
+  );
 
   void app.register(async (routes) => {
     registerAuthRoutes(routes, {
@@ -122,6 +138,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       auth: authService,
       jwtSecret: deps.jwtSecret,
       dashboard: deps.dashboard,
+      now,
+    });
+
+    registerRecipientRoutes(routes, {
+      auth: authService,
+      jwtSecret: deps.jwtSecret,
+      recipients: deps.recipients,
+      rules: deps.alertRules,
+      previews: alertPreviews,
       now,
     });
   });

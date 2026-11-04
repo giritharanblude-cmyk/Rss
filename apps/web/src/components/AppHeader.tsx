@@ -7,9 +7,11 @@ import { api } from '../api/client';
 const modules = [
   { label: 'News Feed', href: '/news' },
   { label: 'Sources', href: '/sources' },
+  { label: 'Recipients', href: '/recipients' },
+  { label: 'Alerts & Schedule', href: '/alerts' },
 ];
 
-const plannedModules = ['Recipients', 'Alerts & Schedule', 'Delivery Log', 'Settings'];
+const plannedModules = ['Delivery Log', 'Settings'];
 
 export function AppHeader({ user }: { user: PublicUser }) {
   const navigate = useNavigate();

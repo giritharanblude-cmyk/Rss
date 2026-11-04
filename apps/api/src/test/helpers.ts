@@ -5,6 +5,7 @@ import { buildApp, type AppDeps } from '../app';
 import { MockEmailSender } from '../email';
 import { MemoryOtpRepository, MemoryUserRepository } from '../repositories/memory';
 import { MemoryFeedRepository, MemoryFeedTestJobRepository } from '../repositories/memory-feeds';
+import { MemoryRecipientRepository } from '../repositories/memory-recipients';
 import type { UserRecord } from '../repositories/types';
 
 export const JWT_SECRET = 'test-secret-value-with-at-least-32-chars';
@@ -33,6 +34,7 @@ export type TestContext = {
   master: UserRecord;
   feeds: MemoryFeedRepository;
   feedJobs: MemoryFeedTestJobRepository;
+  recipients: MemoryRecipientRepository;
 };
 
 export type TestContextOptions = Pick<
@@ -47,6 +49,7 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   const email = new MockEmailSender();
   const feeds = new MemoryFeedRepository();
   const feedJobs = new MemoryFeedTestJobRepository();
+  const recipients = new MemoryRecipientRepository(feeds);
 
   const app = buildApp({
     users,
@@ -54,6 +57,9 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     sources: feeds,
     news: feeds,
     dashboard: feeds,
+    recipients,
+    alertRules: recipients,
+    alertPreview: recipients,
     feedJobs,
     email,
     adminEmail: 'admin@example.com',
@@ -70,7 +76,7 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     password: 'master-password-1',
   });
 
-  return { app, users, otps, email, clock, master, feeds, feedJobs };
+  return { app, users, otps, email, clock, master, feeds, feedJobs, recipients };
 }
 
 export async function seedMember(
