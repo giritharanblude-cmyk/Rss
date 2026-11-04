@@ -3,9 +3,17 @@ import { createMasterIfNone } from '../auth/seed';
 import { hashPassword } from '../auth/passwords';
 import { buildApp, type AppDeps } from '../app';
 import { MockEmailSender } from '../email';
+import { ManagedEmailSender } from '../email/managed';
+import { AlertPreviewService } from '../alerts/preview';
+import { DeliveryService } from '../delivery/service';
+import { MockWhatsAppAdapter } from '../delivery/whatsapp';
+import { ConnectionMonitor } from '../delivery/connections';
 import { MemoryOtpRepository, MemoryUserRepository } from '../repositories/memory';
 import { MemoryFeedRepository, MemoryFeedTestJobRepository } from '../repositories/memory-feeds';
 import { MemoryRecipientRepository } from '../repositories/memory-recipients';
+import { MemoryDeliveryRepository } from '../repositories/memory-deliveries';
+import { MemoryConnectionRepository } from '../repositories/memory-connections';
+import { MemorySettingsRepository } from '../repositories/memory-settings';
 import type { UserRecord } from '../repositories/types';
 
 export const JWT_SECRET = 'test-secret-value-with-at-least-32-chars';
@@ -30,11 +38,18 @@ export type TestContext = {
   users: MemoryUserRepository;
   otps: MemoryOtpRepository;
   email: MockEmailSender;
+  managedEmail: ManagedEmailSender;
   clock: Clock;
   master: UserRecord;
   feeds: MemoryFeedRepository;
   feedJobs: MemoryFeedTestJobRepository;
   recipients: MemoryRecipientRepository;
+  deliveries: MemoryDeliveryRepository;
+  whatsapp: MockWhatsAppAdapter;
+  deliveryService: DeliveryService;
+  connections: MemoryConnectionRepository;
+  connectionMonitor: ConnectionMonitor;
+  settings: MemorySettingsRepository;
 };
 
 export type TestContextOptions = Pick<
@@ -47,9 +62,29 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   const users = new MemoryUserRepository(clock.now);
   const otps = new MemoryOtpRepository(clock.now);
   const email = new MockEmailSender();
+  const managedEmail = new ManagedEmailSender(email);
   const feeds = new MemoryFeedRepository();
   const feedJobs = new MemoryFeedTestJobRepository();
   const recipients = new MemoryRecipientRepository(feeds);
+  const deliveries = new MemoryDeliveryRepository(recipients, feeds);
+  const whatsapp = new MockWhatsAppAdapter();
+  const connections = new MemoryConnectionRepository();
+  const settings = new MemorySettingsRepository();
+  const connectionMonitor = new ConnectionMonitor(connections, managedEmail, whatsapp, clock.now);
+  const previews = new AlertPreviewService(recipients, recipients, recipients, clock.now);
+  const deliveryService = new DeliveryService(
+    deliveries,
+    recipients,
+    recipients,
+    previews,
+    managedEmail,
+    whatsapp,
+    {
+      now: clock.now,
+      publicOrigin: 'https://news.example.test',
+      throttleMs: () => 0,
+    },
+  );
 
   const app = buildApp({
     users,
@@ -60,6 +95,14 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     recipients,
     alertRules: recipients,
     alertPreview: recipients,
+    deliveries,
+    deliveryService,
+    connections,
+    connectionMonitor,
+    whatsapp,
+    managedEmail,
+    settings,
+    settingsEncryptionKey: '9f'.repeat(32),
     feedJobs,
     email,
     adminEmail: 'admin@example.com',
@@ -76,7 +119,24 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     password: 'master-password-1',
   });
 
-  return { app, users, otps, email, clock, master, feeds, feedJobs, recipients };
+  return {
+    app,
+    users,
+    otps,
+    email,
+    managedEmail,
+    clock,
+    master,
+    feeds,
+    feedJobs,
+    recipients,
+    deliveries,
+    whatsapp,
+    deliveryService,
+    connections,
+    connectionMonitor,
+    settings,
+  };
 }
 
 export async function seedMember(

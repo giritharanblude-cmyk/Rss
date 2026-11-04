@@ -32,6 +32,16 @@ export function NewsFeedPage() {
       void queryClient.invalidateQueries({ queryKey: ['dashboard-live'] });
     },
   });
+  const sendNow = useMutation({
+    mutationFn: ({ id, channel }: { id: string; channel: 'email' | 'whatsapp' }) =>
+      api.sendNewsNow(id, channel),
+    onSuccess: (result) => {
+      setSendNotice(`Queued ${result.queued} ${result.queued === 1 ? 'delivery' : 'deliveries'}.`);
+      void queryClient.invalidateQueries({ queryKey: ['delivery-list'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard-live'] });
+    },
+  });
+  const [sendNotice, setSendNotice] = useState<string | null>(null);
 
   if (me.isLoading)
     return (
@@ -140,6 +150,9 @@ export function NewsFeedPage() {
               item={item}
               isSaving={importance.isPending && importance.variables?.id === item.id}
               onToggle={() => importance.mutate({ id: item.id, important: !item.important })}
+              canSend={me.data.user.role === 'master'}
+              sendPending={sendNow.isPending && sendNow.variables?.id === item.id}
+              onSend={(channel) => sendNow.mutate({ id: item.id, channel })}
             />
           ))}
         </div>
@@ -148,6 +161,16 @@ export function NewsFeedPage() {
             {importance.error instanceof Error
               ? importance.error.message
               : 'Importance could not be updated.'}
+          </p>
+        ) : null}
+        {sendNow.isError ? (
+          <p className="banner banner-error" role="alert">
+            {sendNow.error.message}
+          </p>
+        ) : null}
+        {sendNotice ? (
+          <p className="banner banner-notice" role="status">
+            {sendNotice}
           </p>
         ) : null}
         {news.data && news.data.total > 0 ? (
@@ -182,10 +205,16 @@ function NewsCard({
   item,
   isSaving,
   onToggle,
+  canSend,
+  sendPending,
+  onSend,
 }: {
   item: DashboardNewsItem;
   isSaving: boolean;
   onToggle: () => void;
+  canSend: boolean;
+  sendPending: boolean;
+  onSend: (channel: 'email' | 'whatsapp') => void;
 }) {
   return (
     <article className={`news-card ${item.important ? 'news-important' : ''}`}>
@@ -204,13 +233,26 @@ function NewsCard({
         <button type="button" className="button-secondary" disabled={isSaving} onClick={onToggle}>
           {item.important ? 'Remove importance' : 'Mark as important'}
         </button>
-        <button type="button" className="button-secondary" disabled title="Not connected yet">
-          Send now to WhatsApp
-        </button>
-        <button type="button" className="button-secondary" disabled title="Not connected yet">
-          Send now by email
-        </button>
-        <span className="not-connected">Sending is not connected yet.</span>
+        {canSend ? (
+          <>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={sendPending}
+              onClick={() => onSend('whatsapp')}
+            >
+              Send now to WhatsApp
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={sendPending}
+              onClick={() => onSend('email')}
+            >
+              Send now by email
+            </button>
+          </>
+        ) : null}
       </div>
     </article>
   );

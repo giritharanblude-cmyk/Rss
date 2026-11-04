@@ -57,6 +57,7 @@ describe('origin secret', () => {
         JWT_SECRET: 'test-secret-value-with-at-least-32-chars',
         ORIGIN_SECRET: 'origin-secret-value-123456',
         ORIGIN_SECRET_ENFORCED: 'true',
+        PUBLIC_APP_ORIGIN: 'https://news.example.test',
       }),
     ).not.toThrow();
   });

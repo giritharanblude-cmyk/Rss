@@ -45,6 +45,11 @@ export class MemoryRecipientRepository
     return recipient ? cloneRecipient(recipient) : null;
   }
 
+  async findByWhatsappE164(phone: string): Promise<RecipientRecord | null> {
+    const recipient = [...this.recipients.values()].find((value) => value.whatsappE164 === phone);
+    return recipient ? cloneRecipient(recipient) : null;
+  }
+
   async createRecipient(input: RecipientInput, unsubscribeToken: string): Promise<RecipientRecord> {
     const record: RecipientRecord = {
       ...input,

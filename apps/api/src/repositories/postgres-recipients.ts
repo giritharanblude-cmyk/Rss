@@ -80,6 +80,15 @@ export class PostgresRecipientRepository
     return rows[0] ? toRecipient(rows[0]) : null;
   }
 
+  async findByWhatsappE164(phone: string): Promise<RecipientRecord | null> {
+    const rows = await this.db
+      .select()
+      .from(recipients)
+      .where(eq(recipients.whatsappE164, phone))
+      .limit(1);
+    return rows[0] ? toRecipient(rows[0]) : null;
+  }
+
   async createRecipient(input: RecipientInput, unsubscribeToken: string): Promise<RecipientRecord> {
     const rows = await this.db
       .insert(recipients)

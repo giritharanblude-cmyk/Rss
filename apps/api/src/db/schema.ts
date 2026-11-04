@@ -162,6 +162,9 @@ export const deliveries = pgTable(
   (table) => [
     index('deliveries_status_idx').on(table.status),
     index('deliveries_queued_at_idx').on(table.queuedAt),
+    uniqueIndex('deliveries_idempotency_unique')
+      .on(table.recipientId, table.channel, table.kind, table.subjectOrRef)
+      .where(sql`${table.subjectOrRef} is not null`),
   ],
 );
 

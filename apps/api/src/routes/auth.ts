@@ -32,7 +32,11 @@ export function toPublicUser(user: UserRecord): PublicUser {
 }
 
 export function parseBody<T>(
-  schema: { safeParse: (value: unknown) => { success: true; data: T } | { success: false; error: { issues: { message: string }[] } } },
+  schema: {
+    safeParse: (
+      value: unknown,
+    ) => { success: true; data: T } | { success: false; error: { issues: { message: string }[] } };
+  },
   body: unknown,
 ): T {
   const result = schema.safeParse(body);

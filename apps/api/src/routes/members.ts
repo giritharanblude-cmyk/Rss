@@ -1,9 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import {
-  createMemberBodySchema,
-  type Member,
-  updateMemberBodySchema,
-} from '@healthcare/shared';
+import { createMemberBodySchema, type Member, updateMemberBodySchema } from '@healthcare/shared';
 import type { MemberService } from '../auth/members';
 import type { AuthService } from '../auth/service';
 import type { UserRecord } from '../repositories/types';

@@ -53,6 +53,46 @@ export type NewsFeedPage = {
   pageSize: number;
   total: number;
 };
+export type DeliveryFilters = {
+  from?: string;
+  to?: string;
+  channel?: 'email' | 'whatsapp';
+  recipientId?: string;
+  status?: 'pending' | 'delivered' | 'retrying' | 'failed';
+};
+export type DeliveryRecord = {
+  id: string;
+  queuedAt: string;
+  sentAt: string | null;
+  recipientId: string;
+  recipientName: string;
+  recipientContact: string | null;
+  channel: 'email' | 'whatsapp';
+  kind: 'digest' | 'instant' | 'manual' | 'unsubscribe_confirmation';
+  status: 'pending' | 'delivered' | 'retrying' | 'failed';
+  attempts: number;
+  lastError: string | null;
+};
+export type DeliveryPage = {
+  items: DeliveryRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+export type SmtpSettings = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  fromName: string;
+  fromEmail: string;
+};
+export type ConnectionRecord = {
+  service: 'whatsapp' | 'email';
+  state: string;
+  checkedAt: string;
+  detail: string | null;
+};
 export type AlertPreview = {
   kind: 'digest' | 'instant';
   rule: AlertRuleInput;
@@ -183,6 +223,55 @@ export const api = {
     request<{ id: string; important: boolean }>(`/api/news/${encodeURIComponent(id)}/important`, {
       method: 'PATCH',
       body: JSON.stringify({ important }),
+    }),
+  sendNewsNow: (id: string, channel: 'email' | 'whatsapp') =>
+    request<{ queued: number }>(`/api/news/${encodeURIComponent(id)}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ channel }),
+    }),
+  deliveries: (filters: DeliveryFilters & { page: number; pageSize: number }) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    return request<DeliveryPage>(`/api/deliveries?${params.toString()}`);
+  },
+  deliveryExportUrl: (format: 'csv' | 'xlsx', filters: DeliveryFilters) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    return `/api/deliveries/export.${format}?${params.toString()}`;
+  },
+  resendDelivery: (id: string) =>
+    request<{ status: 'queued' }>(`/api/deliveries/${encodeURIComponent(id)}/resend`, {
+      method: 'POST',
+    }),
+  emailSettings: () =>
+    request<{ settings: SmtpSettings | null; passwordConfigured: boolean }>('/api/settings/email'),
+  saveEmailSettings: (settings: SmtpSettings & { password: string }) =>
+    request<{ settings: SmtpSettings; passwordConfigured: boolean }>('/api/settings/email', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    }),
+  testEmailSettings: (to: string) =>
+    request<{ status: 'sent' }>('/api/settings/email/test', {
+      method: 'POST',
+      body: JSON.stringify({ to }),
+    }),
+  connectionSettings: () =>
+    request<{ connections: ConnectionRecord[] }>('/api/settings/connections'),
+  checkConnections: () =>
+    request<{ connections: ConnectionRecord[] }>('/api/settings/connections/check', {
+      method: 'POST',
+    }),
+  connectWhatsApp: () =>
+    request<{ status: { connected: boolean; detail?: string } }>('/api/settings/whatsapp/connect', {
+      method: 'POST',
+    }),
+  logoutWhatsApp: () =>
+    request<{ status: { connected: boolean; detail?: string } }>('/api/settings/whatsapp/logout', {
+      method: 'POST',
     }),
   recipients: (query = '') =>
     request<{ recipients: Recipient[] }>(

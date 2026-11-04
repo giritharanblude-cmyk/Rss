@@ -4,6 +4,7 @@ import { NEWS_CATEGORIES } from '@healthcare/shared';
 import { z } from 'zod';
 import type { AuthService } from '../auth/service';
 import type { DashboardNewsItem, DashboardRepository } from '../repositories/dashboard';
+import type { DeliveryService } from '../delivery/service';
 import { HttpError } from '../errors';
 import { readUser } from './auth';
 
@@ -11,6 +12,7 @@ export type DashboardRouteOptions = {
   auth: AuthService;
   jwtSecret: string;
   dashboard: DashboardRepository;
+  deliveryService: DeliveryService;
   now: () => Date;
 };
 
@@ -130,6 +132,9 @@ export function registerDashboardRoutes(
     if (!(await options.dashboard.setImportant(params.data.id, body.data.important))) {
       throw new HttpError(404, 'That news item was not found.');
     }
-    return reply.send({ id: params.data.id, important: body.data.important });
+    const queued = body.data.important
+      ? await options.deliveryService.sendInstantForItem(params.data.id)
+      : 0;
+    return reply.send({ id: params.data.id, important: body.data.important, queued });
   });
 }

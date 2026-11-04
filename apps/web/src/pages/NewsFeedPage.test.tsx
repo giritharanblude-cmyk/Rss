@@ -55,6 +55,9 @@ describe('NewsFeedPage', () => {
             important,
           });
         }
+        if (path.startsWith('/api/news/') && path.endsWith('/send')) {
+          return jsonResponse(202, { queued: 2 });
+        }
         if (path.startsWith('/api/news?')) {
           return jsonResponse(200, {
             page: 1,
@@ -90,7 +93,9 @@ describe('NewsFeedPage', () => {
       'rel',
       'noopener noreferrer',
     );
-    expect(screen.getByRole('button', { name: 'Send now to WhatsApp' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Send now to WhatsApp' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Queued 2 deliveries.');
+    expect(calls.some((path) => path.endsWith('/send'))).toBe(true);
 
     fireEvent.change(screen.getByLabelText('Keyword'), { target: { value: 'vaccine' } });
     fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));

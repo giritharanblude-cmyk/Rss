@@ -31,6 +31,7 @@ export type RecipientRepository = {
   listRecipients(query?: string): Promise<RecipientRecord[]>;
   findRecipient(id: string): Promise<RecipientRecord | null>;
   findByUnsubscribeToken(token: string): Promise<RecipientRecord | null>;
+  findByWhatsappE164(phone: string): Promise<RecipientRecord | null>;
   createRecipient(input: RecipientInput, unsubscribeToken: string): Promise<RecipientRecord>;
   updateRecipient(id: string, input: RecipientInput): Promise<RecipientRecord | null>;
   setConsent(

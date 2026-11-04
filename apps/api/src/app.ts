@@ -15,10 +15,18 @@ import type {
   AlertRuleRepository,
   RecipientRepository,
 } from './repositories/recipients';
+import type { DeliveryRepository } from './delivery/types';
+import type { DeliveryService } from './delivery/service';
+import type { ConnectionMonitor, ConnectionRepository } from './delivery/connections';
+import type { WhatsAppAdapter } from './delivery/whatsapp';
+import type { ManagedEmailSender } from './email/managed';
+import type { SettingsRepository } from './repositories/settings';
 import type { FeedTestJobRepository } from './repositories/feed-jobs';
 import { registerAuthRoutes } from './routes/auth';
 import { registerDashboardRoutes } from './routes/dashboard';
 import { registerRecipientRoutes } from './routes/recipients';
+import { registerDeliveryRoutes } from './routes/deliveries';
+import { registerSettingsRoutes } from './routes/settings';
 import { registerMemberRoutes } from './routes/members';
 import { registerSourceRoutes } from './routes/sources';
 import { registerOriginSecret } from './security/origin';
@@ -35,6 +43,14 @@ export type AppDeps = {
   recipients: RecipientRepository;
   alertRules: AlertRuleRepository;
   alertPreview: AlertPreviewRepository;
+  deliveries: DeliveryRepository;
+  deliveryService: DeliveryService;
+  connections: ConnectionRepository;
+  connectionMonitor: ConnectionMonitor;
+  whatsapp: WhatsAppAdapter;
+  managedEmail: ManagedEmailSender;
+  settings: SettingsRepository;
+  settingsEncryptionKey?: string;
   feedJobs: FeedTestJobRepository;
   email: EmailSender;
   adminEmail: string;
@@ -138,6 +154,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       auth: authService,
       jwtSecret: deps.jwtSecret,
       dashboard: deps.dashboard,
+      deliveryService: deps.deliveryService,
       now,
     });
 
@@ -148,6 +165,25 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       rules: deps.alertRules,
       previews: alertPreviews,
       now,
+    });
+
+    registerDeliveryRoutes(routes, {
+      auth: authService,
+      jwtSecret: deps.jwtSecret,
+      deliveries: deps.deliveries,
+      service: deps.deliveryService,
+      now,
+    });
+
+    registerSettingsRoutes(routes, {
+      auth: authService,
+      jwtSecret: deps.jwtSecret,
+      connections: deps.connections,
+      monitor: deps.connectionMonitor,
+      whatsapp: deps.whatsapp,
+      email: deps.managedEmail,
+      settings: deps.settings,
+      encryptionKey: deps.settingsEncryptionKey,
     });
   });
 

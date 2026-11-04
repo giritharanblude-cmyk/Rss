@@ -85,7 +85,7 @@ export function HomePage() {
             </section>
             <section className="connection-grid" aria-label="Service connections">
               <ConnectionLight
-                label="WhatsApp (OpenWA)"
+                label="OpenWA socket"
                 connected={live.data.connections.whatsapp}
                 connectedText="Connected"
                 disconnectedText="Disconnected"

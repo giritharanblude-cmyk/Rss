@@ -9,9 +9,8 @@ const modules = [
   { label: 'Sources', href: '/sources' },
   { label: 'Recipients', href: '/recipients' },
   { label: 'Alerts & Schedule', href: '/alerts' },
+  { label: 'Delivery Log', href: '/deliveries' },
 ];
-
-const plannedModules = ['Delivery Log', 'Settings'];
 
 export function AppHeader({ user }: { user: PublicUser }) {
   const navigate = useNavigate();
@@ -57,11 +56,14 @@ export function AppHeader({ user }: { user: PublicUser }) {
             {module.label}
           </NavLink>
         ))}
-        {plannedModules.map((label) => (
-          <span className="module-link module-disabled" aria-disabled="true" key={label}>
-            {label}
-          </span>
-        ))}
+        {user.role === 'master' ? (
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}
+          >
+            Settings
+          </NavLink>
+        ) : null}
       </nav>
     </>
   );

@@ -70,10 +70,12 @@ Phase 4 approved on 2026-11-04: `APPROVED PHASE 4` for gate commit `2a3d33c`. Cl
 
 ## Phase 5: Delivery (WhatsApp, Email, Queue, Delivery Log)
 
-- [ ] Implement WhatsApp and email adapters, with safe mock implementations for tests
-- [ ] Build message templates, consent-safe durable delivery queue, retries, and STOP handling
-- [ ] Add Settings connection controls, Delivery Log filters/exports/resend, and Send now actions
-- [ ] Add periodic and on-demand connection status checks for the dashboard
-- [ ] Add end-to-end queue, retry, restart-resume, STOP, exports, and connection status tests
-- [ ] Run lint, typecheck, test, build, and Phase 5 acceptance checks
-- [ ] Write `docs/phase-reports/PHASE-5.md` and stop at the manual gate
+- [x] Implement WhatsApp and email adapters, with safe mock implementations for tests
+- [x] Build message templates, consent-safe durable delivery queue, retries, and STOP handling
+- [x] Add Settings connection controls, Delivery Log filters/exports/resend, and Send now actions
+- [x] Add periodic and on-demand connection status checks for the dashboard
+- [x] Add queue, retry, restart-resume, STOP, export, and connection status tests
+- [x] Run lint, typecheck, test, build, and Phase 5 acceptance checks
+- [x] Write `docs/phase-reports/PHASE-5.md` and stop at the manual gate
+
+Phase 5 implementation and validation are complete on `phase/5-delivery`; awaiting manual approval. Real Neon, SMTP, and WhatsApp verification remain blocked on credentials (items 15–17). The OpenWA socket client does not expose QR or linked-account status; scan QR on the external OpenWA service host and treat the app's status as socket connectivity only.

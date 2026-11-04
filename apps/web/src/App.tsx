@@ -7,6 +7,8 @@ import { NewsFeedPage } from './pages/NewsFeedPage';
 import { RecipientsPage } from './pages/RecipientsPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { SourcesPage } from './pages/SourcesPage';
+import { DeliveryLogPage } from './pages/DeliveryLogPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { ManageTopicsPage, UnsubscribePage } from './pages/PublicRecipientPage';
 
 export function App() {
@@ -29,6 +31,8 @@ export function App() {
           <Route path="/news" element={<NewsFeedPage />} />
           <Route path="/recipients" element={<RecipientsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/deliveries" element={<DeliveryLogPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/preferences/:token" element={<ManageTopicsPage />} />
           <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
