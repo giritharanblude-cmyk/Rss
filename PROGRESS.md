@@ -2,7 +2,7 @@
 
 Current phase: 5
 Gate mode: MANUAL
-Last green commit: 2a3d33c
+Last green commit: 4bc6d58
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
