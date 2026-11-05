@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 describe('sign in with name, password and emailed code', () => {
-  it('completes the login flow and sets an httpOnly cookie', async () => {
+  it('completes the login flow and sets a scoped session cookie', async () => {
     context = await createTestContext();
 
     const login = await context.app.inject({
@@ -34,8 +34,12 @@ describe('sign in with name, password and emailed code', () => {
     });
     expect(verify.statusCode).toBe(200);
     expect(verify.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
+    const setCookie = String(verify.headers['set-cookie']);
     expect(sessionCookieFrom(verify)).toContain('session=');
-    expect(String(verify.headers['set-cookie'])).toContain('HttpOnly');
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('Path=/');
+    expect(setCookie).toContain('SameSite=Lax');
+    expect(setCookie).not.toContain('Secure');
 
     const me = await context.app.inject({
       method: 'GET',
@@ -44,6 +48,49 @@ describe('sign in with name, password and emailed code', () => {
     });
     expect(me.statusCode).toBe(200);
     expect(me.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
+  });
+
+  it('sets the session cookie Secure in production and clears it on logout', async () => {
+    context = await createTestContext({
+      nodeEnv: 'production',
+      originSecret: 'origin-secret-value-123456',
+      originSecretEnforced: true,
+    });
+    const headers = {
+      origin: 'https://news.example.test',
+      'x-origin-secret': 'origin-secret-value-123456',
+    };
+
+    await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers,
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+    const verify = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      headers,
+      payload: { name: 'Admin', code: latestOtpCode(context.email) },
+    });
+
+    expect(verify.statusCode).toBe(200);
+    const setCookie = String(verify.headers['set-cookie']);
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('Secure');
+    expect(setCookie).toContain('SameSite=Lax');
+    expect(setCookie).toContain('Path=/');
+
+    const logout = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { ...headers, cookie: sessionCookieFrom(verify) },
+    });
+    expect(logout.statusCode).toBe(204);
+    const clearedCookie = String(logout.headers['set-cookie']);
+    expect(clearedCookie).toContain('session=;');
+    expect(clearedCookie).toContain('Path=/');
+    expect(clearedCookie).toMatch(/(?:Max-Age=0|Expires=Thu, 01 Jan 1970)/i);
   });
 
   it('stores the password and the code as Argon2id hashes', async () => {
