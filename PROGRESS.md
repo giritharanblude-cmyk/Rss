@@ -1,8 +1,9 @@
 # PROGRESS
 
-Current phase: 6
+Current phase: 7
 Gate mode: MANUAL
-Last green commit: f6aeadc
+Milestone decision: Code Complete, Deploy Pending (development milestone; not production approval)
+Last green commit: fd669d0
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -126,3 +127,106 @@ Phase 6 approved on 2026-11-05: `APPROVED PHASE 6` for gate commit `f6aeadc`; ta
 - [x] Demo data can be seeded and cleared cleanly, and sample sources, items, and recipients are identifiable as demo data (`[DEMO]` names/headlines). Verified against a disposable `postgres:16-alpine` container on 2026-11-05.
 - [x] Lighthouse accessibility score is at least 90 on the main pages. Scores (Lighthouse 12.8.2, production build, review server with sample API data): dashboard 100, News Feed 100, Sources 100, Recipients 100, Alerts & Schedule 100, Delivery Log 100, Settings 100.
 - [x] Lint, typecheck, tests, and build pass (2026-11-05, exits 0/0/0/0); the phase report records evidence for every criterion.
+
+## Phase 7: Hardening, Deployment, and Handover
+
+Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Reconciled 2026-11-05: 39 unique tasks, each with one classification. On 2026-11-05 the user accepted **Code Complete, Deploy Pending** as a development milestone only. Phase 7 is not closed; the manual deployment/release gate has not passed and this is not production approval.
+
+Existing completion marks for `7.1.3`, `7.1.4`, `7.1.6`, `7.3.1`, and `7.3.2` were verified and retained. The human approved deferring `7.2.1` (extra indexes) and `7.2.5` (bundle splitting); see `DECISIONS.md`. All remaining needs-human deployment and verification tasks remain open.
+
+Legend: **buildable locally** = can be implemented and verified in this repo on this host; **needs human** = requires an account, external service, credentials, hardware, or final sign-off.
+
+### Task counts
+
+| Classification    | Count  |
+| ----------------- | ------ |
+| Buildable locally | 28     |
+| Needs human       | 11     |
+| **Total**         | **39** |
+
+Counts cover the task list below; acceptance criteria are gate checks and are not counted as tasks. Every task has exactly one classification.
+
+### Tasks
+
+**7.1 Security review**
+
+- [x] `7.1.1` buildable locally — Audit every route for input validation and confirm each body, query, and params value is parsed with the shared zod schemas; add regression tests for rejected payloads. (verified on Node 20.19.5: lint/typecheck/test/build passed; API 73, web 17, shared 2)
+- [x] `7.1.2` buildable locally — Verify session cookies are `HttpOnly`, `Secure` in production, `SameSite` scoped correctly, and cleared on logout; add tests. (verified on Node 20.19.5: lint/typecheck/test/build passed; API 74, web 17, shared 2)
+- [x] `7.1.3` buildable locally — Add CSRF protection for state-changing requests (same-site origin check and/or token) and tests proving cross-origin writes are rejected. (commit `debf2cd`)
+- [x] `7.1.4` buildable locally — Add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests. (commit `debf2cd`)
+- [x] `7.1.5` buildable locally — Run `npm audit`; 2026-11-05 results: 16 moderate, 0 high, 0 critical. No high or critical advisories to resolve; triage is recorded in the Phase 7 report.
+- [x] `7.1.6` buildable locally — Add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests. (commit `57ac195`)
+- [x] `7.1.7` buildable locally — Confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests. (verified on Node 20.19.5: lint/typecheck/test/build passed; API 74, web 17, shared 2)
+- [x] `7.1.8` buildable locally — Enforce the origin secret for API requests and test that browser login requests without it are rejected.
+- [ ] `7.1.9` needs human — Verify on the real deployed origin that direct traffic bypassing Netlify is refused.
+
+**7.2 Performance**
+
+- [ ] `7.2.1` buildable locally — Review and add missing indexes for links, `published_at`, category, and delivery status; ship a Drizzle migration plus snapshot. **Deferred by human approval; see `DECISIONS.md`.**
+- [x] `7.2.2` buildable locally — Review hot queries (feed, dashboard, deliveries, recipients) for full scans and N+1 patterns; fix and cover with tests. (PostgreSQL filters due sources and eligible recipients before loading rows; query regression tests; lint/typecheck/test/build verified on Node 20.19.5: API 78, web 17, shared 2)
+- [x] `7.2.3` buildable locally — Enforce and test pagination limits on every list endpoint. (Bounded and validated pagination for sources, recipients, members, and alert rules; regression-tested list page metadata and rejection of oversized page sizes across list routes; Node 20.19.5 lint/typecheck/test/build verified: API 80, web 17, shared 2)
+- [ ] `7.2.4` buildable locally — Benchmark every API route locally and record timings well under the Netlify proxy time limit.
+- [ ] `7.2.5` buildable locally — Reduce the deferred 848 kB web bundle via route-level code splitting and re-check the Vite size warning. **Deferred by human approval; see `DECISIONS.md`.**
+- [ ] `7.2.6` needs human — Confirm response times under the real Netlify proxy and against live Neon latency.
+
+**7.3 Observability**
+
+- [x] `7.3.1` buildable locally — Add structured JSON logs with request id, route, status, duration, and actor, plus redaction tests. (commit `57ac195`)
+- [x] `7.3.2` buildable locally — Extend `/api/health` with per-component status (database, SMTP, OpenWA, scheduler) and tests; keep it safe to expose publicly. (commit `0e60938`)
+
+**7.4 Backups**
+
+- [x] `7.4.1` buildable locally — Add a compressed `pg_dump` backup script with seven-file retention, failure logging, and a dry-run retention test.
+- [x] `7.4.2` buildable locally — Write a weekly OpenWA session-volume archive script with rotation. (Added compressed OpenWA session archives, seven-archive retention, safe dry-run, and empty-volume guard; documented weekly host scheduling; archive/rotation regression tests; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
+- [x] `7.4.3` buildable locally — Document restore steps for both database and OpenWA session archives, and test the restore against a disposable database. (Runbook documents isolated PostgreSQL restore and staged OpenWA recovery/rollback; verified a PostgreSQL 18 custom dump restored into a disposable database with fixture data intact, plus OpenWA archive extraction in regression test; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
+- [ ] `7.4.4` needs human — Install, schedule, and verify both backup jobs on the real VM and Neon host.
+
+**7.5 Deploy**
+
+- [x] `7.5.1` buildable locally — Configure `netlify.toml` build/publish/SPA/API routes and inject the origin secret at the edge; `.env.example` lists required variables.
+- [x] `7.5.2` buildable locally — Bind the API to loopback, require production secrets, add a health check, and validate Docker Compose.
+- [x] `7.5.3` buildable locally — Document firewall rules (80/443 plus SSH from a single IP), idle-reclaim limits, and recovery after reclaim in `docs/RUNBOOK.md`.
+- [ ] `7.5.4` needs human — Create the Netlify site, set environment variables, attach the custom domain, and confirm HTTPS.
+- [ ] `7.5.5` needs human — Provision the Oracle Cloud Always Free VM (or fallback host), apply firewall rules, mount the persistent volume, and start the stack.
+- [ ] `7.5.6` needs human — Supply live Neon, SMTP, OpenWA, `JWT_SECRET`, `SETTINGS_ENCRYPTION_KEY`, and `ORIGIN_SECRET` credentials.
+
+**7.6 Documentation**
+
+- [x] `7.6.1` buildable locally — Add `README.md` for the app, local setup, checks, and deployment overview.
+- [x] `7.6.2` buildable locally — `docs/RUNBOOK.md` covers deployment, operations, and restore; finalize key-rotation operator steps after tooling task `7.8.3` is implemented. (Documented backup-first, maintenance-window rotation, key cutover, verification, and rollback steps for atomic rotation tooling; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
+- [ ] `7.6.3` buildable locally — Write `docs/USER_GUIDE.md` in plain language for non-technical staff, per module.
+
+**7.7 Final regression**
+
+- [x] `7.7.1` buildable locally — Run lint, typecheck, tests, build, and Playwright; record evidence. (Final full gate on Node 20.19.5: lint/typecheck/test/build/Playwright exit 0; API 86, web 17, shared 2; Playwright 2 passed)
+- [x] `7.7.2` buildable locally — Map all 129 non-empty source paragraphs to a feature, test/evidence, and status in `docs/requirements/TRACEABILITY.md`.
+- [x] `7.7.3` needs human — Approve every requirement marked Deferred and provide the reason recorded in the table. (Nine live-account requirement groups and the two performance deferrals are human-approved as Deferred, not completed; prerequisites and verification criteria are recorded in `docs/requirements/TRACEABILITY.md` and the Phase 7 report.)
+- [ ] `7.7.4` needs human — Perform the fresh-deploy check on a clean VM and a clean Netlify site from the docs alone.
+- [ ] `7.7.5` needs human — Create tag `v1.0.0` after final approval.
+
+**7.8 Data migration and key management (Phase 5 follow-ups)**
+
+- [ ] `7.8.1` needs human — Run the encryption backfill against a copy of the production database and record the result, including any skipped or legacy values.
+- [x] `7.8.2` buildable locally — Fix the `contact:` prefix edge case so legacy plaintext phone or email values that start with `contact:` are detected instead of being silently skipped as already encrypted; add tests. (Migration now recognizes only the complete encrypted envelope and encrypts legacy `contact:` values; regression tests verify phone/email remain readable after migration; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
+- [x] `7.8.3` buildable locally — Implement `SETTINGS_ENCRYPTION_KEY` rotation with a re-encryption path for SMTP settings and recipient contacts, including tests for re-encrypted reads and interrupted-rotation recovery. (Added transactional rotation CLI for SMTP settings and recipient contacts; tests verify new-key reads, old-key rejection, and rollback after an injected interruption; lint/typecheck/test/build verified on Node 20.19.5: API 86, web 17, shared 2)
+- [ ] `7.8.4` needs human — Establish production key custody: generate and store the key in a secret manager, and document access, recovery, and separation from database backups.
+
+### Phase 7 acceptance criteria
+
+Acceptance criteria are verified at the phase gate; they are gate checks, not tasks, and are excluded from the task counts above.
+
+- [x] Traceability table lists every requirement as Done, or Deferred with a human-approved reason. (All Deferred items have human approval plus reason, prerequisite, and verification criteria; live verification remains open.)
+- [x] `npm audit` shows no high or critical issues, or each is documented. (2026-11-05 audit: 16 moderate, 0 high, 0 critical; moderate advisories documented in `docs/phase-reports/PHASE-7.md`.)
+- [ ] A fresh deploy from the docs alone works on a clean VM and a clean Netlify site, and the app is reachable on the single URL.
+- [ ] A request sent directly to the origin without the secret is rejected.
+- [ ] Final tag `v1.0.0` is created after human approval.
+- [x] Lint, typecheck, tests, build, and Playwright pass and the phase report records evidence. (Final full gate on Node 20.19.5: all exit 0; API 86, web 17, shared 2; Playwright 2 passed.)
+- [ ] Backups run on schedule, restore is documented and proven, and the retention and cleanup jobs are active.
+
+### Deferred requirements and outstanding blockers
+
+- Nine live-account requirement groups remain **Deferred**, not completed; their approval, reason, prerequisite, and verification criteria are in `docs/requirements/TRACEABILITY.md`. R129 is a separately approved Deferred Netlify requirement with its exact reason and verification criteria in the Phase 7 report and traceability entry. The required live SMTP, OpenWA, Netlify, and production-origin checks are not complete.
+- `7.2.1` extra database indexes and `7.2.5` route-level bundle splitting remain approved, scope-based deferrals; they are not represented as delivered.
+- Remaining local build work: `7.2.4` route benchmarks and `7.6.3` plain-language user guide.
+- Remaining deployment/production blockers: `7.1.9` direct-origin bypass verification; `7.2.6` live Netlify/Neon latency; `7.4.4` install and verify scheduled backups on the real VM/Neon host; `7.5.4` create/configure Netlify, domain, and HTTPS; `7.5.5` provision the VM, firewall, persistent storage, and stack; `7.5.6` provision production Neon/SMTP/OpenWA and application secrets; `7.7.4` fresh deploy from docs on clean VM/Netlify; `7.8.1` encryption backfill on a production database copy; and `7.8.4` production encryption-key custody and recovery.
+- `7.7.5` release tag `v1.0.0` is intentionally not created; it remains gated on final human approval. Phase 7 remains open and deployment approval has not been granted.

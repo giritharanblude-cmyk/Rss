@@ -13,6 +13,7 @@
     "db:proof": "tsx scripts/db-proof.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:rotate-key": "node dist/scripts/rotate-encryption-key.js",
     "seed:master": "tsx scripts/seed-master.ts",
     "demo:seed": "tsx scripts/demo-data.ts seed",
     "demo:clear": "tsx scripts/demo-data.ts clear"

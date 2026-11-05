@@ -11,6 +11,9 @@ import { api, ApiError } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
 import { LoadingState } from '../components/LoadingState';
 import { Toast } from '../components/Toast';
+import { PageControls } from '../components/PageControls';
+
+const pageSize = 25;
 
 const blankRecipient: RecipientInput = {
   name: '',
@@ -85,6 +88,9 @@ function RecipientForm({
         required
       />
       <label htmlFor="recipient-phone">WhatsApp number (E.164)</label>
+      {initial.whatsappE164 === null && initial.channel !== 'email' ? (
+        <p>Saved WhatsApp number is hidden. Enter it again to keep WhatsApp enabled.</p>
+      ) : null}
       <input
         id="recipient-phone"
         type="tel"
@@ -93,6 +99,9 @@ function RecipientForm({
         onChange={(event) => setValues({ ...values, whatsappE164: event.target.value || null })}
       />
       <label htmlFor="recipient-email">Email id</label>
+      {initial.email === null && initial.channel !== 'whatsapp' ? (
+        <p>Saved email address is hidden. Enter it again to keep email enabled.</p>
+      ) : null}
       <input
         id="recipient-email"
         type="email"
@@ -139,6 +148,7 @@ function RecipientForm({
 export function RecipientsPage() {
   const client = useQueryClient();
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Recipient | null>(null);
   const [adding, setAdding] = useState(false);
   const [consentFor, setConsentFor] = useState<string | null>(null);
@@ -147,8 +157,8 @@ export function RecipientsPage() {
   const [error, setError] = useState<string | null>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
   const list = useQuery({
-    queryKey: ['recipients', search],
-    queryFn: () => api.recipients(search),
+    queryKey: ['recipients', search, page],
+    queryFn: () => api.recipients(search, { page, pageSize }),
     retry: false,
   });
   const refresh = () => client.invalidateQueries({ queryKey: ['recipients'] });
@@ -278,7 +288,10 @@ export function RecipientsPage() {
           id="recipient-search"
           type="search"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
           placeholder="Search name or email"
         />
         {error ? (
@@ -316,8 +329,8 @@ export function RecipientsPage() {
                 <div>
                   <h2>{recipient.name}</h2>
                   <p>
-                    {recipient.whatsappE164 ?? 'No WhatsApp number'} ·{' '}
-                    {recipient.email ?? 'No email'}
+                    {recipient.hasWhatsapp ? 'WhatsApp configured (hidden)' : 'No WhatsApp number'}{' '}
+                    · {recipient.hasEmail ? 'Email configured (hidden)' : 'No email'}
                   </p>
                 </div>
                 <span className={`consent-badge consent-${recipient.consentStatus}`}>
@@ -403,6 +416,13 @@ export function RecipientsPage() {
             </article>
           ))}
         </div>
+        <PageControls
+          page={page}
+          pageSize={pageSize}
+          total={list.data.total}
+          label="recipients"
+          onPageChange={setPage}
+        />
       </main>
     </div>
   );

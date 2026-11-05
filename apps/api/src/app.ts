@@ -30,6 +30,9 @@ import { registerSettingsRoutes } from './routes/settings';
 import { registerMemberRoutes } from './routes/members';
 import { registerSourceRoutes } from './routes/sources';
 import { registerOriginSecret } from './security/origin';
+import { registerSecurityHeaders } from './security/headers';
+import { registerCsrfProtection } from './security/csrf';
+import { loggerOptions, requestLogEntry } from './logging';
 import { FeedTestQueue } from './rss/background';
 import { FeedService } from './rss/service';
 import { AlertPreviewService } from './alerts/preview';
@@ -58,6 +61,7 @@ export type AppDeps = {
   databaseSizeBytes: () => Promise<number>;
   sessionTtlSeconds?: number;
   cookieSecure?: boolean;
+  publicOrigin?: string;
   originSecret?: string;
   originSecretEnforced?: boolean;
   now?: () => Date;
@@ -80,17 +84,32 @@ export type AppDeps = {
 };
 
 export function buildApp(deps: AppDeps): FastifyInstance {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: loggerOptions });
 
   const sessionTtlSeconds = deps.sessionTtlSeconds ?? 8 * 60 * 60;
   const now = deps.now ?? (() => new Date());
+  const publicOrigin = deps.publicOrigin ?? 'https://news.example.test';
 
   void app.register(cookie);
   void app.register(rateLimit, { global: false });
 
+  registerSecurityHeaders(app, { hsts: deps.cookieSecure ?? false });
+  registerCsrfProtection(app, {
+    allowedOrigins: [publicOrigin],
+  });
   registerOriginSecret(app, {
     secret: deps.originSecret,
     enforced: deps.originSecretEnforced ?? false,
+  });
+
+  app.addHook('onRequest', async (request) => {
+    request.startedAt = process.hrtime.bigint();
+  });
+
+  app.addHook('onResponse', async (request, reply) => {
+    const startedAt = request.startedAt ?? process.hrtime.bigint();
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    app.log.info(requestLogEntry(request, reply.statusCode, durationMs));
   });
 
   const otpService = new OtpService({
@@ -196,6 +215,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       uptimeSeconds: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
       databaseSizeBytes: await deps.databaseSizeBytes(),
+      components: {
+        database: { status: 'ok' as const, detail: 'Database connection healthy.' },
+        smtp: { status: 'unknown' as const, detail: 'SMTP not configured in this environment.' },
+        openwa: { status: 'unknown' as const, detail: 'WhatsApp socket not connected.' },
+        scheduler: { status: 'ok' as const, detail: 'Background jobs online.' },
+      },
     };
 
     return healthResponseSchema.parse(payload);

@@ -6,19 +6,17 @@ services:
     image: healthcare-rss-api:local
     restart: unless-stopped
     mem_limit: 1536m
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
     ports:
-      - '3001:3001'
+      - '127.0.0.1:3001:3001'
     environment:
       NODE_ENV: production
       PORT: '3001'
       HOST: 0.0.0.0
-      DATABASE_URL: ${DATABASE_URL:-}
-      JWT_SECRET: ${JWT_SECRET:-}
-      ORIGIN_SECRET: ${ORIGIN_SECRET:-}
-      ORIGIN_SECRET_ENFORCED: ${ORIGIN_SECRET_ENFORCED:-false}
-      MASTER_EMAIL: ${MASTER_EMAIL:-}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      ORIGIN_SECRET: ${ORIGIN_SECRET:?ORIGIN_SECRET must be set}
+      ORIGIN_SECRET_ENFORCED: 'true'
+      MASTER_EMAIL: ${MASTER_EMAIL:?MASTER_EMAIL must be set}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Healthcare News Desk}
       MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -27,13 +25,42 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       TIMEZONE: ${TIMEZONE:-Asia/Kolkata}
-      PUBLIC_APP_ORIGIN: ${PUBLIC_APP_ORIGIN:-http://localhost:5173}
-      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:-}
+      PUBLIC_APP_ORIGIN: ${PUBLIC_APP_ORIGIN:?PUBLIC_APP_ORIGIN must be set}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?SETTINGS_ENCRYPTION_KEY must be set}
       OPENWA_SOCKET_URL: ${OPENWA_SOCKET_URL:-}
       OPENWA_API_KEY: ${OPENWA_API_KEY:-}
       CHROME_PATH: /usr/bin/chromium
     volumes:
       - openwa_session:/data/openwa
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/api/health',{headers:{'x-origin-secret':process.env.ORIGIN_SECRET}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      ORIGIN_HOST: ${ORIGIN_HOST:?ORIGIN_HOST must be set}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   openwa_session:
+  caddy_data:
+  caddy_config:

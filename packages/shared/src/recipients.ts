@@ -37,8 +37,15 @@ export const recipientInputSchema = z
   );
 export type RecipientInput = z.infer<typeof recipientInputSchema>;
 
-export const recipientSchema = recipientInputSchema.extend({
+export const recipientSchema = z.object({
   id: z.string().uuid(),
+  name: z.string().min(1).max(120),
+  whatsappE164: z.null(),
+  hasWhatsapp: z.boolean(),
+  email: z.null(),
+  hasEmail: z.boolean(),
+  topics: z.array(z.enum(TOPIC_CATEGORIES)).max(TOPIC_CATEGORIES.length),
+  channel: recipientChannelSchema,
   consentStatus: consentStatusSchema,
   consentAt: z.string().datetime().nullable(),
   consentNote: z.string().nullable(),

@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { NEWS_CATEGORIES } from '@healthcare/shared';
-import { z } from 'zod';
+import {
+  newsListQuerySchema,
+  updateNewsImportantBodySchema,
+  uuidParamsSchema,
+} from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { DashboardNewsItem, DashboardRepository } from '../repositories/dashboard';
 import type { DeliveryService } from '../delivery/service';
@@ -15,33 +18,6 @@ export type DashboardRouteOptions = {
   deliveryService: DeliveryService;
   now: () => Date;
 };
-
-const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const newsQuerySchema = z
-  .object({
-    category: z.enum(NEWS_CATEGORIES).optional(),
-    sourceId: z.string().uuid().optional(),
-    from: dateOnly.optional(),
-    to: dateOnly.optional(),
-    q: z.string().trim().max(120).optional(),
-    page: z.coerce.number().int().min(1).max(10_000).default(1),
-    pageSize: z.coerce.number().int().min(1).max(50).default(20),
-  })
-  .refine((value) => !value.from || !value.to || value.from <= value.to, {
-    message: 'The start date must not be after the end date.',
-  })
-  .refine(
-    (value) =>
-      (!value.from || isValidDateOnly(value.from)) && (!value.to || isValidDateOnly(value.to)),
-    {
-      message: 'Use valid calendar dates.',
-    },
-  );
-
-function isValidDateOnly(value: string): boolean {
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
 
 function localDateStart(value: string): Date {
   return new Date(`${value}T00:00:00+05:30`);
@@ -102,7 +78,7 @@ export function registerDashboardRoutes(
 
   app.get('/api/news', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
-    const query = newsQuerySchema.safeParse(request.query);
+    const query = newsListQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the news filters and try again.');
     const filters = query.data;
     const result = await options.dashboard.listNews({
@@ -125,8 +101,8 @@ export function registerDashboardRoutes(
   app.patch('/api/news/:id/important', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     if (user.role !== 'master') throw new ForbiddenError();
-    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
-    const body = z.object({ important: z.boolean() }).safeParse(request.body);
+    const params = uuidParamsSchema.safeParse(request.params);
+    const body = updateNewsImportantBodySchema.safeParse(request.body);
     if (!params.success || !body.success) {
       throw new HttpError(400, 'Check the news item and importance value.');
     }

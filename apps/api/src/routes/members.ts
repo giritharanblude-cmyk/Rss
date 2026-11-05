@@ -1,14 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import {
   createMemberBodySchema,
+  listPaginationQuerySchema,
   type Member,
   resetMemberPasswordBodySchema,
   updateMemberBodySchema,
+  uuidParamsSchema,
 } from '@healthcare/shared';
 import type { MemberService } from '../auth/members';
 import type { AuthService } from '../auth/service';
+import { HttpError } from '../errors';
 import type { UserRecord } from '../repositories/types';
 import { parseBody, readUser } from './auth';
+import { paginate } from './pagination';
 
 export type MemberRouteOptions = {
   auth: AuthService;
@@ -32,8 +36,16 @@ export function registerMemberRoutes(app: FastifyInstance, options: MemberRouteO
 
   app.get('/api/members', async (request, reply) => {
     const actor = await readUser(request, auth, jwtSecret);
+    const query = listPaginationQuerySchema.safeParse(request.query);
+    if (!query.success) throw new HttpError(400, 'Check the member page and page size.');
     const list = await members.list(actor);
-    return reply.send({ members: list.map(toMember) });
+    const page = paginate(list, query.data.page, query.data.pageSize);
+    return reply.send({
+      members: page.items.map(toMember),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/members', async (request, reply) => {
@@ -46,22 +58,18 @@ export function registerMemberRoutes(app: FastifyInstance, options: MemberRouteO
   app.patch('/api/members/:id', async (request, reply) => {
     const actor = await readUser(request, auth, jwtSecret);
     const body = parseBody(updateMemberBodySchema, request.body);
-    const params = request.params as { id?: string };
-    if (!params.id) {
-      throw new Error('Member id is missing');
-    }
-    const member = await members.setDisabled(actor, params.id, body.disabled);
+    const params = uuidParamsSchema.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'Check the member id and try again.');
+    const member = await members.setDisabled(actor, params.data.id, body.disabled);
     return reply.send({ member: toMember(member) });
   });
 
   app.post('/api/members/:id/reset-password', async (request, reply) => {
     const actor = await readUser(request, auth, jwtSecret);
     const body = parseBody(resetMemberPasswordBodySchema, request.body);
-    const params = request.params as { id?: string };
-    if (!params.id) {
-      throw new Error('Member id is missing');
-    }
-    await members.resetPassword(actor, params.id, body);
+    const params = uuidParamsSchema.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'Check the member id and try again.');
+    await members.resetPassword(actor, params.data.id, body);
     return reply.code(204).send();
   });
 }

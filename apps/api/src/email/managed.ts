@@ -1,17 +1,9 @@
 import type { EmailMessage, EmailSender, EmailStatus } from './types';
 import { SmtpEmailSender, type SmtpSettings } from './smtp';
-import { z } from 'zod';
+
+export { smtpSettingsSchema } from '@healthcare/shared';
 
 export type PublicSmtpSettings = Omit<SmtpSettings, 'password'>;
-export const smtpSettingsSchema = z.object({
-  host: z.string().trim().min(1).max(255),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  user: z.string().trim().min(1).max(255),
-  password: z.string().min(1).max(500),
-  fromName: z.string().trim().min(1).max(120),
-  fromEmail: z.string().trim().email(),
-});
 
 export class ManagedEmailSender implements EmailSender {
   private sender: EmailSender;

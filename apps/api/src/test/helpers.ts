@@ -2,6 +2,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { createMasterIfNone } from '../auth/seed';
 import { hashPassword } from '../auth/passwords';
 import { buildApp, type AppDeps } from '../app';
+import { loadConfig } from '../config';
 import { MockEmailSender } from '../email';
 import { ManagedEmailSender } from '../email/managed';
 import { AlertPreviewService } from '../alerts/preview';
@@ -14,6 +15,7 @@ import { MemoryRecipientRepository } from '../repositories/memory-recipients';
 import { MemoryDeliveryRepository } from '../repositories/memory-deliveries';
 import { MemoryConnectionRepository } from '../repositories/memory-connections';
 import { MemorySettingsRepository } from '../repositories/memory-settings';
+import type { SettingsRepository } from '../repositories/settings';
 import type { UserRecord } from '../repositories/types';
 
 export const JWT_SECRET = 'test-secret-value-with-at-least-32-chars';
@@ -49,17 +51,33 @@ export type TestContext = {
   deliveryService: DeliveryService;
   connections: MemoryConnectionRepository;
   connectionMonitor: ConnectionMonitor;
-  settings: MemorySettingsRepository;
+  settings: SettingsRepository;
 };
 
 export type TestContextOptions = Pick<
   AppDeps,
-  'originSecret' | 'originSecretEnforced' | 'otp' | 'lockout' | 'rateLimits'
+  'originSecret' | 'originSecretEnforced' | 'otp' | 'lockout' | 'rateLimits' | 'publicOrigin'
 > &
-  Partial<Pick<AppDeps, 'databaseSizeBytes'>>;
+  Partial<Pick<AppDeps, 'databaseSizeBytes'>> & {
+    nodeEnv?: 'test' | 'production';
+    settings?: SettingsRepository;
+  };
 
 export async function createTestContext(options: TestContextOptions = {}): Promise<TestContext> {
-  const { databaseSizeBytes = async () => 0, ...testOptions } = options;
+  const { nodeEnv = 'test', databaseSizeBytes = async () => 0, ...testOptions } = options;
+  const config = loadConfig({
+    NODE_ENV: nodeEnv,
+    JWT_SECRET,
+    SETTINGS_ENCRYPTION_KEY: '9f'.repeat(32),
+    ...(nodeEnv === 'production'
+      ? {
+          DATABASE_URL: 'postgresql://db.example.test/app',
+          ORIGIN_SECRET: testOptions.originSecret,
+          ORIGIN_SECRET_ENFORCED: testOptions.originSecretEnforced ? 'true' : 'false',
+          PUBLIC_APP_ORIGIN: testOptions.publicOrigin ?? 'https://news.example.test',
+        }
+      : {}),
+  });
   const clock = createClock();
   const users = new MemoryUserRepository(clock.now);
   const otps = new MemoryOtpRepository(clock.now);
@@ -71,7 +89,7 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   const deliveries = new MemoryDeliveryRepository(recipients, feeds);
   const whatsapp = new MockWhatsAppAdapter();
   const connections = new MemoryConnectionRepository();
-  const settings = new MemorySettingsRepository();
+  const settings = testOptions.settings ?? new MemorySettingsRepository();
   const connectionMonitor = new ConnectionMonitor(connections, managedEmail, whatsapp, clock.now);
   const previews = new AlertPreviewService(recipients, recipients, recipients, clock.now);
   const deliveryService = new DeliveryService(
@@ -104,13 +122,14 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     whatsapp,
     managedEmail,
     settings,
-    settingsEncryptionKey: '9f'.repeat(32),
+    settingsEncryptionKey: config.SETTINGS_ENCRYPTION_KEY,
     feedJobs,
     email,
     adminEmail: 'admin@example.com',
-    jwtSecret: JWT_SECRET,
+    jwtSecret: config.JWT_SECRET,
     databaseSizeBytes,
     sessionTtlSeconds: 3600,
+    cookieSecure: config.NODE_ENV === 'production',
     now: clock.now,
     rateLimits: { login: 1000, verify: 1000, resend: 1000, password: 1000, windowMs: 60_000 },
     ...testOptions,

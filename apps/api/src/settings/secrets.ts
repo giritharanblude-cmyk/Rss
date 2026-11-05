@@ -1,6 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 const recipientContactPrefix = 'contact:';
+const encryptedRecipientContactPattern =
+  /^contact:v1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]*$/;
 
 function encryptionKey(value: string): Buffer {
   const key = /^[a-f0-9]{64}$/i.test(value)
@@ -29,7 +31,7 @@ export function encryptRecipientContact(value: string, key: string): string {
 }
 
 export function isEncryptedRecipientContact(value: string): boolean {
-  return value.startsWith(recipientContactPrefix);
+  return encryptedRecipientContactPattern.test(value);
 }
 
 export function decryptRecipientContact(value: string, key: string): string {

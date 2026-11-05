@@ -4,11 +4,14 @@ import {
   alertPreviewInputSchema,
   alertRuleInputSchema,
   consentUpdateSchema,
+  listPaginationQuerySchema,
+  publicTokenParamsSchema,
   publicTopicsUpdateSchema,
+  recipientListQuerySchema,
   recipientInputSchema,
   recipientSchema,
+  uuidParamsSchema,
 } from '@healthcare/shared';
-import { z } from 'zod';
 import type { AuthService } from '../auth/service';
 import type { AlertPreviewService } from '../alerts/preview';
 import { ForbiddenError, HttpError } from '../errors';
@@ -19,6 +22,7 @@ import type {
   RecipientRepository,
 } from '../repositories/recipients';
 import { parseBody, readUser } from './auth';
+import { paginate } from './pagination';
 
 export type RecipientRouteOptions = {
   auth: AuthService;
@@ -33,8 +37,10 @@ function toRecipientResponse(recipient: RecipientRecord) {
   return recipientSchema.parse({
     id: recipient.id,
     name: recipient.name,
-    whatsappE164: recipient.whatsappE164,
-    email: recipient.email,
+    whatsappE164: null,
+    hasWhatsapp: recipient.whatsappE164 !== null,
+    email: null,
+    hasEmail: recipient.email !== null,
     topics: recipient.topics,
     channel: recipient.channel,
     consentStatus: recipient.consentStatus,
@@ -60,7 +66,7 @@ async function requireMaster(
 }
 
 function readId(request: Parameters<typeof readUser>[0]): string {
-  const parsed = z.object({ id: z.string().uuid() }).safeParse(request.params);
+  const parsed = uuidParamsSchema.safeParse(request.params);
   if (!parsed.success) throw new HttpError(400, 'Check the id and try again.');
   return parsed.data.id;
 }
@@ -80,10 +86,16 @@ export function registerRecipientRoutes(
 ): void {
   app.get('/api/recipients', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
-    const query = z.object({ q: z.string().trim().max(120).optional() }).safeParse(request.query);
+    const query = recipientListQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the search text and try again.');
     const recipients = await options.recipients.listRecipients(query.data.q);
-    return reply.send({ recipients: recipients.map(toRecipientResponse) });
+    const page = paginate(recipients, query.data.page, query.data.pageSize);
+    return reply.send({
+      recipients: page.items.map(toRecipientResponse),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/recipients', async (request, reply) => {
@@ -129,8 +141,16 @@ export function registerRecipientRoutes(
 
   app.get('/api/alert-rules', async (request, reply) => {
     await requireMaster(request, options);
+    const query = listPaginationQuerySchema.safeParse(request.query);
+    if (!query.success) throw new HttpError(400, 'Check the alert-rule page and page size.');
     const rules = await options.rules.listAlertRules();
-    return reply.send({ rules: rules.map(toRuleResponse) });
+    const page = paginate(rules, query.data.page, query.data.pageSize);
+    return reply.send({
+      rules: page.items.map(toRuleResponse),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/alert-rules', async (request, reply) => {
@@ -196,7 +216,7 @@ export function registerRecipientRoutes(
 }
 
 function readPublicToken(request: Parameters<typeof readUser>[0]): string {
-  const params = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/i) }).safeParse(request.params);
+  const params = publicTokenParamsSchema.safeParse(request.params);
   if (!params.success) throw new HttpError(404, 'This link is invalid or has expired.');
   return params.data.token;
 }

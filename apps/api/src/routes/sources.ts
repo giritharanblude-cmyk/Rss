@@ -1,11 +1,18 @@
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { feedTestInputSchema, sourceInputSchema, sourceSchema } from '@healthcare/shared';
+import {
+  feedTestInputSchema,
+  listPaginationQuerySchema,
+  sourceInputSchema,
+  sourceSchema,
+  sourceUpdateSchema,
+  uuidParamsSchema,
+} from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { FeedTestQueue } from '../rss/background';
 import type { SourceRepository, SourceRecord } from '../repositories/feeds';
 import { ForbiddenError, HttpError } from '../errors';
 import { parseBody, readUser } from './auth';
+import { paginate } from './pagination';
 
 export type SourceRouteOptions = {
   auth: AuthService;
@@ -33,8 +40,16 @@ async function requireMaster(
 export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteOptions): void {
   app.get('/api/sources', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
+    const query = listPaginationQuerySchema.safeParse(request.query);
+    if (!query.success) throw new HttpError(400, 'Check the source page and page size.');
     const sources = await options.sources.listSources();
-    return reply.send({ sources: sources.map(toSourceResponse) });
+    const page = paginate(sources, query.data.page, query.data.pageSize);
+    return reply.send({
+      sources: page.items.map(toSourceResponse),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/sources', async (request, reply) => {
@@ -46,17 +61,19 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
 
   app.patch('/api/sources/:id', async (request, reply) => {
     await requireMaster(request, options);
-    const { id } = request.params as { id: string };
-    const updates = parseBody(sourceInputSchema.partial(), request.body);
-    const source = await options.sources.updateSource(id, updates);
+    const params = uuidParamsSchema.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'Check the source id and try again.');
+    const updates = parseBody(sourceUpdateSchema, request.body);
+    const source = await options.sources.updateSource(params.data.id, updates);
     if (!source) throw new HttpError(404, 'That source was not found.');
     return reply.send({ source: toSourceResponse(source) });
   });
 
   app.delete('/api/sources/:id', async (request, reply) => {
     await requireMaster(request, options);
-    const { id } = request.params as { id: string };
-    if (!(await options.sources.deleteSource(id))) {
+    const params = uuidParamsSchema.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'Check the source id and try again.');
+    if (!(await options.sources.deleteSource(params.data.id))) {
       throw new HttpError(404, 'That source was not found.');
     }
     return reply.code(204).send();
@@ -70,7 +87,7 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
 
   app.get('/api/sources/test/:id', async (request, reply) => {
     await requireMaster(request, options);
-    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    const params = uuidParamsSchema.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'Check the feed test id.');
     const { id } = params.data;
     const job = await options.tests.get(id);

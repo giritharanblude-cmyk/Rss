@@ -188,7 +188,7 @@ export function DeliveryLogPage() {
                     <td>{formatDateTime(delivery.queuedAt)}</td>
                     <td>
                       {delivery.recipientName}
-                      <small>{delivery.recipientContact ?? 'No contact'}</small>
+                      <small>{delivery.recipientContact ?? 'Contact details hidden'}</small>
                     </td>
                     <td>{delivery.channel}</td>
                     <td>{delivery.kind.replaceAll('_', ' ')}</td>

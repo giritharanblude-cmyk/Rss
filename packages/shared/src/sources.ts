@@ -35,6 +35,7 @@ export const sourceInputSchema = z.object({
     ),
   active: z.boolean().default(true),
 });
+export const sourceUpdateSchema = sourceInputSchema.partial();
 export type SourceInput = z.infer<typeof sourceInputSchema>;
 
 export const sourceSchema = sourceInputSchema.extend({

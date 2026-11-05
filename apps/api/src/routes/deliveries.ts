@@ -1,5 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
+import {
+  deliveryListQuerySchema,
+  sendNewsBodySchema,
+  uuidParamsSchema,
+} from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { DeliveryRepository, DeliveryRecord } from '../delivery/types';
 import type { DeliveryService } from '../delivery/service';
@@ -15,26 +19,6 @@ export type DeliveryRouteOptions = {
   now: () => Date;
 };
 
-const querySchema = z
-  .object({
-    from: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-    to: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
-    channel: z.enum(['email', 'whatsapp']).optional(),
-    recipientId: z.string().uuid().optional(),
-    status: z.enum(['pending', 'delivered', 'retrying', 'failed']).optional(),
-    page: z.coerce.number().int().min(1).max(10_000).default(1),
-    pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  })
-  .refine((value) => !value.from || !value.to || value.from <= value.to, {
-    message: 'The start date must not be after the end date.',
-  });
-
 function asDate(value: string, endOfDay = false): Date {
   return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}+05:30`);
 }
@@ -46,6 +30,7 @@ function requireMaster(role: string): void {
 function toResponse(record: DeliveryRecord) {
   return {
     ...record,
+    recipientContact: null,
     queuedAt: record.queuedAt.toISOString(),
     sentAt: record.sentAt?.toISOString() ?? null,
   };
@@ -60,7 +45,7 @@ function csvCell(value: string | number | null): string {
 export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRouteOptions): void {
   app.get('/api/deliveries', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
-    const parsed = querySchema.safeParse(request.query);
+    const parsed = deliveryListQuerySchema.safeParse(request.query);
     if (!parsed.success) throw new HttpError(400, 'Check the delivery filters and try again.');
     const filters = parsed.data;
     const result = await options.deliveries.list({
@@ -82,7 +67,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
 
   app.get('/api/deliveries/export.csv', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
-    const parsed = querySchema.safeParse(request.query);
+    const parsed = deliveryListQuerySchema.safeParse(request.query);
     if (!parsed.success) throw new HttpError(400, 'Check the delivery filters and try again.');
     const filters = parsed.data;
     const dateFilters = {
@@ -110,7 +95,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
         [
           row.queuedAt.toISOString(),
           row.recipientName,
-          row.recipientContact,
+          row.recipientContact ? '[redacted]' : null,
           row.channel,
           row.kind,
           row.status,
@@ -129,7 +114,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
 
   app.get('/api/deliveries/export.xlsx', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
-    const parsed = querySchema.safeParse(request.query);
+    const parsed = deliveryListQuerySchema.safeParse(request.query);
     if (!parsed.success) throw new HttpError(400, 'Check the delivery filters and try again.');
     const filters = parsed.data;
     const dateFilters = {
@@ -154,7 +139,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...rows.map((row) => [
         row.queuedAt.toISOString(),
         row.recipientName,
-        row.recipientContact,
+        row.recipientContact ? '[redacted]' : null,
         row.channel,
         row.kind,
         row.status,
@@ -172,7 +157,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
   app.post('/api/deliveries/:id/resend', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     requireMaster(user.role);
-    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    const params = uuidParamsSchema.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'Check the delivery id and try again.');
     if (!(await options.deliveries.retryFailed(params.data.id, options.now()))) {
       throw new HttpError(409, 'Only failed deliveries can be resent.');
@@ -183,8 +168,8 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
   app.post('/api/news/:id/send', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     requireMaster(user.role);
-    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
-    const body = z.object({ channel: z.enum(['email', 'whatsapp']) }).safeParse(request.body);
+    const params = uuidParamsSchema.safeParse(request.params);
+    const body = sendNewsBodySchema.safeParse(request.body);
     if (!params.success || !body.success) {
       throw new HttpError(400, 'Check the news item and channel and try again.');
     }

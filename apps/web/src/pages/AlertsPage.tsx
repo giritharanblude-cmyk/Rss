@@ -11,6 +11,9 @@ import { api, ApiError, type AlertPreview } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
 import { LoadingState } from '../components/LoadingState';
 import { Toast } from '../components/Toast';
+import { PageControls } from '../components/PageControls';
+
+const pageSize = 25;
 
 const defaultRule: AlertRuleInput = {
   kind: 'digest',
@@ -30,10 +33,11 @@ function messageOf(error: unknown): string {
 
 export function AlertsPage() {
   const client = useQueryClient();
+  const [page, setPage] = useState(1);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
   const rules = useQuery({
-    queryKey: ['alert-rules'],
-    queryFn: api.alertRules,
+    queryKey: ['alert-rules', page],
+    queryFn: () => api.alertRules({ page, pageSize }),
     retry: false,
     enabled: me.data?.user.role === 'master',
   });
@@ -359,6 +363,13 @@ export function AlertsPage() {
             </article>
           ))}
         </div>
+        <PageControls
+          page={page}
+          pageSize={pageSize}
+          total={rules.data.total}
+          label="rules"
+          onPageChange={setPage}
+        />
         {preview ? <PreviewResult preview={preview} /> : null}
       </main>
     </div>

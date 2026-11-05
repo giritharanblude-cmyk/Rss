@@ -10,8 +10,10 @@ const user = {
 const recipient = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'Asha',
-  whatsappE164: '+919876543210',
-  email: 'asha@example.test',
+  whatsappE164: null,
+  hasWhatsapp: true,
+  email: null,
+  hasEmail: true,
   topics: ['Outbreaks and public health'],
   channel: 'both',
   consentStatus: 'pending',
@@ -51,6 +53,9 @@ describe('Phase 4 pages', () => {
     render(<App />);
 
     expect(await screen.findByText('Asha')).toBeInTheDocument();
+    expect(
+      screen.getByText('WhatsApp configured (hidden) · Email configured (hidden)'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add recipient' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();

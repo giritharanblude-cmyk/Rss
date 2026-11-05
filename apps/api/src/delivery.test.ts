@@ -1,12 +1,33 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { inflateRawSync } from 'node:zlib';
 import { AlertPreviewService } from './alerts/preview';
 import { buildEmailDigest, buildWhatsAppDigest } from './delivery/message';
 import { DeliveryService } from './delivery/service';
+import type { Database } from './db/client';
+import { PostgresSettingsRepository } from './repositories/postgres-settings';
 import { decryptSettings } from './settings/secrets';
 import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
 
 let context: TestContext;
 afterEach(async () => context.app.close());
+
+function workbookText(buffer: Buffer): string {
+  const contents: string[] = [];
+  let offset = 0;
+  while (buffer.readUInt32LE(offset) === 0x04034b50) {
+    const method = buffer.readUInt16LE(offset + 8);
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const nameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const dataStart = offset + 30 + nameLength + extraLength;
+    const data = buffer.subarray(dataStart, dataStart + compressedSize);
+    contents.push(
+      (method === 8 ? inflateRawSync(data) : data).toString('utf8'),
+    );
+    offset = dataStart + compressedSize;
+  }
+  return contents.join('\n');
+}
 
 async function setupEmailDelivery() {
   context = await createTestContext();
@@ -242,8 +263,26 @@ describe('delivery pipeline', () => {
     expect(response.body).toContain('"email"');
   });
 
-  it('encrypts SMTP credentials at rest and never returns the password', async () => {
-    context = await createTestContext();
+  it('stores the SMTP password encrypted through the PostgreSQL settings repository', async () => {
+    let storedValue: string | null = null;
+    const database = {
+      insert: () => ({
+        values: (value: { encryptedValue: string }) => ({
+          onConflictDoUpdate: async () => {
+            storedValue = value.encryptedValue;
+          },
+        }),
+      }),
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => (storedValue ? [{ value: storedValue }] : []),
+          }),
+        }),
+      }),
+    };
+    const settings = new PostgresSettingsRepository(database as unknown as Database);
+    context = await createTestContext({ settings });
     const { cookie } = await loginAndVerify(
       context.app,
       context.email,
@@ -269,8 +308,112 @@ describe('delivery pipeline', () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).not.toContain(password);
     expect(stored).not.toContain(password);
+    expect(stored).toMatch(/^v1\./);
     expect(JSON.parse(decryptSettings(stored!, '9f'.repeat(32)))).toMatchObject({ password });
     expect(context.managedEmail.getPublicSettings()).not.toHaveProperty('password');
+    const sensitiveRecipient = await context.recipients.createRecipient(
+      {
+        name: 'Private Contact',
+        whatsappE164: '+919876543210',
+        email: 'private-contact@example.test',
+        topics: ['Outbreaks and public health'],
+        channel: 'both',
+      },
+      'b'.repeat(64),
+    );
+
+    const publicSettings = await context.app.inject({
+      method: 'GET',
+      url: '/api/settings/email',
+      headers: { cookie },
+    });
+    expect(publicSettings.statusCode).toBe(200);
+    expect(publicSettings.body).not.toContain(password);
+    expect(publicSettings.json()).toMatchObject({ passwordConfigured: true });
+    expect(publicSettings.json().settings).not.toHaveProperty('password');
+
+    const settingsResponses = [
+      response,
+      publicSettings,
+      await context.app.inject({
+        method: 'POST',
+        url: '/api/settings/email/test',
+        headers: { cookie },
+        payload: { to: 'probe@example.test' },
+      }),
+      await context.app.inject({
+        method: 'GET',
+        url: '/api/settings/connections',
+        headers: { cookie },
+      }),
+      await context.app.inject({
+        method: 'POST',
+        url: '/api/settings/connections/check',
+        headers: { cookie },
+      }),
+      await context.app.inject({
+        method: 'POST',
+        url: '/api/settings/whatsapp/connect',
+        headers: { cookie },
+      }),
+      await context.app.inject({
+        method: 'POST',
+        url: '/api/settings/whatsapp/logout',
+        headers: { cookie },
+      }),
+    ];
+    for (const settingsResponse of settingsResponses) {
+      expect(settingsResponse.body).not.toContain(password);
+      expect(settingsResponse.body).not.toContain(sensitiveRecipient.email!);
+      expect(settingsResponse.body).not.toContain(sensitiveRecipient.whatsappE164!);
+      expect(settingsResponse.body).not.toContain(sensitiveRecipient.unsubscribeToken);
+    }
+  });
+
+  it('redacts recipient contacts from delivery list and export responses', async () => {
+    const { cookie, recipient, item } = await setupEmailDelivery();
+    const password = 'private-mailbox-password';
+    const queued = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    expect(queued.statusCode).toBe(202);
+
+    const listed = await context.app.inject({
+      method: 'GET',
+      url: '/api/deliveries',
+      headers: { cookie },
+    });
+    const csv = await context.app.inject({
+      method: 'GET',
+      url: '/api/deliveries/export.csv',
+      headers: { cookie },
+    });
+    const xlsx = await context.app.inject({
+      method: 'GET',
+      url: '/api/deliveries/export.xlsx',
+      headers: { cookie },
+    });
+    const responseBodies = [
+      listed.body,
+      csv.body,
+      workbookText(xlsx.rawPayload),
+    ];
+
+    expect(listed.statusCode).toBe(200);
+    expect(csv.statusCode).toBe(200);
+    expect(xlsx.statusCode).toBe(200);
+    expect(listed.json()).toMatchObject({ items: [{ recipientContact: null }] });
+    expect(csv.body).toContain('[redacted]');
+    expect(workbookText(xlsx.rawPayload)).toContain('[redacted]');
+    for (const body of responseBodies) {
+      expect(body).not.toContain(password);
+      expect(body).not.toContain(recipient.email!);
+      if (recipient.whatsappE164) expect(body).not.toContain(recipient.whatsappE164);
+      expect(body).not.toContain(recipient.unsubscribeToken);
+    }
   });
 
   it('exports XLSX as an OpenXML zip workbook', async () => {

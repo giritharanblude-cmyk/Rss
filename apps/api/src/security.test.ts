@@ -1,8 +1,22 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from './config';
-import { createTestContext, type TestContext } from './test/helpers';
+import { createTestContext, JWT_SECRET, type TestContext } from './test/helpers';
 
 let context: TestContext;
+const testConfig = loadConfig({
+  NODE_ENV: 'test',
+  JWT_SECRET,
+  SETTINGS_ENCRYPTION_KEY: '9f'.repeat(32),
+});
+const productionTestConfig = loadConfig({
+  NODE_ENV: 'production',
+  DATABASE_URL: 'postgresql://db.example.test/app',
+  JWT_SECRET,
+  ORIGIN_SECRET: 'origin-secret-value-123456',
+  ORIGIN_SECRET_ENFORCED: 'true',
+  PUBLIC_APP_ORIGIN: 'https://news.example.test',
+  SETTINGS_ENCRYPTION_KEY: '9f'.repeat(32),
+});
 
 afterEach(async () => {
   await context.app.close();
@@ -31,6 +45,25 @@ describe('origin secret', () => {
       headers: { 'x-origin-secret': 'origin-secret-value-123456' },
     });
     expect(accepted.statusCode).toBe(200);
+  });
+
+  it('rejects a production login request that reaches the origin without its secret', async () => {
+    context = await createTestContext({
+      originSecret: productionTestConfig.ORIGIN_SECRET,
+      originSecretEnforced: true,
+      publicOrigin: productionTestConfig.PUBLIC_APP_ORIGIN,
+      nodeEnv: 'production',
+    });
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { origin: productionTestConfig.PUBLIC_APP_ORIGIN },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: 'Forbidden' });
   });
 
   it('ignores the secret when enforcement is off', async () => {
@@ -62,6 +95,51 @@ describe('origin secret', () => {
         SETTINGS_ENCRYPTION_KEY: '9f'.repeat(32),
       }),
     ).not.toThrow();
+  });
+});
+
+describe('security headers', () => {
+  it('adds the hardening headers used by the API', async () => {
+    context = await createTestContext();
+    const response = await context.app.inject({ method: 'GET', url: '/api/health' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-frame-options']).toBe('DENY');
+    expect(response.headers['content-security-policy']).toContain("default-src 'none'");
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
+  });
+});
+
+describe('csrf protection', () => {
+  it('accepts the configured public origin for state-changing requests', async () => {
+    context = await createTestContext({ publicOrigin: testConfig.PUBLIC_APP_ORIGIN });
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: {
+        origin: testConfig.PUBLIC_APP_ORIGIN,
+      },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ status: 'otp_sent' });
+  });
+
+  it('rejects state-changing requests from an unconfigured origin', async () => {
+    context = await createTestContext({ publicOrigin: testConfig.PUBLIC_APP_ORIGIN });
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: {
+        origin: 'https://evil.example',
+      },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: 'Request origin is not allowed.' });
   });
 });
 

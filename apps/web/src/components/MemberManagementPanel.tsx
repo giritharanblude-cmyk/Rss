@@ -4,6 +4,9 @@ import type { CreateMemberBody, Member } from '@healthcare/shared';
 import { api } from '../api/client';
 import { LoadingState } from './LoadingState';
 import { Toast } from './Toast';
+import { PageControls } from './PageControls';
+
+const pageSize = 25;
 
 const emptyMember: CreateMemberBody = {
   name: '',
@@ -13,7 +16,12 @@ const emptyMember: CreateMemberBody = {
 
 export function MemberManagementPanel() {
   const queryClient = useQueryClient();
-  const members = useQuery({ queryKey: ['members'], queryFn: api.members, retry: false });
+  const [page, setPage] = useState(1);
+  const members = useQuery({
+    queryKey: ['members', page],
+    queryFn: () => api.members({ page, pageSize }),
+    retry: false,
+  });
   const [newMember, setNewMember] = useState(emptyMember);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState('');
@@ -185,6 +193,15 @@ export function MemberManagementPanel() {
           </article>
         ))}
       </div>
+      {members.data ? (
+        <PageControls
+          page={page}
+          pageSize={pageSize}
+          total={members.data.total}
+          label="members"
+          onPageChange={setPage}
+        />
+      ) : null}
     </section>
   );
 }
