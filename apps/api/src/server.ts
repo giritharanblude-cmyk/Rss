@@ -1,6 +1,6 @@
 import { buildApp } from './app';
 import { loadConfig } from './config';
-import { createDatabase, createPool, waitForDatabase } from './db/client';
+import { createDatabase, createPool, getDatabaseSizeBytes, waitForDatabase } from './db/client';
 import { runMigrations } from './db/migrate';
 import { createEmailSender } from './email';
 import { ManagedEmailSender, smtpSettingsSchema } from './email/managed';
@@ -123,6 +123,7 @@ async function main(): Promise<void> {
     email: emailSender,
     adminEmail,
     jwtSecret: config.JWT_SECRET,
+    databaseSizeBytes: () => getDatabaseSizeBytes(pool),
     sessionTtlSeconds: config.SESSION_TTL_HOURS * 60 * 60,
     cookieSecure: config.NODE_ENV === 'production',
     originSecret: config.ORIGIN_SECRET,

@@ -24,6 +24,19 @@ One entry per decision: date, decision, reason.
 - **`packages/shared` build order:** the root `typecheck`, `test`, and `build` scripts build `@healthcare/shared` first so the API can import its compiled types. Reason: workspace consumers resolve `dist`, avoiding cross-package TS project references in Phase 0.
 - **arm64 image proof (2026-11-03):** `docker buildx build --platform linux/arm64` succeeds with the multi-stage Dockerfile; runtime Chromium 156.0.8078.73 launches (`--version`). Headless render (`--dump-dom`) hangs under QEMU on the x86 dev host, so rendering is deferred to a real arm64 VM. Reason: QEMU emulation limitation, not an image defect.
 
+## 2026-11-04
+
+- **Phase 6 member permissions:** The master can perform all actions. Members can browse and filter News Feed, view Delivery Log, and view Sources and Recipients read-only; they cannot access Settings, Alerts, or member management. Marking news important remains master-only because that action can trigger an instant delivery. Reason: keep the specified member access while reserving actions that can initiate sends or change configuration for the master. The existing member API supports create/list/disable but has no reset-access flow; the health endpoint currently has no database-size field.
+- **Phase 6 member reset access:** A master sets a replacement member password. The account's disabled state is preserved, and updating the password increments `session_version` so the member's existing sessions are rejected. Reason: provide the requested administrative reset while immediately invalidating sessions that may have been exposed.
+- **Phase 6 web test workers:** Run web Vitest with `--maxWorkers=1 --no-file-parallelism`. Reason: the default parallel worker pool exhausted memory on the Windows development host; the serialized suite passes consistently without changing test coverage.
+
+## 2026-11-05
+
+- **Demo data uses canonical category names.** Sample sources, items, and recipients reference only the six `NEWS_CATEGORIES` (plus the demo item category), never ad-hoc names such as "Vaccines" or "Clinical guidance". Reason: recipient topics are parsed with the shared enum schema, so an unknown topic would make the whole recipient list fail; demos must look and validate like real data.
+- **Accessibility evidence via a review-only server.** Lighthouse 12.8.2 runs against the production web build served by `scripts/a11y-review-server.mjs`, which returns fixed sample API data. Reason: no live authenticated review environment or credentials are available locally, and accessibility is a property of the rendered page. The script is development tooling only, is not imported by the app, and is not deployed. Lighthouse stays an `npx` invocation so it is not added to runtime dependencies.
+- **Durable keyboard/label checks live in Playwright.** `apps/web/e2e/accessibility.e2e.ts` covers the skip link, visible focus indicator, reverse keyboard navigation into the module bar, accessible names on all form controls, one `h1`, and word-based connection states. Reason: those behaviours depend on real browser focus handling and cannot be proven in jsdom unit tests.
+- **Playwright runs one worker.** `apps/web/playwright.config.ts` sets `workers: 1`. Reason: on this Windows host, two simultaneous Chromium launches crashed at startup (`0xC0000409`) during the clean-worktree check, while serialized runs pass reliably; the suite is only two tests, so serial execution costs little.
+
 ## Verified free-tier limits (checked 2026-11-03)
 
 - **Netlify Free:** 300 credits/month, 1 concurrent build, 1 team owner. Production deploy = 15 credits; compute = 5–10 credits/GB-hour; bandwidth = 10–20 credits/GB; web requests = 2–3 credits per 10k. Projects pause when credits run out. Implication: keep the bundle small, cache aggressively, keep API calls short, and do long work as background jobs. The ~26 s proxy cut-off is treated as the operational ceiling.

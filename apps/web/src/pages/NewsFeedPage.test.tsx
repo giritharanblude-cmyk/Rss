@@ -106,4 +106,47 @@ describe('NewsFeedPage', () => {
     expect(await screen.findByText('Important')).toBeInTheDocument();
     expect(calls.some((path) => path.endsWith('/important'))).toBe(true);
   });
+
+  it('lets a member browse the feed without send or importance controls', async () => {
+    const member = { ...user, name: 'Mina', role: 'member' };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const path = String(input);
+        if (path === '/api/auth/me') return jsonResponse(200, { user: member });
+        if (path === '/api/sources') return jsonResponse(200, { sources: [source] });
+        if (path.startsWith('/api/news?')) {
+          return jsonResponse(200, {
+            page: 1,
+            pageSize: 20,
+            total: 1,
+            items: [
+              {
+                id: '00000000-0000-4000-8000-000000000002',
+                sourceId: source.id,
+                sourceName: source.name,
+                headline: 'Vaccine advisory for hospitals',
+                summary: 'New vaccine guidance for clinicians.',
+                link: 'https://news.example.test/story',
+                category: 'Outbreaks and public health',
+                publishedAt: '2026-11-03T08:00:00.000Z',
+                fetchedAt: '2026-11-03T08:00:00.000Z',
+                important: false,
+              },
+            ],
+          });
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Vaccine advisory for hospitals' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark as important' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send now to WhatsApp' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send now by email' })).not.toBeInTheDocument();
+  });
 });

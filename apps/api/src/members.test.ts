@@ -29,6 +29,12 @@ describe('member management', () => {
     expect(created.statusCode).toBe(201);
     const member = (created.json() as { member: { id: string; role: string } }).member;
     expect(member.role).toBe('member');
+    const { cookie: oldMemberCookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Ravi',
+      'member-password-1',
+    );
 
     const list = await context.app.inject({
       method: 'GET',
@@ -37,6 +43,35 @@ describe('member management', () => {
     });
     expect(list.statusCode).toBe(200);
     expect(list.json()).toMatchObject({ members: [{ name: 'Ravi', disabled: false }] });
+
+    const reset = await context.app.inject({
+      method: 'POST',
+      url: `/api/members/${member.id}/reset-password`,
+      headers: { cookie },
+      payload: { password: 'member-password-2' },
+    });
+    expect(reset.statusCode).toBe(204);
+
+    const staleSession = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: oldMemberCookie },
+    });
+    expect(staleSession.statusCode).toBe(401);
+
+    context.clock.advance(61_000);
+    const { cookie: newMemberCookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Ravi',
+      'member-password-2',
+    );
+    const activeSession = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: newMemberCookie },
+    });
+    expect(activeSession.statusCode).toBe(200);
 
     const disabled = await context.app.inject({
       method: 'PATCH',
@@ -93,7 +128,7 @@ describe('member management', () => {
 
   it('blocks a member from master-only routes', async () => {
     context = await createTestContext();
-    await seedMember(context.users, {
+    const member = await seedMember(context.users, {
       name: 'Mina',
       email: 'mina@example.com',
       password: 'member-password-1',
@@ -119,6 +154,14 @@ describe('member management', () => {
       payload: { name: 'New', email: 'new@example.com', password: 'member-password-2' },
     });
     expect(create.statusCode).toBe(403);
+
+    const reset = await context.app.inject({
+      method: 'POST',
+      url: `/api/members/${member.id}/reset-password`,
+      headers: { cookie },
+      payload: { password: 'member-password-2' },
+    });
+    expect(reset.statusCode).toBe(403);
   });
 });
 

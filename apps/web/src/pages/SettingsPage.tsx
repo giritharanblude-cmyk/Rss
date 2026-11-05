@@ -1,9 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
+import { DATABASE_STORAGE_LIMIT_BYTES } from '@healthcare/shared';
 import type { SmtpSettings } from '../api/client';
 import { api } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { MemberManagementPanel } from '../components/MemberManagementPanel';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 const emptySettings: SmtpSettings = {
   host: '',
@@ -21,11 +25,20 @@ export function SettingsPage() {
     queryKey: ['email-settings'],
     queryFn: api.emailSettings,
     retry: false,
+    enabled: me.data?.user.role === 'master',
   });
   const connections = useQuery({
     queryKey: ['connection-settings'],
     queryFn: api.connectionSettings,
     retry: false,
+    enabled: me.data?.user.role === 'master',
+  });
+  const health = useQuery({
+    queryKey: ['health'],
+    queryFn: api.health,
+    retry: false,
+    refetchInterval: 60_000,
+    enabled: me.data?.user.role === 'master',
   });
   const [settings, setSettings] = useState<SmtpSettings>(emptySettings);
   const [password, setPassword] = useState('');
@@ -46,15 +59,24 @@ export function SettingsPage() {
   });
   const check = useMutation({
     mutationFn: api.checkConnections,
-    onSuccess: (result) => queryClient.setQueryData(['connection-settings'], result),
+    onSuccess: (result) => {
+      queryClient.setQueryData(['connection-settings'], result);
+      setNotice('Connection status refreshed.');
+    },
   });
   const connectWhatsApp = useMutation({
     mutationFn: api.connectWhatsApp,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['connection-settings'] }),
+    onSuccess: () => {
+      setNotice('WhatsApp connection requested.');
+      void queryClient.invalidateQueries({ queryKey: ['connection-settings'] });
+    },
   });
   const logoutWhatsApp = useMutation({
     mutationFn: api.logoutWhatsApp,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['connection-settings'] }),
+    onSuccess: () => {
+      setNotice('WhatsApp logout requested.');
+      void queryClient.invalidateQueries({ queryKey: ['connection-settings'] });
+    },
   });
 
   useEffect(() => {
@@ -64,7 +86,7 @@ export function SettingsPage() {
   if (me.isLoading)
     return (
       <main className="app-main">
-        <p role="status">Loading…</p>
+        <LoadingState label="Loading your account…" />
       </main>
     );
   if (me.isError || !me.data) return <Navigate to="/login" replace />;
@@ -83,20 +105,22 @@ export function SettingsPage() {
 
   const mutationError =
     save.error ?? test.error ?? check.error ?? connectWhatsApp.error ?? logoutWhatsApp.error;
+  const connectionByService = new Map(
+    (connections.data?.connections ?? []).map((connection) => [connection.service, connection]),
+  );
+  const storagePercent = health.data
+    ? (health.data.databaseSizeBytes / DATABASE_STORAGE_LIMIT_BYTES) * 100
+    : null;
 
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
-      <main className="app-main feed-main">
+      <main className="app-main feed-main" id="main-content" tabIndex={-1}>
         <h1>Settings</h1>
         <p className="auth-subtitle">
           Configure delivery services and check their current connection status.
         </p>
-        {notice ? (
-          <p className="banner banner-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <Toast message={notice} onDismiss={() => setNotice(null)} />
         {mutationError ? (
           <p className="banner banner-error" role="alert">
             {mutationError.message}
@@ -110,6 +134,11 @@ export function SettingsPage() {
         {connections.isError ? (
           <p className="banner banner-error" role="alert">
             Connection status could not be loaded.
+          </p>
+        ) : null}
+        {health.isError ? (
+          <p className="banner banner-error" role="alert">
+            Database size could not be loaded.
           </p>
         ) : null}
         <section className="settings-section">
@@ -222,7 +251,10 @@ export function SettingsPage() {
                 type="button"
                 className="button-secondary"
                 disabled={connectWhatsApp.isPending}
-                onClick={() => connectWhatsApp.mutate()}
+                onClick={() => {
+                  setNotice(null);
+                  connectWhatsApp.mutate();
+                }}
               >
                 Connect
               </button>
@@ -230,7 +262,10 @@ export function SettingsPage() {
                 type="button"
                 className="button-danger"
                 disabled={logoutWhatsApp.isPending}
-                onClick={() => logoutWhatsApp.mutate()}
+                onClick={() => {
+                  setNotice(null);
+                  logoutWhatsApp.mutate();
+                }}
               >
                 Log out
               </button>
@@ -244,33 +279,52 @@ export function SettingsPage() {
               type="button"
               className="button-secondary"
               disabled={check.isPending}
-              onClick={() => check.mutate()}
+              onClick={() => {
+                setNotice(null);
+                check.mutate();
+              }}
             >
               Check now
             </button>
           </div>
-          {(connections.data?.connections ?? []).length ? (
-            <div className="connection-grid">
-              {connections.data?.connections.map((connection) => (
-                <article className="connection-card settings-connection" key={connection.service}>
+          <div className="connection-grid">
+            {(['email', 'whatsapp'] as const).map((service) => {
+              const connection = connectionByService.get(service);
+              return (
+                <article className="connection-card settings-connection" key={service}>
                   <span
-                    className={`connection-dot ${['working', 'connected'].includes(connection.state) ? 'connection-ok' : 'connection-off'}`}
+                    className={`connection-dot ${connection && ['working', 'connected'].includes(connection.state) ? 'connection-ok' : 'connection-off'}`}
                   />
-                  <span>{connection.service === 'email' ? 'Email' : 'WhatsApp'}</span>
-                  <strong>{connection.state}</strong>
+                  <span>{service === 'email' ? 'Email' : 'WhatsApp'}</span>
+                  <strong>{connection?.state ?? 'Not checked'}</strong>
                   <small>
-                    Checked {formatDateTime(connection.checkedAt)}
-                    {connection.detail ? ` · ${connection.detail}` : ''}
+                    {connection
+                      ? `Checked ${formatDateTime(connection.checkedAt)}`
+                      : 'No check recorded yet.'}
+                    {connection?.detail ? ` · ${connection.detail}` : ''}
                   </small>
                 </article>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">
-              No connection checks recorded yet. Use “Check now” to verify services.
-            </p>
-          )}
+              );
+            })}
+          </div>
         </section>
+        <section className="settings-section">
+          <h2>Database storage</h2>
+          {health.isLoading ? (
+            <p role="status">Loading database size…</p>
+          ) : health.data && storagePercent !== null ? (
+            <p
+              className={`banner ${storagePercent > 70 ? 'banner-error' : 'banner-notice'}`}
+              role={storagePercent > 70 ? 'alert' : 'status'}
+            >
+              Database uses {formatBytes(health.data.databaseSizeBytes)} of the{' '}
+              {formatBytes(DATABASE_STORAGE_LIMIT_BYTES)} free-tier limit (
+              {storagePercent.toFixed(1)}%).
+              {storagePercent > 70 ? ' Storage has passed the 70% warning threshold.' : ''}
+            </p>
+          ) : null}
+        </section>
+        <MemberManagementPanel />
       </main>
     </div>
   );
@@ -282,4 +336,10 @@ function formatDateTime(value: string): string {
     timeStyle: 'short',
     timeZone: 'Asia/Kolkata',
   }).format(new Date(value));
+}
+
+function formatBytes(value: number): string {
+  return value >= 1_000_000_000
+    ? `${(value / 1_000_000_000).toFixed(2)} GB`
+    : `${(value / 1_000_000).toFixed(1)} MB`;
 }

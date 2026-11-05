@@ -36,9 +36,31 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Phase 4 pages', () => {
+  it('lets members view recipients without recipient or consent controls', async () => {
+    const member = { ...user, name: 'Mina', role: 'member' };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/auth/me') return jsonResponse(200, { user: member });
+      if (path.startsWith('/api/recipients')) {
+        return jsonResponse(200, { recipients: [recipient] });
+      }
+      return jsonResponse(204, {});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByText('Asha')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add recipient' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirm consent' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  });
+
   it('records consent only with a note and updates the recipient state', async () => {
     let consentStatus = 'pending';
-    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
       if (path === '/api/auth/me') return jsonResponse(200, { user });
       if (path.startsWith('/api/recipients/') && path.endsWith('/consent')) {
@@ -135,7 +157,7 @@ describe('Phase 4 pages', () => {
 
   it('lets a recipient unsubscribe from the public token page', async () => {
     const token = 'a'.repeat(64);
-    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       if (String(input) === `/api/public/unsubscribe/${token}`) {
         return jsonResponse(200, { status: 'unsubscribed', name: 'Asha' });
       }

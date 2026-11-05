@@ -29,6 +29,9 @@ export function AppHeader({ user }: { user: PublicUser }) {
 
   return (
     <>
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <header className="app-header">
         <Link className="app-title" to="/">
           Healthcare News Reader
@@ -47,15 +50,17 @@ export function AppHeader({ user }: { user: PublicUser }) {
         </p>
       ) : null}
       <nav className="module-nav" aria-label="Modules">
-        {modules.map((module) => (
-          <NavLink
-            key={module.href}
-            to={module.href}
-            className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}
-          >
-            {module.label}
-          </NavLink>
-        ))}
+        {modules
+          .filter((module) => user.role === 'master' || module.href !== '/alerts')
+          .map((module) => (
+            <NavLink
+              key={module.href}
+              to={module.href}
+              className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}
+            >
+              {module.label}
+            </NavLink>
+          ))}
         {user.role === 'master' ? (
           <NavLink
             to="/settings"

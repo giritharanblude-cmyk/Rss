@@ -7,9 +7,7 @@ export type Database = NodePgDatabase<typeof schema>;
 export function createPool(connectionString: string): Pool {
   return new Pool({
     connectionString,
-    ssl: connectionString.includes('sslmode=require')
-      ? { rejectUnauthorized: true }
-      : undefined,
+    ssl: connectionString.includes('sslmode=require') ? { rejectUnauthorized: true } : undefined,
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
@@ -18,6 +16,17 @@ export function createPool(connectionString: string): Pool {
 
 export function createDatabase(pool: Pool): Database {
   return drizzle(pool, { schema });
+}
+
+export async function getDatabaseSizeBytes(pool: Pool): Promise<number> {
+  const result = await pool.query<{ size: string }>(
+    'SELECT pg_database_size(current_database())::text AS size',
+  );
+  const size = Number(result.rows[0]?.size);
+  if (!Number.isSafeInteger(size) || size < 0) {
+    throw new Error('Database size query returned an invalid size.');
+  }
+  return size;
 }
 
 export async function waitForDatabase(pool: Pool, attempts = 5): Promise<void> {

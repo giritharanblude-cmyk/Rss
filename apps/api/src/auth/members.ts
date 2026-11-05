@@ -1,5 +1,5 @@
 import { DuplicateNameError, ForbiddenError, HttpError } from '../errors';
-import type { CreateMemberBody } from '@healthcare/shared';
+import type { CreateMemberBody, ResetMemberPasswordBody } from '@healthcare/shared';
 import type { UserRecord, UserRepository } from '../repositories/types';
 import { hashPassword } from './passwords';
 
@@ -34,11 +34,7 @@ export class MemberService {
     });
   }
 
-  async setDisabled(
-    actor: UserRecord,
-    memberId: string,
-    disabled: boolean,
-  ): Promise<UserRecord> {
+  async setDisabled(actor: UserRecord, memberId: string, disabled: boolean): Promise<UserRecord> {
     this.assertMaster(actor);
     if (actor.id === memberId) {
       throw new ForbiddenError('You cannot disable your own account.');
@@ -51,5 +47,27 @@ export class MemberService {
       throw new ForbiddenError('Only members can be disabled here.');
     }
     return updated;
+  }
+
+  async resetPassword(
+    actor: UserRecord,
+    memberId: string,
+    input: ResetMemberPasswordBody,
+  ): Promise<void> {
+    this.assertMaster(actor);
+    if (actor.id === memberId) {
+      throw new ForbiddenError('You cannot reset your own account here.');
+    }
+    const member = await this.users.findById(memberId);
+    if (!member) {
+      throw new HttpError(404, 'That member was not found.');
+    }
+    if (member.role !== 'member') {
+      throw new ForbiddenError('Only member accounts can be reset here.');
+    }
+    const passwordHash = await hashPassword(input.password);
+    if (!(await this.users.updatePasswordHash(memberId, passwordHash))) {
+      throw new HttpError(404, 'That member was not found.');
+    }
   }
 }

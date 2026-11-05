@@ -32,6 +32,14 @@ const delivery = {
   attempts: 3,
   lastError: 'Delivery failed; check the configured connection.',
 };
+const member = {
+  id: '00000000-0000-4000-8000-000000000003',
+  name: 'Ravi',
+  email: 'ravi@example.test',
+  role: 'member',
+  disabled: false,
+  createdAt: '2026-11-03T08:00:00.000Z',
+};
 
 function jsonResponse(status: number, body: unknown): Response {
   return {
@@ -43,7 +51,10 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 beforeEach(() => window.history.pushState({}, '', '/deliveries'));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('Phase 5 pages', () => {
   it('filters delivery history, exports it, and resends failed deliveries', async () => {
@@ -87,12 +98,39 @@ describe('Phase 5 pages', () => {
 
   it('saves SMTP settings without exposing secrets and allows connection checks', async () => {
     const calls: { path: string; init?: RequestInit }[] = [];
+    let memberCreated = false;
+    let memberDisabled = false;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const path = String(input);
         calls.push({ path, init });
         if (path === '/api/auth/me') return jsonResponse(200, { user });
+        if (path === '/api/members' && init?.method === 'POST') {
+          memberCreated = true;
+          return jsonResponse(201, { member });
+        }
+        if (path === '/api/members' && (!init?.method || init.method === 'GET')) {
+          return jsonResponse(200, {
+            members: memberCreated ? [{ ...member, disabled: memberDisabled }] : [],
+          });
+        }
+        if (path.endsWith('/reset-password')) return jsonResponse(204, {});
+        if (path.startsWith('/api/members/') && init?.method === 'PATCH') {
+          memberDisabled = true;
+          return jsonResponse(200, { member: { ...member, disabled: true } });
+        }
+        if (path === '/api/health') {
+          return jsonResponse(200, {
+            status: 'ok',
+            service: 'healthcare-rss-api',
+            version: '0.0.0',
+            uptimeSeconds: 100,
+            timestamp: '2026-11-03T08:00:00.000Z',
+            databaseSizeBytes: 710_000_000,
+          });
+        }
         if (path === '/api/settings/email' && init?.method !== 'PUT') {
           return jsonResponse(200, { settings: null, passwordConfigured: false });
         }
@@ -102,6 +140,12 @@ describe('Phase 5 pages', () => {
               {
                 service: 'email',
                 state: 'working',
+                checkedAt: '2026-11-03T08:00:00.000Z',
+                detail: null,
+              },
+              {
+                service: 'whatsapp',
+                state: 'connected',
                 checkedAt: '2026-11-03T08:00:00.000Z',
                 detail: null,
               },
@@ -139,6 +183,11 @@ describe('Phase 5 pages', () => {
     window.history.pushState({}, '', '/settings');
     render(<App />);
 
+    const storageWarning = await screen.findByRole('alert');
+    expect(storageWarning).toHaveTextContent('Storage has passed the 70% warning threshold.');
+    expect(storageWarning).toHaveTextContent('710.0 MB');
+    expect(screen.getAllByText(/Checked /)).toHaveLength(2);
+
     fireEvent.change(await screen.findByLabelText('SMTP host'), {
       target: { value: 'smtp.example.test' },
     });
@@ -165,5 +214,33 @@ describe('Phase 5 pages', () => {
     await waitFor(() =>
       expect(calls.some(({ path }) => path === '/api/settings/connections/check')).toBe(true),
     );
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ravi' } });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'ravi@example.test' },
+    });
+    fireEvent.change(screen.getByLabelText('Initial password'), {
+      target: { value: 'member-password-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
+    expect(await screen.findByText('Member account created.')).toBeInTheDocument();
+    expect(await screen.findByText('Ravi')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disable access' }));
+    await waitFor(() =>
+      expect(
+        calls.some(({ path, init }) => path.endsWith(member.id) && init?.method === 'PATCH'),
+      ).toBe(true),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }));
+    fireEvent.change(screen.getByLabelText('New password for Ravi'), {
+      target: { value: 'member-password-2' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Set password and revoke sessions' }));
+    expect(
+      await screen.findByText('Password reset. The member’s existing sessions are revoked.'),
+    ).toBeInTheDocument();
+    const resetCall = calls.find(({ path }) => path.endsWith('/reset-password'));
+    expect(JSON.parse(String(resetCall?.init?.body))).toEqual({ password: 'member-password-2' });
   });
 });

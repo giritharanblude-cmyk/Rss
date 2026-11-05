@@ -10,6 +10,8 @@ import {
 } from '@healthcare/shared';
 import { api, ApiError } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
+import { LoadingState } from '../components/LoadingState';
+import { Toast } from '../components/Toast';
 
 const blankSource: SourceInput = {
   name: '',
@@ -176,25 +178,56 @@ export function SourcesPage() {
   const sources = useQuery({ queryKey: ['sources'], queryFn: api.sources, retry: false });
 
   const refresh = async () => queryClient.invalidateQueries({ queryKey: ['sources'] });
-  const create = useMutation({ mutationFn: api.createSource, onSuccess: refresh });
+  const create = useMutation({
+    mutationFn: api.createSource,
+    onSuccess: async () => {
+      await refresh();
+      setNotice('Source added.');
+    },
+  });
   const update = useMutation({
     mutationFn: ({ id, input }: { id: string; input: Partial<SourceInput> }) =>
       api.updateSource(id, input),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      await refresh();
+      setNotice('Source updated.');
+    },
   });
-  const remove = useMutation({ mutationFn: api.deleteSource, onSuccess: refresh });
+  const remove = useMutation({
+    mutationFn: api.deleteSource,
+    onSuccess: async () => {
+      await refresh();
+      setNotice('Source deleted.');
+    },
+  });
 
   if (me.isLoading || sources.isLoading)
     return (
       <main className="app-main">
-        <p role="status">Loading sources…</p>
+        <LoadingState label="Loading sources…" />
       </main>
     );
-  if (me.isError || sources.isError || !me.data || !sources.data)
-    return <Navigate to="/login" replace />;
+  if (me.isError || !me.data) return <Navigate to="/login" replace />;
+  if (sources.isError || !sources.data) {
+    return (
+      <div className="app-frame">
+        <AppHeader user={me.data.user} />
+        <main className="app-main sources-main" id="main-content" tabIndex={-1}>
+          <h1>Sources</h1>
+          <p className="banner banner-error" role="alert">
+            Sources could not be loaded.
+          </p>
+          <button type="button" onClick={() => void sources.refetch()}>
+            Retry
+          </button>
+        </main>
+      </div>
+    );
+  }
   const canEdit = me.data.user.role === 'master';
 
   async function save(input: SourceInput) {
+    setNotice(null);
     if (editing) {
       await update.mutateAsync({ id: editing.id, input });
       setEditing(null);
@@ -206,6 +239,7 @@ export function SourcesPage() {
   }
 
   async function toggle(source: Source) {
+    setNotice(null);
     try {
       await update.mutateAsync({ id: source.id, input: { active: !source.active } });
       setError(null);
@@ -215,6 +249,7 @@ export function SourcesPage() {
   }
 
   async function testFeed(rssUrl: string) {
+    setNotice(null);
     setNotice('Feed test queued…');
     setError(null);
     try {
@@ -241,7 +276,7 @@ export function SourcesPage() {
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
-      <main className="app-main sources-main">
+      <main className="app-main sources-main" id="main-content" tabIndex={-1}>
         <div className="section-heading">
           <div>
             <h1>Sources</h1>
@@ -259,11 +294,7 @@ export function SourcesPage() {
             </button>
           ) : null}
         </div>
-        {notice ? (
-          <p className="banner banner-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <Toast message={notice} onDismiss={() => setNotice(null)} />
         {error ? (
           <p className="banner banner-error" role="alert">
             {error}

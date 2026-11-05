@@ -53,6 +53,11 @@ export const createMemberBodySchema = z.object({
 });
 export type CreateMemberBody = z.infer<typeof createMemberBodySchema>;
 
+export const resetMemberPasswordBodySchema = z.object({
+  password: passwordSchema,
+});
+export type ResetMemberPasswordBody = z.infer<typeof resetMemberPasswordBodySchema>;
+
 export const updateMemberBodySchema = z.object({
   disabled: z.boolean(),
 });

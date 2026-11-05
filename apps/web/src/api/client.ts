@@ -3,8 +3,10 @@ import type {
   AlertPreviewInput,
   AlertRule,
   AlertRuleInput,
+  CreateMemberBody,
   LoginAccepted,
   LoginBody,
+  Member,
   PublicUser,
   Recipient,
   RecipientInput,
@@ -12,6 +14,7 @@ import type {
   Source,
   SourceInput,
   VerifyOtpBody,
+  HealthResponse,
 } from '@healthcare/shared';
 import type { NEWS_CATEGORIES } from '@healthcare/shared';
 
@@ -174,6 +177,7 @@ async function requestDashboardLive(): Promise<DashboardLive> {
 }
 
 export const api = {
+  health: () => request<HealthResponse>('/api/health'),
   me: () => request<{ user: PublicUser }>('/api/auth/me'),
   login: (body: LoginBody) =>
     request<LoginAccepted>('/api/auth/login', {
@@ -272,6 +276,22 @@ export const api = {
   logoutWhatsApp: () =>
     request<{ status: { connected: boolean; detail?: string } }>('/api/settings/whatsapp/logout', {
       method: 'POST',
+    }),
+  members: () => request<{ members: Member[] }>('/api/members'),
+  createMember: (body: CreateMemberBody) =>
+    request<{ member: Member }>('/api/members', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateMember: (id: string, disabled: boolean) =>
+    request<{ member: Member }>(`/api/members/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ disabled }),
+    }),
+  resetMemberPassword: (id: string, password: string) =>
+    request<void>(`/api/members/${encodeURIComponent(id)}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
     }),
   recipients: (query = '') =>
     request<{ recipients: Recipient[] }>(

@@ -157,8 +157,21 @@ describe('source management routes', () => {
       headers: { cookie },
       payload: validSource,
     });
+    const update = await context.app.inject({
+      method: 'PATCH',
+      url: '/api/sources/00000000-0000-4000-8000-000000000001',
+      headers: { cookie },
+      payload: { active: false },
+    });
+    const remove = await context.app.inject({
+      method: 'DELETE',
+      url: '/api/sources/00000000-0000-4000-8000-000000000001',
+      headers: { cookie },
+    });
 
     expect(list.statusCode).toBe(200);
     expect(create.statusCode).toBe(403);
+    expect(update.statusCode).toBe(403);
+    expect(remove.statusCode).toBe(403);
   });
 });

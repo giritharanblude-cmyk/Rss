@@ -156,6 +156,23 @@ describe('recipient management and public preferences', () => {
       headers: { cookie },
       payload: recipientInput,
     });
+    const update = await context.app.inject({
+      method: 'PATCH',
+      url: '/api/recipients/00000000-0000-4000-8000-000000000001',
+      headers: { cookie },
+      payload: recipientInput,
+    });
+    const consent = await context.app.inject({
+      method: 'PATCH',
+      url: '/api/recipients/00000000-0000-4000-8000-000000000001/consent',
+      headers: { cookie },
+      payload: { status: 'revoked' },
+    });
+    const remove = await context.app.inject({
+      method: 'DELETE',
+      url: '/api/recipients/00000000-0000-4000-8000-000000000001',
+      headers: { cookie },
+    });
     const rules = await context.app.inject({
       method: 'GET',
       url: '/api/alert-rules',
@@ -163,6 +180,9 @@ describe('recipient management and public preferences', () => {
     });
     expect(list.statusCode).toBe(200);
     expect(create.statusCode).toBe(403);
+    expect(update.statusCode).toBe(403);
+    expect(consent.statusCode).toBe(403);
+    expect(remove.statusCode).toBe(403);
     expect(rules.statusCode).toBe(403);
   });
 });

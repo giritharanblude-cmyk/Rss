@@ -1,8 +1,8 @@
 # PROGRESS
 
-Current phase: 5
+Current phase: 6
 Gate mode: MANUAL
-Last green commit: 4bc6d58
+Last green commit: f6aeadc
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -96,3 +96,33 @@ Phase 5 approved on 2026-11-04: `APPROVED PHASE 5` for code commit `7552f5b`. Th
 - Recipient phone/email filtering runs in application memory after decryption; these values cannot be searched with ordinary database ciphertext predicates. There are no database-level uniqueness checks on recipient phone or email.
 - **Before running the backfill on a copy:** it skips any non-null phone or email value prefixed `contact:` (`apps/api/src/db/migrate.ts:28-32`). Check for legacy plaintext values with that prefix on the copy run, because they would be skipped as though encrypted.
 - **Open item:** The live database migration/backfill has not yet been run; verify it against a database copy before production.
+
+## Phase 6: Settings, Roles, and UX Completion
+
+Complete and approved on 2026-11-05.
+
+- [x] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
+- [x] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
+- [x] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
+- [x] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only. (commit `7429253`)
+- [x] Add shared loading skeletons and toasts, error/retry states, and destructive-action confirmations across the relevant pages. (commit `c915845`)
+- [x] Complete and verify the accessibility pass for keyboard navigation, labels, contrast, and non-color status cues (commit `3fd225f`): new Playwright test covers skip link, focus indicator, keyboard navigation, control labels, and word-based status cues; Lighthouse 12.8.2 scored 100 on all seven audited pages (see `docs/phase-reports/PHASE-6.md`).
+- [x] Add demo-data seed and clear commands for clearly marked sample sources, items, and recipients (commit `500f48f`), with canonical category values fixed in commit `3fd225f`.
+- [x] Stabilize the web test runner for constrained CI memory and fix strict TypeScript test typing regressions (commit `57f6014`).
+- [x] Add focused API and UI role checks; on 2026-11-04 `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` all exited 0.
+- [x] Run demo seed and clear against a disposable review database (2026-11-05): local Docker `postgres:16-alpine`, seed 0 → 2 sources / 2 items / 2 recipients, repeat seed idempotent, clear 0 leaves no rows and preserves a non-demo sentinel row.
+- [x] Per-commit checks: `7429253` and `c915845` had lint/typecheck/test exit 0/0/0. The 2026-11-05 fresh-session gate run had lint 0, typecheck 0, test 0 (64 API + 17 web + 2 shared tests), build 0, and Playwright 2/2 serialized; the earlier worker/OOM failures did not recur (item 23 closed). A clean-worktree run at `3fd225f` first crashed two Chromium launches at startup, so Playwright now runs one worker.
+- [x] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
+
+Phase 6 approved on 2026-11-05: `APPROVED PHASE 6` for gate commit `f6aeadc`; tag `phase-6-complete`. Accepted limits: Lighthouse ran against fixed sample data; demo data was verified on a disposable database only; Playwright runs serially on this host; the 848 kB bundle is deferred to Phase 7; live Neon, SMTP, and WhatsApp remain credential-blocked; `npm audit` reports 16 moderate advisories, none high or critical.
+
+### Phase 6 acceptance criteria
+
+- [x] Settings contains both connection panels with status and last-checked time, plus a database-size warning above 70% of the known cap.
+- [x] Member management is available only to masters in Settings; members are blocked from Settings writes and member management.
+- [x] Role behavior is verified: masters can do everything; members can use News Feed, view Delivery Log, and view Sources and Recipients without write access.
+- [x] The primary navigation contains exactly six modules.
+- [x] Empty, loading, and error states are present where applicable; destructive actions require confirmation; feedback uses toasts; accessibility supports keyboard navigation, labels, sufficient contrast, and cues beyond color alone. Evidence: Playwright `e2e/accessibility.e2e.ts` passes and `scripts/a11y-review-server.mjs` exposes the built pages for Lighthouse.
+- [x] Demo data can be seeded and cleared cleanly, and sample sources, items, and recipients are identifiable as demo data (`[DEMO]` names/headlines). Verified against a disposable `postgres:16-alpine` container on 2026-11-05.
+- [x] Lighthouse accessibility score is at least 90 on the main pages. Scores (Lighthouse 12.8.2, production build, review server with sample API data): dashboard 100, News Feed 100, Sources 100, Recipients 100, Alerts & Schedule 100, Delivery Log 100, Settings 100.
+- [x] Lint, typecheck, tests, and build pass (2026-11-05, exits 0/0/0/0); the phase report records evidence for every criterion.

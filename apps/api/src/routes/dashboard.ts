@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { AuthService } from '../auth/service';
 import type { DashboardNewsItem, DashboardRepository } from '../repositories/dashboard';
 import type { DeliveryService } from '../delivery/service';
-import { HttpError } from '../errors';
+import { ForbiddenError, HttpError } from '../errors';
 import { readUser } from './auth';
 
 export type DashboardRouteOptions = {
@@ -123,7 +123,8 @@ export function registerDashboardRoutes(
   });
 
   app.patch('/api/news/:id/important', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    if (user.role !== 'master') throw new ForbiddenError();
     const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
     const body = z.object({ important: z.boolean() }).safeParse(request.body);
     if (!params.success || !body.success) {

@@ -55,9 +55,11 @@ export type TestContext = {
 export type TestContextOptions = Pick<
   AppDeps,
   'originSecret' | 'originSecretEnforced' | 'otp' | 'lockout' | 'rateLimits'
->;
+> &
+  Partial<Pick<AppDeps, 'databaseSizeBytes'>>;
 
 export async function createTestContext(options: TestContextOptions = {}): Promise<TestContext> {
+  const { databaseSizeBytes = async () => 0, ...testOptions } = options;
   const clock = createClock();
   const users = new MemoryUserRepository(clock.now);
   const otps = new MemoryOtpRepository(clock.now);
@@ -107,10 +109,11 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     email,
     adminEmail: 'admin@example.com',
     jwtSecret: JWT_SECRET,
+    databaseSizeBytes,
     sessionTtlSeconds: 3600,
     now: clock.now,
     rateLimits: { login: 1000, verify: 1000, resend: 1000, password: 1000, windowMs: 60_000 },
-    ...options,
+    ...testOptions,
   });
 
   const master = await createMasterIfNone(users, {

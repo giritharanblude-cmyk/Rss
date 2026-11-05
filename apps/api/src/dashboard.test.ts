@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createTestContext, loginAndVerify, type TestContext } from './test/helpers';
+import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
 
 let context: TestContext;
 
@@ -76,7 +76,7 @@ describe('dashboard and news routes', () => {
     expect(unchanged.statusCode).toBe(304);
   });
 
-  it('filters visible news and allows an authenticated user to mark it important', async () => {
+  it('allows masters to mark items important while members can only read news', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(
       context.app,
@@ -150,6 +150,31 @@ describe('dashboard and news routes', () => {
     });
     expect(update.statusCode).toBe(200);
     expect(update.json()).toMatchObject({ id: item.id, important: true });
+
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const { cookie: memberCookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      member.name,
+      'member-password-1',
+    );
+    const memberRead = await context.app.inject({
+      method: 'GET',
+      url: `/api/news?sourceId=${source.id}`,
+      headers: { cookie: memberCookie },
+    });
+    const memberUpdate = await context.app.inject({
+      method: 'PATCH',
+      url: `/api/news/${item.id}/important`,
+      headers: { cookie: memberCookie },
+      payload: { important: false },
+    });
+    expect(memberRead.statusCode).toBe(200);
+    expect(memberUpdate.statusCode).toBe(403);
 
     const filteredAgain = await context.app.inject({
       method: 'GET',

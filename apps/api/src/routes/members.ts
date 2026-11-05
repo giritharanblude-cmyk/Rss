@@ -1,5 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import { createMemberBodySchema, type Member, updateMemberBodySchema } from '@healthcare/shared';
+import {
+  createMemberBodySchema,
+  type Member,
+  resetMemberPasswordBodySchema,
+  updateMemberBodySchema,
+} from '@healthcare/shared';
 import type { MemberService } from '../auth/members';
 import type { AuthService } from '../auth/service';
 import type { UserRecord } from '../repositories/types';
@@ -47,5 +52,16 @@ export function registerMemberRoutes(app: FastifyInstance, options: MemberRouteO
     }
     const member = await members.setDisabled(actor, params.id, body.disabled);
     return reply.send({ member: toMember(member) });
+  });
+
+  app.post('/api/members/:id/reset-password', async (request, reply) => {
+    const actor = await readUser(request, auth, jwtSecret);
+    const body = parseBody(resetMemberPasswordBodySchema, request.body);
+    const params = request.params as { id?: string };
+    if (!params.id) {
+      throw new Error('Member id is missing');
+    }
+    await members.resetPassword(actor, params.id, body);
+    return reply.code(204).send();
   });
 }
