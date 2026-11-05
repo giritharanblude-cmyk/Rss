@@ -2,7 +2,8 @@
 
 Current phase: 7
 Gate mode: MANUAL
-Last green commit: f6aeadc
+Milestone decision: Code Complete, Deploy Pending (development milestone; not production approval)
+Last green commit: fd669d0
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -129,9 +130,9 @@ Phase 6 approved on 2026-11-05: `APPROVED PHASE 6` for gate commit `f6aeadc`; ta
 
 ## Phase 7: Hardening, Deployment, and Handover
 
-Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Reconciled 2026-11-05: 39 unique tasks, each with one classification. Hardening work has been committed in small steps; deployment, backup, docs, and final gate checks remain open.
+Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Reconciled 2026-11-05: 39 unique tasks, each with one classification. On 2026-11-05 the user accepted **Code Complete, Deploy Pending** as a development milestone only. Phase 7 is not closed; the manual deployment/release gate has not passed and this is not production approval.
 
-Existing completion marks for `7.1.3`, `7.1.4`, `7.1.6`, `7.3.1`, and `7.3.2` were verified and retained. The human approved deferring `7.2.1` (extra indexes) and `7.2.5` (bundle splitting); see `DECISIONS.md`. All needs-human items remain open.
+Existing completion marks for `7.1.3`, `7.1.4`, `7.1.6`, `7.3.1`, and `7.3.2` were verified and retained. The human approved deferring `7.2.1` (extra indexes) and `7.2.5` (bundle splitting); see `DECISIONS.md`. All remaining needs-human deployment and verification tasks remain open.
 
 Legend: **buildable locally** = can be implemented and verified in this repo on this host; **needs human** = requires an account, external service, credentials, hardware, or final sign-off.
 
@@ -197,9 +198,9 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.7 Final regression**
 
-- [x] `7.7.1` buildable locally — Run lint, typecheck, tests, build, and Playwright; record evidence. (Node 20.19.5: lint/typecheck/test/build/Playwright exit 0; API 84, web 17, shared 2; Playwright 2 passed)
+- [x] `7.7.1` buildable locally — Run lint, typecheck, tests, build, and Playwright; record evidence. (Final full gate on Node 20.19.5: lint/typecheck/test/build/Playwright exit 0; API 86, web 17, shared 2; Playwright 2 passed)
 - [x] `7.7.2` buildable locally — Map all 129 non-empty source paragraphs to a feature, test/evidence, and status in `docs/requirements/TRACEABILITY.md`.
-- [ ] `7.7.3` needs human — Approve every requirement marked Deferred and provide the reason recorded in the table.
+- [x] `7.7.3` needs human — Approve every requirement marked Deferred and provide the reason recorded in the table. (Nine live-account requirement groups and the two performance deferrals are human-approved as Deferred, not completed; prerequisites and verification criteria are recorded in `docs/requirements/TRACEABILITY.md` and the Phase 7 report.)
 - [ ] `7.7.4` needs human — Perform the fresh-deploy check on a clean VM and a clean Netlify site from the docs alone.
 - [ ] `7.7.5` needs human — Create tag `v1.0.0` after final approval.
 
@@ -214,10 +215,18 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 Acceptance criteria are verified at the phase gate; they are gate checks, not tasks, and are excluded from the task counts above.
 
-- [ ] Traceability table lists every requirement as Done, or Deferred with a human-approved reason.
-- [ ] `npm audit` shows no high or critical issues, or each is documented.
+- [x] Traceability table lists every requirement as Done, or Deferred with a human-approved reason. (All Deferred items have human approval plus reason, prerequisite, and verification criteria; live verification remains open.)
+- [x] `npm audit` shows no high or critical issues, or each is documented. (2026-11-05 audit: 16 moderate, 0 high, 0 critical; moderate advisories documented in `docs/phase-reports/PHASE-7.md`.)
 - [ ] A fresh deploy from the docs alone works on a clean VM and a clean Netlify site, and the app is reachable on the single URL.
 - [ ] A request sent directly to the origin without the secret is rejected.
 - [ ] Final tag `v1.0.0` is created after human approval.
-- [ ] Lint, typecheck, tests, build, and Playwright pass and the phase report records evidence.
+- [x] Lint, typecheck, tests, build, and Playwright pass and the phase report records evidence. (Final full gate on Node 20.19.5: all exit 0; API 86, web 17, shared 2; Playwright 2 passed.)
 - [ ] Backups run on schedule, restore is documented and proven, and the retention and cleanup jobs are active.
+
+### Deferred requirements and outstanding blockers
+
+- Nine live-account requirement groups remain **Deferred**, not completed; their approval, reason, prerequisite, and verification criteria are in `docs/requirements/TRACEABILITY.md`. R129 is a separately approved Deferred Netlify requirement with its exact reason and verification criteria in the Phase 7 report and traceability entry. The required live SMTP, OpenWA, Netlify, and production-origin checks are not complete.
+- `7.2.1` extra database indexes and `7.2.5` route-level bundle splitting remain approved, scope-based deferrals; they are not represented as delivered.
+- Remaining local build work: `7.2.4` route benchmarks and `7.6.3` plain-language user guide.
+- Remaining deployment/production blockers: `7.1.9` direct-origin bypass verification; `7.2.6` live Netlify/Neon latency; `7.4.4` install and verify scheduled backups on the real VM/Neon host; `7.5.4` create/configure Netlify, domain, and HTTPS; `7.5.5` provision the VM, firewall, persistent storage, and stack; `7.5.6` provision production Neon/SMTP/OpenWA and application secrets; `7.7.4` fresh deploy from docs on clean VM/Netlify; `7.8.1` encryption backfill on a production database copy; and `7.8.4` production encryption-key custody and recovery.
+- `7.7.5` release tag `v1.0.0` is intentionally not created; it remains gated on final human approval. Phase 7 remains open and deployment approval has not been granted.
