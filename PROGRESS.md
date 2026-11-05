@@ -177,7 +177,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 - [x] `7.4.1` buildable locally — Add a compressed `pg_dump` backup script with seven-file retention, failure logging, and a dry-run retention test.
 - [x] `7.4.2` buildable locally — Write a weekly OpenWA session-volume archive script with rotation. (Added compressed OpenWA session archives, seven-archive retention, safe dry-run, and empty-volume guard; documented weekly host scheduling; archive/rotation regression tests; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
-- [ ] `7.4.3` buildable locally — Document restore steps for both database and OpenWA session archives, and test the restore against a disposable database.
+- [x] `7.4.3` buildable locally — Document restore steps for both database and OpenWA session archives, and test the restore against a disposable database. (Runbook documents isolated PostgreSQL restore and staged OpenWA recovery/rollback; verified a PostgreSQL 18 custom dump restored into a disposable database with fixture data intact, plus OpenWA archive extraction in regression test; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
 - [ ] `7.4.4` needs human — Install, schedule, and verify both backup jobs on the real VM and Neon host.
 
 **7.5 Deploy**

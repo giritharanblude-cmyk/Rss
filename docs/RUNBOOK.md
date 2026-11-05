@@ -34,14 +34,18 @@ node deploy/backup-postgres.mjs --dry-run
 node deploy/backup-postgres.mjs
 ```
 
-The script writes compressed custom-format dumps, reports failures without printing credentials, and retains the seven newest dumps. Schedule it with the host's protected scheduler/secret mechanism and monitor its logs. A disposable-database restore check:
+The script writes compressed custom-format dumps, reports failures without printing credentials, and retains the seven newest dumps. Schedule it with the host's protected scheduler/secret mechanism and monitor its logs.
+
+To validate or restore a dump, use a **new disposable database**, not production. Set `BACKUP_FILE`, `DATABASE_ADMIN_URL` (a protected URL for a database with permission to create databases), and `RESTORE_DATABASE_URL` (a protected URL to the newly created disposable database):
 
 ```sh
 pg_restore --list "$BACKUP_FILE"
+createdb --maintenance-db="$DATABASE_ADMIN_URL" "$RESTORE_DATABASE_NAME"
 pg_restore --exit-on-error --no-owner --dbname="$RESTORE_DATABASE_URL" "$BACKUP_FILE"
+psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -c '\dt'
 ```
 
-Restore to a new disposable database first. Do not overwrite production during a restore check.
+Review the restored schema and application data before treating the backup as usable. Keep the disposable database isolated from production, and drop it only after validation. For an approved production recovery, restore into a new database first, verify it, then coordinate the connection switch; do not overwrite a live database as a test.
 
 ## OpenWA session archive
 
@@ -52,7 +56,25 @@ node deploy/backup-openwa.mjs --dry-run
 node deploy/backup-openwa.mjs
 ```
 
-The script writes compressed archives and retains the seven newest. Schedule it weekly using the host's protected scheduler environment (for example, Sunday at 03:00 with `0 3 * * 0`). Monitor its logs and confirm that each archive is created successfully. Detailed session restore steps are tracked separately in `7.4.3`.
+The script writes compressed archives and retains the seven newest. Schedule it weekly using the host's protected scheduler environment (for example, Sunday at 03:00 with `0 3 * * 0`). Monitor its logs and confirm that each archive is created successfully.
+
+To restore, work on the host that runs OpenWA. Set `OPENWA_ARCHIVE`, `OPENWA_SESSION_DIR`, `OPENWA_USER`, and `OPENWA_GROUP` to the verified archive, configured session path, and service account. Stop OpenWA, extract to a new sibling staging directory, inspect it, and only then swap it into place. Keep the archive and current session directory intact until validation:
+
+```sh
+tar -tzf "$OPENWA_ARCHIVE"
+sudo systemctl stop openwa
+RESTORE_STAGING="$(sudo mktemp -d "${OPENWA_SESSION_DIR}.restore.XXXXXX")"
+sudo tar --extract --gzip --file "$OPENWA_ARCHIVE" --directory "$RESTORE_STAGING" --same-owner --same-permissions
+sudo find "$RESTORE_STAGING" -maxdepth 2 -type f -print
+PRE_RESTORE="${OPENWA_SESSION_DIR}.pre-restore-$(date +%Y%m%dT%H%M%S)"
+if [ -e "$OPENWA_SESSION_DIR" ]; then sudo mv "$OPENWA_SESSION_DIR" "$PRE_RESTORE"; fi
+sudo mv "$RESTORE_STAGING" "$OPENWA_SESSION_DIR"
+sudo chown -R "$OPENWA_USER:$OPENWA_GROUP" "$OPENWA_SESSION_DIR"
+sudo systemctl start openwa
+sudo systemctl status --no-pager openwa
+```
+
+Confirm the service reconnects and the expected account session is usable. If it does not, stop OpenWA, move the failed restore aside, move `$PRE_RESTORE` back to `$OPENWA_SESSION_DIR` (when a previous directory existed), correct ownership, and restart. Keep the prior directory and archive until recovery is verified; session data is sensitive.
 
 ## Neon asleep or over its limit
 

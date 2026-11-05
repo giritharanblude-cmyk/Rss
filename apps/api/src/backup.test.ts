@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -43,6 +43,7 @@ describe('OpenWA session archive script', () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'rss-openwa-backup-test-'));
     const sessionDirectory = path.join(temporaryDirectory, 'session');
     const backupDirectory = path.join(temporaryDirectory, 'backups');
+    const restoredDirectory = path.join(temporaryDirectory, 'restored');
     await mkdir(sessionDirectory);
     await writeFile(path.join(sessionDirectory, 'session.json'), '{"session":"fixture"}');
 
@@ -61,6 +62,11 @@ describe('OpenWA session archive script', () => {
     await expect(execFileAsync('tar', ['-tzf', archivePath])).resolves.toMatchObject({
       stdout: expect.stringContaining('session.json'),
     });
+    await mkdir(restoredDirectory);
+    await execFileAsync('tar', ['-xzf', archivePath, '-C', restoredDirectory]);
+    await expect(
+      readFile(path.join(restoredDirectory, 'session.json'), 'utf8'),
+    ).resolves.toBe('{"session":"fixture"}');
   });
 
   it('dry-runs seven-archive retention without deleting existing archives', async () => {
