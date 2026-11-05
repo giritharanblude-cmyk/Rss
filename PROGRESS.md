@@ -129,54 +129,93 @@ Phase 6 approved on 2026-11-05: `APPROVED PHASE 6` for gate commit `f6aeadc`; ta
 
 ## Phase 7: Hardening, Deployment, and Handover
 
-Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Not started; awaiting human approval of this plan.
+Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Reconciled 2026-11-05: 39 unique tasks, each with one classification. Not started; awaiting human approval of this plan.
 
 Legend: **buildable locally** = can be implemented and verified in this repo on this host; **needs human** = requires an account, external service, credentials, hardware, or final sign-off.
 
-### Build tasks
+### Task counts
 
-- [ ] **7.1 Security review** — buildable locally: audit every route for input validation and confirm each body/query/params is parsed with the shared zod schemas; add regression tests for rejected payloads.
-- [ ] **7.1 Security review** — buildable locally: verify session cookies are `HttpOnly`, `Secure` in production, `SameSite` scoped correctly, and cleared on logout; add tests.
-- [ ] **7.1 Security review** — buildable locally: add CSRF protection for state-changing requests (same-site origin check and/or token) and tests proving cross-origin writes are rejected.
-- [ ] **7.1 Security review** — buildable locally: add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests.
-- [ ] **7.1 Security review** — buildable locally: run `npm audit`, resolve or document every high/critical advisory, and record the final counts in the phase report.
-- [ ] **7.1 Security review** — buildable locally: add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests.
-- [ ] **7.1 Security review** — buildable locally: confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests.
-- [ ] **7.1 Security review** — buildable locally: implement/tighten the origin-secret guard and add tests proving requests without the secret are rejected.
-- [ ] **7.1 Security review** — needs human: verify on the real deployed origin that direct traffic bypassing Netlify is refused.
-- [ ] **7.2 Performance** — buildable locally: review and add missing indexes for links, `published_at`, category, and delivery status; ship a Drizzle migration plus snapshot.
-- [ ] **7.2 Performance** — buildable locally: review hot queries (feed, dashboard, deliveries, recipients) for full scans and N+1 patterns; fix and cover with tests.
-- [ ] **7.2 Performance** — buildable locally: enforce and test pagination limits on every list endpoint.
-- [ ] **7.2 Performance** — buildable locally: benchmark every API route locally and record timings well under the Netlify proxy time limit.
-- [ ] **7.2 Performance** — buildable locally: reduce the deferred 848 kB web bundle via route-level code splitting and re-check the Vite size warning.
-- [ ] **7.2 Performance** — needs human: confirm response times under the real Netlify proxy and against live Neon latency.
-- [ ] **7.3 Observability** — buildable locally: structured JSON logs with request id, route, status, duration, and actor, plus redaction tests.
-- [ ] **7.3 Observability** — buildable locally: extend `/api/health` with per-component status (database, SMTP, OpenWA, scheduler) and tests; keep it safe to expose publicly.
-- [ ] **7.4 Backups** — buildable locally: write a scheduled `pg_dump` script producing a compressed file, rotating the last 7, with failure logging.
-- [ ] **7.4 Backups** — buildable locally: write a weekly OpenWA session-volume archive script with rotation.
-- [ ] **7.4 Backups** — buildable locally: document restore steps for both database and OpenWA session archives, and test the restore against a disposable database.
-- [ ] **7.4 Backups** — needs human: install, schedule, and verify both backup jobs on the real VM/Neon host.
-- [ ] **7.5 Deploy** — buildable locally: finalise `netlify.toml` (build command, publish directory, SPA redirect, `/api/*` rewrite), and document every required environment variable.
-- [ ] **7.5 Deploy** — buildable locally: finalise VM deployment files (Docker Compose, Caddy or Cloudflare Tunnel, persistent volume, `restart: unless-stopped`, health checks) and validate the compose config locally.
-- [ ] **7.5 Deploy** — buildable locally: document firewall rules (80/443 plus SSH from a single IP), keep-alive steps for idle-reclaiming free VMs, and recovery after reclaim.
-- [ ] **7.5 Deploy** — needs human: create the Netlify site, set environment variables, attach the custom domain, and confirm HTTPS.
-- [ ] **7.5 Deploy** — needs human: provision the Oracle Cloud Always Free VM (or fallback host), apply firewall rules, mount the persistent volume, and start the stack.
-- [ ] **7.5 Deploy** — needs human: supply live Neon, SMTP, OpenWA, `JWT_SECRET`, `SETTINGS_ENCRYPTION_KEY`, and `ORIGIN_SECRET` credentials.
-- [ ] **7.6 Documentation** — buildable locally: write `README.md` covering what the app is, local setup, checks, and deployment overview.
-- [ ] **7.6 Documentation** — buildable locally: write `docs/RUNBOOK.md` for deploy, secret rotation, WhatsApp relink, stuck queue, backup restore, and Neon asleep/over-limit.
-- [ ] **7.6 Documentation** — buildable locally: write `docs/USER_GUIDE.md` in plain language for non-technical staff, per module.
-- [ ] **7.7 Final regression** — buildable locally: run lint, typecheck, tests, build, and Playwright; record evidence.
-- [ ] **7.7 Final regression** — buildable locally: produce the requirements traceability table mapping every line of the requirements docx to feature, test, and status.
-- [ ] **7.7 Final regression** — needs human: approve every requirement marked Deferred and provide the reason recorded in the table.
-- [ ] **7.7 Final regression** — needs human: perform the fresh-deploy check on a clean VM and a clean Netlify site from the docs alone.
-- [ ] **7.7 Final regression** — needs human: create tag `v1.0.0` after final approval.
+| Classification    | Count  |
+| ----------------- | ------ |
+| Buildable locally | 28     |
+| Needs human       | 11     |
+| **Total**         | **39** |
+
+Counts cover the task list below; acceptance criteria are gate checks and are not counted as tasks. Every task has exactly one classification.
+
+### Tasks
+
+**7.1 Security review**
+
+- [ ] `7.1.1` buildable locally — Audit every route for input validation and confirm each body, query, and params value is parsed with the shared zod schemas; add regression tests for rejected payloads.
+- [ ] `7.1.2` buildable locally — Verify session cookies are `HttpOnly`, `Secure` in production, `SameSite` scoped correctly, and cleared on logout; add tests.
+- [ ] `7.1.3` buildable locally — Add CSRF protection for state-changing requests (same-site origin check and/or token) and tests proving cross-origin writes are rejected.
+- [ ] `7.1.4` buildable locally — Add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests.
+- [ ] `7.1.5` buildable locally — Run `npm audit`, resolve or document every high or critical advisory, and record the final counts in the phase report.
+- [ ] `7.1.6` buildable locally — Add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests.
+- [ ] `7.1.7` buildable locally — Confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests.
+- [ ] `7.1.8` buildable locally — Implement or tighten the origin-secret guard and add tests proving requests without the secret are rejected.
+- [ ] `7.1.9` needs human — Verify on the real deployed origin that direct traffic bypassing Netlify is refused.
+
+**7.2 Performance**
+
+- [ ] `7.2.1` buildable locally — Review and add missing indexes for links, `published_at`, category, and delivery status; ship a Drizzle migration plus snapshot.
+- [ ] `7.2.2` buildable locally — Review hot queries (feed, dashboard, deliveries, recipients) for full scans and N+1 patterns; fix and cover with tests.
+- [ ] `7.2.3` buildable locally — Enforce and test pagination limits on every list endpoint.
+- [ ] `7.2.4` buildable locally — Benchmark every API route locally and record timings well under the Netlify proxy time limit.
+- [ ] `7.2.5` buildable locally — Reduce the deferred 848 kB web bundle via route-level code splitting and re-check the Vite size warning.
+- [ ] `7.2.6` needs human — Confirm response times under the real Netlify proxy and against live Neon latency.
+
+**7.3 Observability**
+
+- [ ] `7.3.1` buildable locally — Add structured JSON logs with request id, route, status, duration, and actor, plus redaction tests.
+- [ ] `7.3.2` buildable locally — Extend `/api/health` with per-component status (database, SMTP, OpenWA, scheduler) and tests; keep it safe to expose publicly.
+
+**7.4 Backups**
+
+- [ ] `7.4.1` buildable locally — Write a scheduled `pg_dump` script producing a compressed file, rotating the last 7, with failure logging.
+- [ ] `7.4.2` buildable locally — Write a weekly OpenWA session-volume archive script with rotation.
+- [ ] `7.4.3` buildable locally — Document restore steps for both database and OpenWA session archives, and test the restore against a disposable database.
+- [ ] `7.4.4` needs human — Install, schedule, and verify both backup jobs on the real VM and Neon host.
+
+**7.5 Deploy**
+
+- [ ] `7.5.1` buildable locally — Finalise `netlify.toml` (build command, publish directory, SPA redirect, `/api/*` rewrite) and document every required environment variable.
+- [ ] `7.5.2` buildable locally — Finalise VM deployment files (Docker Compose, Caddy or Cloudflare Tunnel, persistent volume, `restart: unless-stopped`, health checks) and validate the compose config locally.
+- [ ] `7.5.3` buildable locally — Document firewall rules (80/443 plus SSH from a single IP), keep-alive steps for idle-reclaiming free VMs, and recovery after reclaim.
+- [ ] `7.5.4` needs human — Create the Netlify site, set environment variables, attach the custom domain, and confirm HTTPS.
+- [ ] `7.5.5` needs human — Provision the Oracle Cloud Always Free VM (or fallback host), apply firewall rules, mount the persistent volume, and start the stack.
+- [ ] `7.5.6` needs human — Supply live Neon, SMTP, OpenWA, `JWT_SECRET`, `SETTINGS_ENCRYPTION_KEY`, and `ORIGIN_SECRET` credentials.
+
+**7.6 Documentation**
+
+- [ ] `7.6.1` buildable locally — Write `README.md` covering what the app is, local setup, checks, and deployment overview.
+- [ ] `7.6.2` buildable locally — Write `docs/RUNBOOK.md` for deploy, WhatsApp relink, stuck queue, backup restore, Neon asleep/over-limit, and the operator steps for the key-rotation tooling from 7.8.
+- [ ] `7.6.3` buildable locally — Write `docs/USER_GUIDE.md` in plain language for non-technical staff, per module.
+
+**7.7 Final regression**
+
+- [ ] `7.7.1` buildable locally — Run lint, typecheck, tests, build, and Playwright; record evidence.
+- [ ] `7.7.2` buildable locally — Produce the requirements traceability table mapping every line of `docs/requirements/Healthcare_RSS_News_Reader.docx` to feature, test, and status.
+- [ ] `7.7.3` needs human — Approve every requirement marked Deferred and provide the reason recorded in the table.
+- [ ] `7.7.4` needs human — Perform the fresh-deploy check on a clean VM and a clean Netlify site from the docs alone.
+- [ ] `7.7.5` needs human — Create tag `v1.0.0` after final approval.
+
+**7.8 Data migration and key management (Phase 5 follow-ups)**
+
+- [ ] `7.8.1` needs human — Run the encryption backfill against a copy of the production database and record the result, including any skipped or legacy values.
+- [ ] `7.8.2` buildable locally — Fix the `contact:` prefix edge case so legacy plaintext phone or email values that start with `contact:` are detected instead of being silently skipped as already encrypted; add tests.
+- [ ] `7.8.3` buildable locally — Implement `SETTINGS_ENCRYPTION_KEY` rotation with a re-encryption path for SMTP settings and recipient contacts, including tests for re-encrypted reads and interrupted-rotation recovery.
+- [ ] `7.8.4` needs human — Establish production key custody: generate and store the key in a secret manager, and document access, recovery, and separation from database backups.
 
 ### Phase 7 acceptance criteria
 
-- [ ] Traceability table lists every requirement as Done, or Deferred with a human-approved reason. Table buildable locally; deferral approval needs human.
-- [ ] `npm audit` shows no high or critical issues, or each is documented. Buildable locally.
-- [ ] A fresh deploy from the docs alone works on a clean VM and a clean Netlify site, and the app is reachable on the single URL. Needs human.
-- [ ] A request sent directly to the origin without the secret is rejected. Local test buildable locally; real-origin verification needs human.
-- [ ] Final tag `v1.0.0` is created after human approval. Needs human.
-- [ ] Lint, typecheck, tests, build, and Playwright pass and the phase report records evidence. Buildable locally.
-- [ ] Backups run on schedule, restore is documented and proven, and the retention/cleanup jobs are active. Scripts and docs buildable locally; scheduled host verification needs human.
+Acceptance criteria are verified at the phase gate; they are gate checks, not tasks, and are excluded from the task counts above.
+
+- [ ] Traceability table lists every requirement as Done, or Deferred with a human-approved reason.
+- [ ] `npm audit` shows no high or critical issues, or each is documented.
+- [ ] A fresh deploy from the docs alone works on a clean VM and a clean Netlify site, and the app is reachable on the single URL.
+- [ ] A request sent directly to the origin without the secret is rejected.
+- [ ] Final tag `v1.0.0` is created after human approval.
+- [ ] Lint, typecheck, tests, build, and Playwright pass and the phase report records evidence.
+- [ ] Backups run on schedule, restore is documented and proven, and the retention and cleanup jobs are active.
