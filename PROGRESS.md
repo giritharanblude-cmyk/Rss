@@ -206,7 +206,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 **7.8 Data migration and key management (Phase 5 follow-ups)**
 
 - [ ] `7.8.1` needs human — Run the encryption backfill against a copy of the production database and record the result, including any skipped or legacy values.
-- [ ] `7.8.2` buildable locally — Fix the `contact:` prefix edge case so legacy plaintext phone or email values that start with `contact:` are detected instead of being silently skipped as already encrypted; add tests.
+- [x] `7.8.2` buildable locally — Fix the `contact:` prefix edge case so legacy plaintext phone or email values that start with `contact:` are detected instead of being silently skipped as already encrypted; add tests. (Migration now recognizes only the complete encrypted envelope and encrypts legacy `contact:` values; regression tests verify phone/email remain readable after migration; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
 - [ ] `7.8.3` buildable locally — Implement `SETTINGS_ENCRYPTION_KEY` rotation with a re-encryption path for SMTP settings and recipient contacts, including tests for re-encrypted reads and interrupted-rotation recovery.
 - [ ] `7.8.4` needs human — Establish production key custody: generate and store the key in a secret manager, and document access, recovery, and separation from database backups.
 

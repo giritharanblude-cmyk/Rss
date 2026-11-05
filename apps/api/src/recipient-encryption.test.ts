@@ -104,6 +104,11 @@ describe('recipient contact encryption', () => {
         email: 'asha@example.test',
       },
       {
+        id: 'legacy-contact-prefix',
+        whatsapp_e164: 'contact:+14155550123',
+        email: 'contact:asha@example.test',
+      },
+      {
         id: 'already-encrypted',
         whatsapp_e164: encryptRecipientContact('+14155550123', encryptionKey),
         email: null,
@@ -138,15 +143,24 @@ describe('recipient contact encryption', () => {
       connect: async () => client,
     } as unknown as Pool;
 
-    expect(await migrateRecipientContacts(pool, encryptionKey)).toBe(1);
+    expect(await migrateRecipientContacts(pool, encryptionKey)).toBe(2);
     const migrated = legacy[0]!;
     expect(migrated.whatsapp_e164).not.toBe('+919876543210');
     expect(migrated.email).not.toBe('asha@example.test');
     expect(decryptRecipientContact(migrated.whatsapp_e164!, encryptionKey)).toBe('+919876543210');
     expect(decryptRecipientContact(migrated.email!, encryptionKey)).toBe('asha@example.test');
-    const existingCiphertext = legacy[1]!.whatsapp_e164;
+    const prefixedLegacy = legacy[1]!;
+    expect(prefixedLegacy.whatsapp_e164).not.toContain('contact:+14155550123');
+    expect(prefixedLegacy.email).not.toContain('contact:asha@example.test');
+    expect(decryptRecipientContact(prefixedLegacy.whatsapp_e164!, encryptionKey)).toBe(
+      'contact:+14155550123',
+    );
+    expect(decryptRecipientContact(prefixedLegacy.email!, encryptionKey)).toBe(
+      'contact:asha@example.test',
+    );
+    const encryptedExisting = legacy[2]!.whatsapp_e164;
     expect(await migrateRecipientContacts(pool, encryptionKey)).toBe(0);
-    expect(legacy[1]!.whatsapp_e164).toBe(existingCiphertext);
+    expect(legacy[2]!.whatsapp_e164).toBe(encryptedExisting);
     expect(client.release).toHaveBeenCalledTimes(2);
   });
 });

@@ -27,9 +27,12 @@ export async function migrateRecipientContacts(pool: Pool, encryptionKey: string
     }>(
       `SELECT id, whatsapp_e164, email
        FROM recipients
-       WHERE (whatsapp_e164 IS NOT NULL AND left(whatsapp_e164, 8) <> 'contact:')
-          OR (email IS NOT NULL AND left(email, 8) <> 'contact:')
+       WHERE (whatsapp_e164 IS NOT NULL AND whatsapp_e164 !~ $1)
+          OR (email IS NOT NULL AND email !~ $1)
        FOR UPDATE`,
+      [
+        '^contact:v1\\.[A-Za-z0-9_-]{16}\\.[A-Za-z0-9_-]{22}\\.[A-Za-z0-9_-]*$',
+      ],
     );
     let updated = 0;
     for (const row of result.rows) {
