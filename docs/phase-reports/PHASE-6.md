@@ -49,16 +49,16 @@ npm run demo:clear -w @healthcare/api
 
 ## Verification
 
-| Check                            | Result                                                                    |
-| -------------------------------- | ------------------------------------------------------------------------- |
-| `npm run lint`                   | PASS — exit 0                                                             |
-| `npm run typecheck`              | PASS — exit 0, shared + API + web                                         |
-| `npm test`                       | PASS — exit 0, API 64/64, web 17/17, shared 2/2                            |
-| `npm run build`                  | PASS — exit 0, shared + API + web                                         |
-| Playwright (`npx playwright test`) | PASS — 2/2 with one worker (configured)                            |
-| Focused Prettier check           | PASS — changed files use the project style                                |
-| Demo seed / clear                | PASS — see below                                                          |
-| Lighthouse accessibility         | PASS — 100 on all seven audited pages                                     |
+| Check                              | Result                                          |
+| ---------------------------------- | ----------------------------------------------- |
+| `npm run lint`                     | PASS — exit 0                                   |
+| `npm run typecheck`                | PASS — exit 0, shared + API + web               |
+| `npm test`                         | PASS — exit 0, API 64/64, web 17/17, shared 2/2 |
+| `npm run build`                    | PASS — exit 0, shared + API + web               |
+| Playwright (`npx playwright test`) | PASS — 2/2 with one worker (configured)         |
+| Focused Prettier check             | PASS — changed files use the project style      |
+| Demo seed / clear                  | PASS — see below                                |
+| Lighthouse accessibility           | PASS — 100 on all seven audited pages           |
 
 ### Lighthouse accessibility scores
 
