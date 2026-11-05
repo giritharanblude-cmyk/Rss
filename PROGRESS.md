@@ -184,7 +184,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 - [x] `7.5.1` buildable locally — Configure `netlify.toml` build/publish/SPA/API routes and inject the origin secret at the edge; `.env.example` lists required variables.
 - [x] `7.5.2` buildable locally — Bind the API to loopback, require production secrets, add a health check, and validate Docker Compose.
-- [ ] `7.5.3` buildable locally — Document firewall rules (80/443 plus SSH from a single IP), keep-alive steps for idle-reclaiming free VMs, and recovery after reclaim.
+- [x] `7.5.3` buildable locally — Document firewall rules (80/443 plus SSH from a single IP), idle-reclaim limits, and recovery after reclaim in `docs/RUNBOOK.md`.
 - [ ] `7.5.4` needs human — Create the Netlify site, set environment variables, attach the custom domain, and confirm HTTPS.
 - [ ] `7.5.5` needs human — Provision the Oracle Cloud Always Free VM (or fallback host), apply firewall rules, mount the persistent volume, and start the stack.
 - [ ] `7.5.6` needs human — Supply live Neon, SMTP, OpenWA, `JWT_SECRET`, `SETTINGS_ENCRYPTION_KEY`, and `ORIGIN_SECRET` credentials.
@@ -192,7 +192,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 **7.6 Documentation**
 
 - [ ] `7.6.1` buildable locally — Write `README.md` covering what the app is, local setup, checks, and deployment overview.
-- [ ] `7.6.2` buildable locally — Write `docs/RUNBOOK.md` for deploy, WhatsApp relink, stuck queue, backup restore, Neon asleep/over-limit, and the operator steps for the key-rotation tooling from 7.8.
+- [ ] `7.6.2` buildable locally — `docs/RUNBOOK.md` covers deployment, operations, and restore; finalize key-rotation operator steps after tooling task `7.8.3` is implemented.
 - [ ] `7.6.3` buildable locally — Write `docs/USER_GUIDE.md` in plain language for non-technical staff, per module.
 
 **7.7 Final regression**
