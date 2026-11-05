@@ -32,7 +32,7 @@ const demoSources: DemoSource[] = [
     name: '[DEMO] WHO Health Emergencies',
     website: 'https://www.who.int',
     rssUrl: 'https://example.test/demo/who.rss',
-    topics: ['Outbreaks and public health', 'Vaccines'],
+    topics: ['Outbreaks and public health', 'Policy and regulation'],
     region: 'Global',
   },
   {
@@ -40,7 +40,7 @@ const demoSources: DemoSource[] = [
     name: '[DEMO] CDC Newsroom',
     website: 'https://www.cdc.gov',
     rssUrl: 'https://example.test/demo/cdc.rss',
-    topics: ['Clinical guidance', 'Vaccines'],
+    topics: ['Clinical trials and research', 'Digital health and AI'],
     region: 'United States',
   },
 ];
@@ -123,7 +123,7 @@ async function seedDemoData(client: PoolClient, encryptionKey: string): Promise<
       sourceId: demoSourceIds[1]!,
       headline: '[DEMO] Sample clinical guidance notice',
       summary: 'Illustrative sample item for previewing topic filters and summaries.',
-      category: 'Clinical guidance',
+      category: 'Clinical trials and research',
       url: 'https://example.test/demo/news/clinical-guidance',
       signature: 'demo-clinical-guidance-v1',
       publishedAt: '2026-11-02T08:00:00.000Z',
@@ -165,7 +165,7 @@ async function seedDemoData(client: PoolClient, encryptionKey: string): Promise<
       phone: null,
       email: 'demo.recipient@example.test',
       channel: 'email',
-      topics: ['Clinical guidance'],
+      topics: ['Clinical trials and research'],
       unsubscribeToken: 'demo-email-recipient-v1',
     },
     {
@@ -174,7 +174,7 @@ async function seedDemoData(client: PoolClient, encryptionKey: string): Promise<
       phone: '+15555550101',
       email: 'demo.whatsapp@example.test',
       channel: 'both',
-      topics: ['Outbreaks and public health', 'Vaccines'],
+      topics: ['Outbreaks and public health', 'Digital health and AI'],
       unsubscribeToken: 'demo-whatsapp-recipient-v1',
     },
   ];
