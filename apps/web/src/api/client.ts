@@ -82,6 +82,21 @@ export type DeliveryPage = {
   pageSize: number;
   total: number;
 };
+export type ListPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+};
+export type PageRequest = Pick<ListPage, 'page' | 'pageSize'>;
+
+function listQuery(page: PageRequest): string {
+  if (page.page === 1 && page.pageSize === 25) return '';
+  const params = new URLSearchParams({
+    page: String(page.page),
+    pageSize: String(page.pageSize),
+  });
+  return `?${params.toString()}`;
+}
 export type SmtpSettings = {
   host: string;
   port: number;
@@ -195,7 +210,8 @@ export const api = {
       body: JSON.stringify(body),
     }),
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
-  sources: () => request<{ sources: Source[] }>('/api/sources'),
+  sources: (page?: PageRequest) =>
+    request<{ sources: Source[] } & ListPage>(`/api/sources${page ? listQuery(page) : ''}`),
   createSource: (body: SourceInput) =>
     request<{ source: Source }>('/api/sources', {
       method: 'POST',
@@ -277,7 +293,8 @@ export const api = {
     request<{ status: { connected: boolean; detail?: string } }>('/api/settings/whatsapp/logout', {
       method: 'POST',
     }),
-  members: () => request<{ members: Member[] }>('/api/members'),
+  members: (page?: PageRequest) =>
+    request<{ members: Member[] } & ListPage>(`/api/members${page ? listQuery(page) : ''}`),
   createMember: (body: CreateMemberBody) =>
     request<{ member: Member }>('/api/members', {
       method: 'POST',
@@ -293,10 +310,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ password }),
     }),
-  recipients: (query = '') =>
-    request<{ recipients: Recipient[] }>(
-      `/api/recipients${query ? `?q=${encodeURIComponent(query)}` : ''}`,
-    ),
+  recipients: (query = '', page?: PageRequest) => {
+    const params = new URLSearchParams(page ? listQuery(page).slice(1) : '');
+    if (query) params.set('q', query);
+    const search = params.toString();
+    return request<{ recipients: Recipient[] } & ListPage>(
+      `/api/recipients${search ? `?${search}` : ''}`,
+    );
+  },
   createRecipient: (body: RecipientInput) =>
     request<{ recipient: Recipient }>('/api/recipients', {
       method: 'POST',
@@ -314,7 +335,8 @@ export const api = {
     }),
   deleteRecipient: (id: string) =>
     request<void>(`/api/recipients/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  alertRules: () => request<{ rules: AlertRule[] }>('/api/alert-rules'),
+  alertRules: (page?: PageRequest) =>
+    request<{ rules: AlertRule[] } & ListPage>(`/api/alert-rules${page ? listQuery(page) : ''}`),
   createAlertRule: (body: AlertRuleInput) =>
     request<{ rule: AlertRule }>('/api/alert-rules', {
       method: 'POST',

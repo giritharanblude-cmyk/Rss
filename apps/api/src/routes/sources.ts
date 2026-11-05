@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   feedTestInputSchema,
+  listPaginationQuerySchema,
   sourceInputSchema,
   sourceSchema,
   sourceUpdateSchema,
@@ -11,6 +12,7 @@ import type { FeedTestQueue } from '../rss/background';
 import type { SourceRepository, SourceRecord } from '../repositories/feeds';
 import { ForbiddenError, HttpError } from '../errors';
 import { parseBody, readUser } from './auth';
+import { paginate } from './pagination';
 
 export type SourceRouteOptions = {
   auth: AuthService;
@@ -38,8 +40,16 @@ async function requireMaster(
 export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteOptions): void {
   app.get('/api/sources', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
+    const query = listPaginationQuerySchema.safeParse(request.query);
+    if (!query.success) throw new HttpError(400, 'Check the source page and page size.');
     const sources = await options.sources.listSources();
-    return reply.send({ sources: sources.map(toSourceResponse) });
+    const page = paginate(sources, query.data.page, query.data.pageSize);
+    return reply.send({
+      sources: page.items.map(toSourceResponse),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/sources', async (request, reply) => {

@@ -4,6 +4,7 @@ import {
   alertPreviewInputSchema,
   alertRuleInputSchema,
   consentUpdateSchema,
+  listPaginationQuerySchema,
   publicTokenParamsSchema,
   publicTopicsUpdateSchema,
   recipientListQuerySchema,
@@ -21,6 +22,7 @@ import type {
   RecipientRepository,
 } from '../repositories/recipients';
 import { parseBody, readUser } from './auth';
+import { paginate } from './pagination';
 
 export type RecipientRouteOptions = {
   auth: AuthService;
@@ -87,7 +89,13 @@ export function registerRecipientRoutes(
     const query = recipientListQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the search text and try again.');
     const recipients = await options.recipients.listRecipients(query.data.q);
-    return reply.send({ recipients: recipients.map(toRecipientResponse) });
+    const page = paginate(recipients, query.data.page, query.data.pageSize);
+    return reply.send({
+      recipients: page.items.map(toRecipientResponse),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/recipients', async (request, reply) => {
@@ -133,8 +141,16 @@ export function registerRecipientRoutes(
 
   app.get('/api/alert-rules', async (request, reply) => {
     await requireMaster(request, options);
+    const query = listPaginationQuerySchema.safeParse(request.query);
+    if (!query.success) throw new HttpError(400, 'Check the alert-rule page and page size.');
     const rules = await options.rules.listAlertRules();
-    return reply.send({ rules: rules.map(toRuleResponse) });
+    const page = paginate(rules, query.data.page, query.data.pageSize);
+    return reply.send({
+      rules: page.items.map(toRuleResponse),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/alert-rules', async (request, reply) => {

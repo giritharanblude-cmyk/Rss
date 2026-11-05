@@ -6,7 +6,14 @@ export const publicTokenParamsSchema = z.object({
   token: z.string().regex(/^[a-f0-9]{64}$/i),
 });
 
-export const recipientListQuerySchema = z.object({ q: z.string().trim().max(120).optional() });
+export const listPaginationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+export const recipientListQuerySchema = listPaginationQuerySchema.extend({
+  q: z.string().trim().max(120).optional(),
+});
 
 function isValidDateOnly(value: string): boolean {
   const parsed = new Date(`${value}T00:00:00.000Z`);

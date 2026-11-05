@@ -12,6 +12,9 @@ import { api, ApiError } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
 import { LoadingState } from '../components/LoadingState';
 import { Toast } from '../components/Toast';
+import { PageControls } from '../components/PageControls';
+
+const pageSize = 25;
 
 const blankSource: SourceInput = {
   name: '',
@@ -170,12 +173,17 @@ async function waitForFeedTest(id: string) {
 
 export function SourcesPage() {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Source | null>(null);
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
-  const sources = useQuery({ queryKey: ['sources'], queryFn: api.sources, retry: false });
+  const sources = useQuery({
+    queryKey: ['sources', page],
+    queryFn: () => api.sources({ page, pageSize }),
+    retry: false,
+  });
 
   const refresh = async () => queryClient.invalidateQueries({ queryKey: ['sources'] });
   const create = useMutation({
@@ -403,6 +411,13 @@ export function SourcesPage() {
             ))}
           </ul>
         </details>
+        <PageControls
+          page={page}
+          pageSize={pageSize}
+          total={sources.data.total}
+          label="sources"
+          onPageChange={setPage}
+        />
       </main>
     </div>
   );

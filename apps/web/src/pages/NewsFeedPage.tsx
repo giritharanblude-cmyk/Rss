@@ -13,7 +13,7 @@ const pageSize = 20;
 export function NewsFeedPage() {
   const queryClient = useQueryClient();
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
-  const sources = useQuery({ queryKey: ['sources'], queryFn: api.sources, retry: false });
+  const sources = useQuery({ queryKey: ['sources'], queryFn: () => api.sources(), retry: false });
   const [filters, setFilters] = useState<NewsFeedFilters>({ page: 1, pageSize });
   const [queryText, setQueryText] = useState('');
   const [category, setCategory] = useState('');

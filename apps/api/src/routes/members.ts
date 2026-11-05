@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   createMemberBodySchema,
+  listPaginationQuerySchema,
   type Member,
   resetMemberPasswordBodySchema,
   updateMemberBodySchema,
@@ -11,6 +12,7 @@ import type { AuthService } from '../auth/service';
 import { HttpError } from '../errors';
 import type { UserRecord } from '../repositories/types';
 import { parseBody, readUser } from './auth';
+import { paginate } from './pagination';
 
 export type MemberRouteOptions = {
   auth: AuthService;
@@ -34,8 +36,16 @@ export function registerMemberRoutes(app: FastifyInstance, options: MemberRouteO
 
   app.get('/api/members', async (request, reply) => {
     const actor = await readUser(request, auth, jwtSecret);
+    const query = listPaginationQuerySchema.safeParse(request.query);
+    if (!query.success) throw new HttpError(400, 'Check the member page and page size.');
     const list = await members.list(actor);
-    return reply.send({ members: list.map(toMember) });
+    const page = paginate(list, query.data.page, query.data.pageSize);
+    return reply.send({
+      members: page.items.map(toMember),
+      page: page.page,
+      pageSize: page.pageSize,
+      total: page.total,
+    });
   });
 
   app.post('/api/members', async (request, reply) => {
