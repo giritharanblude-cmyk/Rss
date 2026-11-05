@@ -129,7 +129,7 @@ Phase 6 approved on 2026-11-05: `APPROVED PHASE 6` for gate commit `f6aeadc`; ta
 
 ## Phase 7: Hardening, Deployment, and Handover
 
-Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Reconciled 2026-11-05: 39 unique tasks, each with one classification. Not started; awaiting human approval of this plan.
+Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Reconciled 2026-11-05: 39 unique tasks, each with one classification. Hardening work has been committed in small steps; deployment, backup, docs, and final gate checks remain open.
 
 Legend: **buildable locally** = can be implemented and verified in this repo on this host; **needs human** = requires an account, external service, credentials, hardware, or final sign-off.
 
@@ -149,10 +149,10 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 - [ ] `7.1.1` buildable locally — Audit every route for input validation and confirm each body, query, and params value is parsed with the shared zod schemas; add regression tests for rejected payloads.
 - [ ] `7.1.2` buildable locally — Verify session cookies are `HttpOnly`, `Secure` in production, `SameSite` scoped correctly, and cleared on logout; add tests.
-- [ ] `7.1.3` buildable locally — Add CSRF protection for state-changing requests (same-site origin check and/or token) and tests proving cross-origin writes are rejected.
-- [ ] `7.1.4` buildable locally — Add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests.
+- [x] `7.1.3` buildable locally — Add CSRF protection for state-changing requests (same-site origin check and/or token) and tests proving cross-origin writes are rejected. (commit `debf2cd`)
+- [x] `7.1.4` buildable locally — Add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests. (commit `debf2cd`)
 - [ ] `7.1.5` buildable locally — Run `npm audit`, resolve or document every high or critical advisory, and record the final counts in the phase report.
-- [ ] `7.1.6` buildable locally — Add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests.
+- [x] `7.1.6` buildable locally — Add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests. (commit `57ac195`)
 - [ ] `7.1.7` buildable locally — Confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests.
 - [ ] `7.1.8` buildable locally — Implement or tighten the origin-secret guard and add tests proving requests without the secret are rejected.
 - [ ] `7.1.9` needs human — Verify on the real deployed origin that direct traffic bypassing Netlify is refused.
@@ -168,8 +168,8 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.3 Observability**
 
-- [ ] `7.3.1` buildable locally — Add structured JSON logs with request id, route, status, duration, and actor, plus redaction tests.
-- [ ] `7.3.2` buildable locally — Extend `/api/health` with per-component status (database, SMTP, OpenWA, scheduler) and tests; keep it safe to expose publicly.
+- [x] `7.3.1` buildable locally — Add structured JSON logs with request id, route, status, duration, and actor, plus redaction tests. (commit `57ac195`)
+- [x] `7.3.2` buildable locally — Extend `/api/health` with per-component status (database, SMTP, OpenWA, scheduler) and tests; keep it safe to expose publicly. (commit `0e60938`)
 
 **7.4 Backups**
 
