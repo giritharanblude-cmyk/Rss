@@ -32,6 +32,7 @@ import { registerSourceRoutes } from './routes/sources';
 import { registerOriginSecret } from './security/origin';
 import { registerSecurityHeaders } from './security/headers';
 import { registerCsrfProtection } from './security/csrf';
+import { loggerOptions, requestLogEntry } from './logging';
 import { FeedTestQueue } from './rss/background';
 import { FeedService } from './rss/service';
 import { AlertPreviewService } from './alerts/preview';
@@ -83,7 +84,7 @@ export type AppDeps = {
 };
 
 export function buildApp(deps: AppDeps): FastifyInstance {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: loggerOptions });
 
   const sessionTtlSeconds = deps.sessionTtlSeconds ?? 8 * 60 * 60;
   const now = deps.now ?? (() => new Date());
@@ -99,6 +100,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerOriginSecret(app, {
     secret: deps.originSecret,
     enforced: deps.originSecretEnforced ?? false,
+  });
+
+  app.addHook('onRequest', async (request) => {
+    request.startedAt = process.hrtime.bigint();
+  });
+
+  app.addHook('onResponse', async (request, reply) => {
+    const startedAt = request.startedAt ?? process.hrtime.bigint();
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    app.log.info(requestLogEntry(request, reply.statusCode, durationMs));
   });
 
   const otpService = new OtpService({
