@@ -153,7 +153,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 - [ ] `7.1.2` buildable locally — Verify session cookies are `HttpOnly`, `Secure` in production, `SameSite` scoped correctly, and cleared on logout; add tests.
 - [x] `7.1.3` buildable locally — Add CSRF protection for state-changing requests (same-site origin check and/or token) and tests proving cross-origin writes are rejected. (commit `debf2cd`)
 - [x] `7.1.4` buildable locally — Add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests. (commit `debf2cd`)
-- [ ] `7.1.5` buildable locally — Run `npm audit`, resolve or document every high or critical advisory, and record the final counts in the phase report.
+- [x] `7.1.5` buildable locally — Run `npm audit`; 2026-11-05 results: 16 moderate, 0 high, 0 critical. No high or critical advisories to resolve; triage is recorded in the Phase 7 report.
 - [x] `7.1.6` buildable locally — Add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests. (commit `57ac195`)
 - [ ] `7.1.7` buildable locally — Confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests.
 - [x] `7.1.8` buildable locally — Enforce the origin secret for API requests and test that browser login requests without it are rejected.
