@@ -2,7 +2,7 @@
 
 Current phase: 6
 Gate mode: MANUAL
-Last green commit: 84dbe10
+Last green commit: f6aeadc
 
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
@@ -99,7 +99,7 @@ Phase 5 approved on 2026-11-04: `APPROVED PHASE 5` for code commit `7552f5b`. Th
 
 ## Phase 6: Settings, Roles, and UX Completion
 
-Implementation in progress following human approval of the Phase 6 plan.
+Complete and approved on 2026-11-05.
 
 - [x] Audit existing Settings, member-management, role authorization, database-size health reporting, navigation, and shared UI states; record the member permissions decision in `DECISIONS.md`.
 - [x] Complete Settings as the single home for WhatsApp and Email connection controls, status, last-checked time, and the database-size warning when storage exceeds 70% of the known cap.
@@ -113,6 +113,8 @@ Implementation in progress following human approval of the Phase 6 plan.
 - [x] Run demo seed and clear against a disposable review database (2026-11-05): local Docker `postgres:16-alpine`, seed 0 → 2 sources / 2 items / 2 recipients, repeat seed idempotent, clear 0 leaves no rows and preserves a non-demo sentinel row.
 - [x] Per-commit checks: `7429253` and `c915845` had lint/typecheck/test exit 0/0/0. The 2026-11-05 fresh-session gate run had lint 0, typecheck 0, test 0 (64 API + 17 web + 2 shared tests), build 0, and Playwright 2/2 serialized; the earlier worker/OOM failures did not recur (item 23 closed). A clean-worktree run at `3fd225f` first crashed two Chromium launches at startup, so Playwright now runs one worker.
 - [x] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
+
+Phase 6 approved on 2026-11-05: `APPROVED PHASE 6` for gate commit `f6aeadc`; tag `phase-6-complete`. Accepted limits: Lighthouse ran against fixed sample data; demo data was verified on a disposable database only; Playwright runs serially on this host; the 848 kB bundle is deferred to Phase 7; live Neon, SMTP, and WhatsApp remain credential-blocked; `npm audit` reports 16 moderate advisories, none high or critical.
 
 ### Phase 6 acceptance criteria
 
