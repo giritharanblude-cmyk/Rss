@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from './config';
-import { createTestContext, type TestContext } from './test/helpers';
+import { createTestContext, JWT_SECRET, type TestContext } from './test/helpers';
 
 let context: TestContext;
+const testConfig = loadConfig({
+  NODE_ENV: 'test',
+  JWT_SECRET,
+  SETTINGS_ENCRYPTION_KEY: '9f'.repeat(32),
+});
 
 afterEach(async () => {
   await context.app.close();
@@ -79,13 +84,13 @@ describe('security headers', () => {
 });
 
 describe('csrf protection', () => {
-  it('accepts the Netlify browser origin for state-changing requests', async () => {
-    context = await createTestContext();
+  it('accepts the configured public origin for state-changing requests', async () => {
+    context = await createTestContext({ publicOrigin: testConfig.PUBLIC_APP_ORIGIN });
     const response = await context.app.inject({
       method: 'POST',
       url: '/api/auth/login',
       headers: {
-        origin: 'https://news.example.test',
+        origin: testConfig.PUBLIC_APP_ORIGIN,
       },
       payload: { name: 'Admin', password: 'master-password-1' },
     });
@@ -94,20 +99,19 @@ describe('csrf protection', () => {
     expect(response.json()).toMatchObject({ status: 'otp_sent' });
   });
 
-  it('rejects cross-site writes', async () => {
-    context = await createTestContext();
+  it('rejects state-changing requests from an unconfigured origin', async () => {
+    context = await createTestContext({ publicOrigin: testConfig.PUBLIC_APP_ORIGIN });
     const response = await context.app.inject({
       method: 'POST',
       url: '/api/auth/login',
       headers: {
-        'sec-fetch-site': 'cross-site',
         origin: 'https://evil.example',
       },
       payload: { name: 'Admin', password: 'master-password-1' },
     });
 
     expect(response.statusCode).toBe(403);
-    expect(response.json()).toMatchObject({ error: 'Cross-site request rejected.' });
+    expect(response.json()).toMatchObject({ error: 'Request origin is not allowed.' });
   });
 });
 

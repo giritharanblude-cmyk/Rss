@@ -54,7 +54,7 @@ export type TestContext = {
 
 export type TestContextOptions = Pick<
   AppDeps,
-  'originSecret' | 'originSecretEnforced' | 'otp' | 'lockout' | 'rateLimits'
+  'originSecret' | 'originSecretEnforced' | 'otp' | 'lockout' | 'rateLimits' | 'publicOrigin'
 > &
   Partial<Pick<AppDeps, 'databaseSizeBytes'>>;
 
