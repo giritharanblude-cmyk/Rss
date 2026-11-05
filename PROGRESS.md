@@ -191,7 +191,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.6 Documentation**
 
-- [ ] `7.6.1` buildable locally — Write `README.md` covering what the app is, local setup, checks, and deployment overview.
+- [x] `7.6.1` buildable locally — Add `README.md` for the app, local setup, checks, and deployment overview.
 - [ ] `7.6.2` buildable locally — `docs/RUNBOOK.md` covers deployment, operations, and restore; finalize key-rotation operator steps after tooling task `7.8.3` is implemented.
 - [ ] `7.6.3` buildable locally — Write `docs/USER_GUIDE.md` in plain language for non-technical staff, per module.
 
