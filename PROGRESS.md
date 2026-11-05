@@ -175,7 +175,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.4 Backups**
 
-- [ ] `7.4.1` buildable locally — Write a scheduled `pg_dump` script producing a compressed file, rotating the last 7, with failure logging.
+- [x] `7.4.1` buildable locally — Add a compressed `pg_dump` backup script with seven-file retention, failure logging, and a dry-run retention test.
 - [ ] `7.4.2` buildable locally — Write a weekly OpenWA session-volume archive script with rotation.
 - [ ] `7.4.3` buildable locally — Document restore steps for both database and OpenWA session archives, and test the restore against a disposable database.
 - [ ] `7.4.4` needs human — Install, schedule, and verify both backup jobs on the real VM and Neon host.
