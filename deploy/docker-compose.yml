@@ -6,6 +6,8 @@ services:
     image: healthcare-rss-api:local
     restart: unless-stopped
     mem_limit: 1536m
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     ports:
       - '3001:3001'
     environment:
@@ -13,9 +15,22 @@ services:
       PORT: '3001'
       HOST: 0.0.0.0
       DATABASE_URL: ${DATABASE_URL:-}
+      JWT_SECRET: ${JWT_SECRET:-}
       ORIGIN_SECRET: ${ORIGIN_SECRET:-}
       ORIGIN_SECRET_ENFORCED: ${ORIGIN_SECRET_ENFORCED:-false}
+      MASTER_EMAIL: ${MASTER_EMAIL:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Healthcare News Desk}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       TIMEZONE: ${TIMEZONE:-Asia/Kolkata}
+      PUBLIC_APP_ORIGIN: ${PUBLIC_APP_ORIGIN:-http://localhost:5173}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:-}
+      OPENWA_SOCKET_URL: ${OPENWA_SOCKET_URL:-}
+      OPENWA_API_KEY: ${OPENWA_API_KEY:-}
       CHROME_PATH: /usr/bin/chromium
     volumes:
       - openwa_session:/data/openwa

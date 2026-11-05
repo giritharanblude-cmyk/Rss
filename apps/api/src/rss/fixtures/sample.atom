@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Healthcare Atom Sample</title>
+  <id>https://atom.example.test/feed</id>
+  <updated>2026-11-03T10:00:00Z</updated>
+  <entry>
+    <title>Clinical trial journal reports promising study findings</title>
+    <id>https://atom.example.test/entry/trial</id>
+    <link href="https://atom.example.test/entry/trial" rel="alternate" />
+    <updated>2026-11-03T09:00:00Z</updated>
+    <summary type="html">&lt;p&gt;A new clinical trial enters phase 3.&lt;/p&gt;</summary>
+    <content type="html">&lt;p&gt;Long Atom article body that must not be stored.&lt;/p&gt;</content>
+  </entry>
+</feed>

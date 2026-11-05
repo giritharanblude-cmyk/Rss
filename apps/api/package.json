@@ -8,19 +8,34 @@
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --pool=forks --maxWorkers=1 --no-file-parallelism",
     "lint": "eslint .",
-    "db:proof": "tsx scripts/db-proof.ts"
+    "db:proof": "tsx scripts/db-proof.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "seed:master": "tsx scripts/seed-master.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "10.0.1",
+    "@fastify/rate-limit": "11.2.2",
     "@healthcare/shared": "*",
+    "@node-rs/argon2": "2.2.2",
+    "@open-wa/wa-automate-socket-client": "^3.3.0",
+    "drizzle-orm": "0.45.4",
     "fastify": "5.12.8",
+    "jsonwebtoken": "9.0.2",
+    "node-cron": "4.6.0",
+    "nodemailer": "10.3.1",
     "pg": "8.23.1",
+    "rss-parser": "3.13.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "9.0.10",
     "@types/node": "26.6.6",
+    "@types/nodemailer": "8.0.2",
     "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
     "tsx": "4.23.15",
     "vitest": "4.1.12"
   }
