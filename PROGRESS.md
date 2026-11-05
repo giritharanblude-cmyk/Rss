@@ -162,7 +162,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 **7.2 Performance**
 
 - [ ] `7.2.1` buildable locally — Review and add missing indexes for links, `published_at`, category, and delivery status; ship a Drizzle migration plus snapshot. **Deferred by human approval; see `DECISIONS.md`.**
-- [ ] `7.2.2` buildable locally — Review hot queries (feed, dashboard, deliveries, recipients) for full scans and N+1 patterns; fix and cover with tests.
+- [x] `7.2.2` buildable locally — Review hot queries (feed, dashboard, deliveries, recipients) for full scans and N+1 patterns; fix and cover with tests. (PostgreSQL filters due sources and eligible recipients before loading rows; query regression tests; lint/typecheck/test/build verified on Node 20.19.5: API 78, web 17, shared 2)
 - [ ] `7.2.3` buildable locally — Enforce and test pagination limits on every list endpoint.
 - [ ] `7.2.4` buildable locally — Benchmark every API route locally and record timings well under the Netlify proxy time limit.
 - [ ] `7.2.5` buildable locally — Reduce the deferred 848 kB web bundle via route-level code splitting and re-check the Vite size warning. **Deferred by human approval; see `DECISIONS.md`.**

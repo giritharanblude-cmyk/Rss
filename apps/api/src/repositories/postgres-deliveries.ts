@@ -1,5 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  arrayContains,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { deliveries, jobs, newsItems, recipients, sources } from '../db/schema';
 import { decryptRecipientContact, validateSettingsEncryptionKey } from '../settings/secrets';
@@ -395,21 +407,22 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
     const rows = await this.db
       .select()
       .from(recipients)
-      .where(eq(recipients.consentStatus, 'granted'));
-    return rows
-      .filter((recipient) => recipient.topics.includes(category))
-      .map((recipient) => ({
-        id: recipient.id,
-        channel: recipient.channel,
-        email: recipient.email
-          ? decryptRecipientContact(recipient.email, this.encryptionKey)
-          : null,
-        whatsappE164: recipient.whatsappE164
-          ? decryptRecipientContact(recipient.whatsappE164, this.encryptionKey)
-          : null,
-        topics: recipient.topics as NewsCategory[],
-        unsubscribeToken: recipient.unsubscribeToken,
-      }));
+      .where(
+        and(
+          eq(recipients.consentStatus, 'granted'),
+          arrayContains(recipients.topics, [category]),
+        ),
+      );
+    return rows.map((recipient) => ({
+      id: recipient.id,
+      channel: recipient.channel,
+      email: recipient.email ? decryptRecipientContact(recipient.email, this.encryptionKey) : null,
+      whatsappE164: recipient.whatsappE164
+        ? decryptRecipientContact(recipient.whatsappE164, this.encryptionKey)
+        : null,
+      topics: recipient.topics as NewsCategory[],
+      unsubscribeToken: recipient.unsubscribeToken,
+    }));
   }
 }
 

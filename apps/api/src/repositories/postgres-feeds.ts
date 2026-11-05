@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { deliveries, newsItems, sources } from '../db/schema';
 import type { NewsCategory } from '../rss/categories';
@@ -112,14 +112,15 @@ export class PostgresFeedRepository
   }
 
   async listDueSources(now: Date): Promise<SourceRecord[]> {
-    const rows = await this.db.select().from(sources).where(eq(sources.active, true));
-    return rows
-      .map(toSource)
-      .filter(
-        (source) =>
-          !source.lastFetchedAt ||
-          source.lastFetchedAt.getTime() + source.intervalMinutes * 60_000 <= now.getTime(),
-      );
+    const due = or(
+      isNull(sources.lastFetchedAt),
+      sql`${sources.lastFetchedAt} + (${sources.intervalMinutes} * interval '1 minute') <= ${now}`,
+    );
+    const rows = await this.db
+      .select()
+      .from(sources)
+      .where(and(eq(sources.active, true), due));
+    return rows.map(toSource);
   }
 
   async findDedupeCandidates(linkNormalized: string, since: Date): Promise<NewsRecord[]> {
