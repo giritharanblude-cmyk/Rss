@@ -182,8 +182,8 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.5 Deploy**
 
-- [ ] `7.5.1` buildable locally — Finalise `netlify.toml` (build command, publish directory, SPA redirect, `/api/*` rewrite) and document every required environment variable.
-- [ ] `7.5.2` buildable locally — Finalise VM deployment files (Docker Compose, Caddy or Cloudflare Tunnel, persistent volume, `restart: unless-stopped`, health checks) and validate the compose config locally.
+- [x] `7.5.1` buildable locally — Configure `netlify.toml` build/publish/SPA/API routes and inject the origin secret at the edge; `.env.example` lists required variables.
+- [x] `7.5.2` buildable locally — Bind the API to loopback, require production secrets, add a health check, and validate Docker Compose.
 - [ ] `7.5.3` buildable locally — Document firewall rules (80/443 plus SSH from a single IP), keep-alive steps for idle-reclaiming free VMs, and recovery after reclaim.
 - [ ] `7.5.4` needs human — Create the Netlify site, set environment variables, attach the custom domain, and confirm HTTPS.
 - [ ] `7.5.5` needs human — Provision the Oracle Cloud Always Free VM (or fallback host), apply firewall rules, mount the persistent volume, and start the stack.
