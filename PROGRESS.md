@@ -111,7 +111,7 @@ Implementation in progress following human approval of the Phase 6 plan.
 - [x] Stabilize the web test runner for constrained CI memory and fix strict TypeScript test typing regressions (commit `57f6014`).
 - [x] Add focused API and UI role checks; on 2026-11-04 `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` all exited 0.
 - [x] Run demo seed and clear against a disposable review database (2026-11-05): local Docker `postgres:16-alpine`, seed 0 → 2 sources / 2 items / 2 recipients, repeat seed idempotent, clear 0 leaves no rows and preserves a non-demo sentinel row.
-- [x] Per-commit checks: `7429253` and `c915845` had lint/typecheck/test exit 0/0/0. The 2026-11-05 fresh-session gate run had lint 0, typecheck 0, test 0 (64 API + 17 web + 2 shared tests), build 0, and Playwright 2/2; the earlier worker/OOM failures did not recur (item 23 closed).
+- [x] Per-commit checks: `7429253` and `c915845` had lint/typecheck/test exit 0/0/0. The 2026-11-05 fresh-session gate run had lint 0, typecheck 0, test 0 (64 API + 17 web + 2 shared tests), build 0, and Playwright 2/2 serialized; the earlier worker/OOM failures did not recur (item 23 closed). A clean-worktree run at `3fd225f` first crashed two Chromium launches at startup, so Playwright now runs one worker.
 - [x] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
 
 ### Phase 6 acceptance criteria

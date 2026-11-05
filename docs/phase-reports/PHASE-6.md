@@ -33,6 +33,8 @@ npx lighthouse@12.8.2 http://127.0.0.1:4180/ --only-categories=accessibility
 
 Repeat the Lighthouse command for `/news`, `/sources`, `/recipients`, `/alerts`, `/deliveries`, and `/settings`.
 
+Run Playwright from `apps/web` (or through the workspace script). Running `npx playwright test` from the repo root picks up the Vitest unit tests because there is no root Playwright config, so it exits 1 with "No tests found"; that is an invocation error, not a test failure.
+
 Demo data against a disposable database:
 
 ```powershell
@@ -53,7 +55,7 @@ npm run demo:clear -w @healthcare/api
 | `npm run typecheck`              | PASS — exit 0, shared + API + web                                         |
 | `npm test`                       | PASS — exit 0, API 64/64, web 17/17, shared 2/2                            |
 | `npm run build`                  | PASS — exit 0, shared + API + web                                         |
-| Playwright (`npx playwright test`) | PASS — 2/2, dashboard smoke plus accessibility test                       |
+| Playwright (`npx playwright test`) | PASS — 2/2 with one worker (configured)                            |
 | Focused Prettier check           | PASS — changed files use the project style                                |
 | Demo seed / clear                | PASS — see below                                                          |
 | Lighthouse accessibility         | PASS — 100 on all seven audited pages                                     |
