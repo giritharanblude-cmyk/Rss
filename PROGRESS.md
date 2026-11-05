@@ -106,13 +106,13 @@ Implementation in progress following human approval of the Phase 6 plan.
 - [x] Move master-only member management into Settings and support adding members, disabling members, and resetting access; keep the main navigation at six modules.
 - [x] Enforce role behavior: masters can perform all actions; members can use News Feed, view Delivery Log, and view Sources and Recipients read-only. (commit `7429253`)
 - [x] Add shared loading skeletons and toasts, error/retry states, and destructive-action confirmations across the relevant pages. (commit `c915845`)
-- [ ] Complete and verify the accessibility pass for keyboard navigation, labels, contrast, and non-color status cues; Lighthouse scores are **needs human** (see OPEN_QUESTIONS.md item 22).
-- [x] Add demo-data seed and clear commands for clearly marked sample sources, items, and recipients; database execution remains blocked pending safe review credentials (commit `500f48f`; see OPEN_QUESTIONS.md item 21).
+- [x] Complete and verify the accessibility pass for keyboard navigation, labels, contrast, and non-color status cues (commit `3fd225f`): new Playwright test covers skip link, focus indicator, keyboard navigation, control labels, and word-based status cues; Lighthouse 12.8.2 scored 100 on all seven audited pages (see `docs/phase-reports/PHASE-6.md`).
+- [x] Add demo-data seed and clear commands for clearly marked sample sources, items, and recipients (commit `500f48f`), with canonical category values fixed in commit `3fd225f`.
 - [x] Stabilize the web test runner for constrained CI memory and fix strict TypeScript test typing regressions (commit `57f6014`).
 - [x] Add focused API and UI role checks; on 2026-11-04 `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` all exited 0.
-- [ ] Run demo seed and clear against a confirmed disposable review database and record their successful results.
-- [ ] Per-commit checks: `7429253` and `c915845` had lint/typecheck/test exit 0/0/0. `500f48f` last had 0/0/1 (Vitest API worker exits); `57f6014` had 0/134/1 (V8 out-of-memory and Vitest worker exits). The latest documentation-commit precheck printed 134/-1073740791 for typecheck/test after additional OOM failures. See OPEN_QUESTIONS.md item 23.
-- [ ] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
+- [x] Run demo seed and clear against a disposable review database (2026-11-05): local Docker `postgres:16-alpine`, seed 0 → 2 sources / 2 items / 2 recipients, repeat seed idempotent, clear 0 leaves no rows and preserves a non-demo sentinel row.
+- [x] Per-commit checks: `7429253` and `c915845` had lint/typecheck/test exit 0/0/0. The 2026-11-05 fresh-session gate run had lint 0, typecheck 0, test 0 (64 API + 17 web + 2 shared tests), build 0, and Playwright 2/2; the earlier worker/OOM failures did not recur (item 23 closed).
+- [x] Write `docs/phase-reports/PHASE-6.md` with implementation, run instructions, verification evidence, Lighthouse scores, known gaps, and assumptions.
 
 ### Phase 6 acceptance criteria
 
@@ -120,7 +120,7 @@ Implementation in progress following human approval of the Phase 6 plan.
 - [x] Member management is available only to masters in Settings; members are blocked from Settings writes and member management.
 - [x] Role behavior is verified: masters can do everything; members can use News Feed, view Delivery Log, and view Sources and Recipients without write access.
 - [x] The primary navigation contains exactly six modules.
-- [ ] Empty, loading, and error states are present where applicable; destructive actions require confirmation; feedback uses toasts; accessibility supports keyboard navigation, labels, sufficient contrast, and cues beyond color alone.
-- [ ] Demo data can be seeded and cleared cleanly, and sample sources, items, and recipients are identifiable as demo data. The commands exited 1 before database access because `SETTINGS_ENCRYPTION_KEY` and `JWT_SECRET` are not configured.
-- [ ] Lighthouse accessibility score is at least 90 on the main pages; **needs human** because Lighthouse and an authenticated review environment are unavailable locally.
-- [ ] Lint, typecheck, tests, and build pass; the phase report records evidence for every criterion.
+- [x] Empty, loading, and error states are present where applicable; destructive actions require confirmation; feedback uses toasts; accessibility supports keyboard navigation, labels, sufficient contrast, and cues beyond color alone. Evidence: Playwright `e2e/accessibility.e2e.ts` passes and `scripts/a11y-review-server.mjs` exposes the built pages for Lighthouse.
+- [x] Demo data can be seeded and cleared cleanly, and sample sources, items, and recipients are identifiable as demo data (`[DEMO]` names/headlines). Verified against a disposable `postgres:16-alpine` container on 2026-11-05.
+- [x] Lighthouse accessibility score is at least 90 on the main pages. Scores (Lighthouse 12.8.2, production build, review server with sample API data): dashboard 100, News Feed 100, Sources 100, Recipients 100, Alerts & Schedule 100, Delivery Log 100, Settings 100.
+- [x] Lint, typecheck, tests, and build pass (2026-11-05, exits 0/0/0/0); the phase report records evidence for every criterion.
