@@ -79,6 +79,21 @@ describe('security headers', () => {
 });
 
 describe('csrf protection', () => {
+  it('accepts the Netlify browser origin for state-changing requests', async () => {
+    context = await createTestContext();
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: {
+        origin: 'https://news.example.test',
+      },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ status: 'otp_sent' });
+  });
+
   it('rejects cross-site writes', async () => {
     context = await createTestContext();
     const response = await context.app.inject({
