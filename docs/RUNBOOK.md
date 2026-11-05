@@ -82,7 +82,21 @@ If Neon has scaled to zero, allow the first connection to wake it and retry afte
 
 ## Encryption-key rotation
 
-Key-rotation tooling is not implemented yet (`7.8.3` remains open). Do not replace `SETTINGS_ENCRYPTION_KEY` while encrypted settings or recipient contacts exist; the old key is needed to read them. Before rotation is enabled, use a protected copy of the database, follow the tool's documented dry-run and progress/recovery steps, verify encrypted reads, and only then update the production secret and restart the API. Production key custody and recovery remain a human task (`7.8.4`).
+The rotation utility re-encrypts saved SMTP settings and recipient email/phone values in a single database transaction. Before starting, make and verify a database backup, retain both keys in the protected secret manager, and arrange a maintenance window. Never put key values in command arguments or logs.
+
+On the API host, stop the API and prepare a shell with `OLD_SETTINGS_ENCRYPTION_KEY` set to the currently deployed key and `NEW_SETTINGS_ENCRYPTION_KEY` set to a newly generated 32-byte key (hex or Base64). Build the image containing the rotation utility, then run it once against the production database:
+
+```sh
+docker compose --env-file .env -f deploy/docker-compose.yml stop api
+docker compose --env-file .env -f deploy/docker-compose.yml build api
+docker compose --env-file .env -f deploy/docker-compose.yml run --rm --no-deps \
+  -e OLD_SETTINGS_ENCRYPTION_KEY -e NEW_SETTINGS_ENCRYPTION_KEY \
+  api node apps/api/dist/scripts/rotate-encryption-key.js
+```
+
+After a successful rotation, update `SETTINGS_ENCRYPTION_KEY` in the protected `.env` or secret manager to the new key, then start the API and verify `/api/health`, saved email settings, recipient contact behavior, and a test delivery before ending the maintenance window. Keep the old key securely available until all checks pass and a fresh backup is verified.
+
+The database changes are atomic: interruption before commit rolls them back, so restart with the old key. If the transaction committed but the new key has not been deployed (or the new-key startup check fails), keep the API stopped and run the utility in reverse, setting `OLD_SETTINGS_ENCRYPTION_KEY` to the new key and `NEW_SETTINGS_ENCRYPTION_KEY` to the original key; restore the original `SETTINGS_ENCRYPTION_KEY` and restart. Do not discard either key or the pre-rotation backup until recovery is confirmed. Production key generation, custody, and access/recovery policy remain a human task (`7.8.4`).
 
 ## VM reclaimed or unavailable
 

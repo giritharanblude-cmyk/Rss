@@ -192,7 +192,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 **7.6 Documentation**
 
 - [x] `7.6.1` buildable locally — Add `README.md` for the app, local setup, checks, and deployment overview.
-- [ ] `7.6.2` buildable locally — `docs/RUNBOOK.md` covers deployment, operations, and restore; finalize key-rotation operator steps after tooling task `7.8.3` is implemented.
+- [x] `7.6.2` buildable locally — `docs/RUNBOOK.md` covers deployment, operations, and restore; finalize key-rotation operator steps after tooling task `7.8.3` is implemented. (Documented backup-first, maintenance-window rotation, key cutover, verification, and rollback steps for atomic rotation tooling; lint/typecheck/test/build verified on Node 20.19.5: API 84, web 17, shared 2)
 - [ ] `7.6.3` buildable locally — Write `docs/USER_GUIDE.md` in plain language for non-technical staff, per module.
 
 **7.7 Final regression**
