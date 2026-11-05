@@ -131,6 +131,8 @@ Phase 6 approved on 2026-11-05: `APPROVED PHASE 6` for gate commit `f6aeadc`; ta
 
 Planned 2026-11-05 on branch `phase/7-hardening-deploy` from `main` at `f4dacdf`. Reconciled 2026-11-05: 39 unique tasks, each with one classification. Hardening work has been committed in small steps; deployment, backup, docs, and final gate checks remain open.
 
+Existing completion marks for `7.1.3`, `7.1.4`, `7.1.6`, `7.3.1`, and `7.3.2` were verified and retained. The human approved deferring `7.2.1` (extra indexes) and `7.2.5` (bundle splitting); see `DECISIONS.md`. All needs-human items remain open.
+
 Legend: **buildable locally** = can be implemented and verified in this repo on this host; **needs human** = requires an account, external service, credentials, hardware, or final sign-off.
 
 ### Task counts
@@ -159,11 +161,11 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.2 Performance**
 
-- [ ] `7.2.1` buildable locally — Review and add missing indexes for links, `published_at`, category, and delivery status; ship a Drizzle migration plus snapshot.
+- [ ] `7.2.1` buildable locally — Review and add missing indexes for links, `published_at`, category, and delivery status; ship a Drizzle migration plus snapshot. **Deferred by human approval; see `DECISIONS.md`.**
 - [ ] `7.2.2` buildable locally — Review hot queries (feed, dashboard, deliveries, recipients) for full scans and N+1 patterns; fix and cover with tests.
 - [ ] `7.2.3` buildable locally — Enforce and test pagination limits on every list endpoint.
 - [ ] `7.2.4` buildable locally — Benchmark every API route locally and record timings well under the Netlify proxy time limit.
-- [ ] `7.2.5` buildable locally — Reduce the deferred 848 kB web bundle via route-level code splitting and re-check the Vite size warning.
+- [ ] `7.2.5` buildable locally — Reduce the deferred 848 kB web bundle via route-level code splitting and re-check the Vite size warning. **Deferred by human approval; see `DECISIONS.md`.**
 - [ ] `7.2.6` needs human — Confirm response times under the real Netlify proxy and against live Neon latency.
 
 **7.3 Observability**
