@@ -156,7 +156,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 - [ ] `7.1.5` buildable locally — Run `npm audit`, resolve or document every high or critical advisory, and record the final counts in the phase report.
 - [x] `7.1.6` buildable locally — Add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests. (commit `57ac195`)
 - [ ] `7.1.7` buildable locally — Confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests.
-- [ ] `7.1.8` buildable locally — Implement or tighten the origin-secret guard and add tests proving requests without the secret are rejected.
+- [x] `7.1.8` buildable locally — Enforce the origin secret for API requests and test that browser login requests without it are rejected.
 - [ ] `7.1.9` needs human — Verify on the real deployed origin that direct traffic bypassing Netlify is refused.
 
 **7.2 Performance**

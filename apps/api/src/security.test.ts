@@ -38,6 +38,24 @@ describe('origin secret', () => {
     expect(accepted.statusCode).toBe(200);
   });
 
+  it('rejects a browser login request that reaches the origin without its secret', async () => {
+    context = await createTestContext({
+      originSecret: 'origin-secret-value-123456',
+      originSecretEnforced: true,
+      publicOrigin: testConfig.PUBLIC_APP_ORIGIN,
+    });
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { origin: testConfig.PUBLIC_APP_ORIGIN },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: 'Forbidden' });
+  });
+
   it('ignores the secret when enforcement is off', async () => {
     context = await createTestContext();
     const response = await context.app.inject({ method: 'GET', url: '/api/health' });
