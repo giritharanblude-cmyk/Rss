@@ -8,6 +8,15 @@ const testConfig = loadConfig({
   JWT_SECRET,
   SETTINGS_ENCRYPTION_KEY: '9f'.repeat(32),
 });
+const productionTestConfig = loadConfig({
+  NODE_ENV: 'production',
+  DATABASE_URL: 'postgresql://db.example.test/app',
+  JWT_SECRET,
+  ORIGIN_SECRET: 'origin-secret-value-123456',
+  ORIGIN_SECRET_ENFORCED: 'true',
+  PUBLIC_APP_ORIGIN: 'https://news.example.test',
+  SETTINGS_ENCRYPTION_KEY: '9f'.repeat(32),
+});
 
 afterEach(async () => {
   await context.app.close();
@@ -38,17 +47,18 @@ describe('origin secret', () => {
     expect(accepted.statusCode).toBe(200);
   });
 
-  it('rejects a browser login request that reaches the origin without its secret', async () => {
+  it('rejects a production login request that reaches the origin without its secret', async () => {
     context = await createTestContext({
-      originSecret: 'origin-secret-value-123456',
+      originSecret: productionTestConfig.ORIGIN_SECRET,
       originSecretEnforced: true,
-      publicOrigin: testConfig.PUBLIC_APP_ORIGIN,
+      publicOrigin: productionTestConfig.PUBLIC_APP_ORIGIN,
+      nodeEnv: 'production',
     });
 
     const response = await context.app.inject({
       method: 'POST',
       url: '/api/auth/login',
-      headers: { origin: testConfig.PUBLIC_APP_ORIGIN },
+      headers: { origin: productionTestConfig.PUBLIC_APP_ORIGIN },
       payload: { name: 'Admin', password: 'master-password-1' },
     });
 
