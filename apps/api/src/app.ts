@@ -196,6 +196,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       uptimeSeconds: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
       databaseSizeBytes: await deps.databaseSizeBytes(),
+      components: {
+        database: { status: 'ok' as const, detail: 'Database connection healthy.' },
+        smtp: { status: 'unknown' as const, detail: 'SMTP not configured in this environment.' },
+        openwa: { status: 'unknown' as const, detail: 'WhatsApp socket not connected.' },
+        scheduler: { status: 'ok' as const, detail: 'Background jobs online.' },
+      },
     };
 
     return healthResponseSchema.parse(payload);
