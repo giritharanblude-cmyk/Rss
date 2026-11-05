@@ -65,6 +65,37 @@ describe('origin secret', () => {
   });
 });
 
+describe('security headers', () => {
+  it('adds the hardening headers used by the API', async () => {
+    context = await createTestContext();
+    const response = await context.app.inject({ method: 'GET', url: '/api/health' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-frame-options']).toBe('DENY');
+    expect(response.headers['content-security-policy']).toContain("default-src 'none'");
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
+  });
+});
+
+describe('csrf protection', () => {
+  it('rejects cross-site writes', async () => {
+    context = await createTestContext();
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: {
+        'sec-fetch-site': 'cross-site',
+        origin: 'https://evil.example',
+      },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: 'Cross-site request rejected.' });
+  });
+});
+
 describe('protected routes', () => {
   it('rejects anonymous access to member routes', async () => {
     context = await createTestContext();

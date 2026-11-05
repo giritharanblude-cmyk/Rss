@@ -126,6 +126,7 @@ async function main(): Promise<void> {
     databaseSizeBytes: () => getDatabaseSizeBytes(pool),
     sessionTtlSeconds: config.SESSION_TTL_HOURS * 60 * 60,
     cookieSecure: config.NODE_ENV === 'production',
+    publicOrigin: config.PUBLIC_APP_ORIGIN,
     originSecret: config.ORIGIN_SECRET,
     originSecretEnforced: config.ORIGIN_SECRET_ENFORCED,
   });

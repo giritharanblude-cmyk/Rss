@@ -30,6 +30,8 @@ import { registerSettingsRoutes } from './routes/settings';
 import { registerMemberRoutes } from './routes/members';
 import { registerSourceRoutes } from './routes/sources';
 import { registerOriginSecret } from './security/origin';
+import { registerSecurityHeaders } from './security/headers';
+import { registerCsrfProtection } from './security/csrf';
 import { FeedTestQueue } from './rss/background';
 import { FeedService } from './rss/service';
 import { AlertPreviewService } from './alerts/preview';
@@ -58,6 +60,7 @@ export type AppDeps = {
   databaseSizeBytes: () => Promise<number>;
   sessionTtlSeconds?: number;
   cookieSecure?: boolean;
+  publicOrigin?: string;
   originSecret?: string;
   originSecretEnforced?: boolean;
   now?: () => Date;
@@ -84,10 +87,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const sessionTtlSeconds = deps.sessionTtlSeconds ?? 8 * 60 * 60;
   const now = deps.now ?? (() => new Date());
+  const publicOrigin = deps.publicOrigin ?? 'https://news.example.test';
 
   void app.register(cookie);
   void app.register(rateLimit, { global: false });
 
+  registerSecurityHeaders(app, { hsts: deps.cookieSecure ?? false });
+  registerCsrfProtection(app, {
+    allowedOrigins: [publicOrigin],
+  });
   registerOriginSecret(app, {
     secret: deps.originSecret,
     enforced: deps.originSecretEnforced ?? false,
