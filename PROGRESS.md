@@ -197,7 +197,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.7 Final regression**
 
-- [ ] `7.7.1` buildable locally — Run lint, typecheck, tests, build, and Playwright; record evidence.
+- [x] `7.7.1` buildable locally — Run lint, typecheck, tests, build, and Playwright; record evidence. (Node 20.19.5: lint/typecheck/test/build/Playwright exit 0; API 84, web 17, shared 2; Playwright 2 passed)
 - [x] `7.7.2` buildable locally — Map all 129 non-empty source paragraphs to a feature, test/evidence, and status in `docs/requirements/TRACEABILITY.md`.
 - [ ] `7.7.3` needs human — Approve every requirement marked Deferred and provide the reason recorded in the table.
 - [ ] `7.7.4` needs human — Perform the fresh-deploy check on a clean VM and a clean Netlify site from the docs alone.
