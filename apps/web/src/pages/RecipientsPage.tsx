@@ -85,6 +85,9 @@ function RecipientForm({
         required
       />
       <label htmlFor="recipient-phone">WhatsApp number (E.164)</label>
+      {initial.whatsappE164 === null && initial.channel !== 'email' ? (
+        <p>Saved WhatsApp number is hidden. Enter it again to keep WhatsApp enabled.</p>
+      ) : null}
       <input
         id="recipient-phone"
         type="tel"
@@ -93,6 +96,9 @@ function RecipientForm({
         onChange={(event) => setValues({ ...values, whatsappE164: event.target.value || null })}
       />
       <label htmlFor="recipient-email">Email id</label>
+      {initial.email === null && initial.channel !== 'whatsapp' ? (
+        <p>Saved email address is hidden. Enter it again to keep email enabled.</p>
+      ) : null}
       <input
         id="recipient-email"
         type="email"
@@ -316,8 +322,8 @@ export function RecipientsPage() {
                 <div>
                   <h2>{recipient.name}</h2>
                   <p>
-                    {recipient.whatsappE164 ?? 'No WhatsApp number'} ·{' '}
-                    {recipient.email ?? 'No email'}
+                    {recipient.hasWhatsapp ? 'WhatsApp configured (hidden)' : 'No WhatsApp number'}{' '}
+                    · {recipient.hasEmail ? 'Email configured (hidden)' : 'No email'}
                   </p>
                 </div>
                 <span className={`consent-badge consent-${recipient.consentStatus}`}>

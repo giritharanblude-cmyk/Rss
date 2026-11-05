@@ -15,6 +15,7 @@ import { MemoryRecipientRepository } from '../repositories/memory-recipients';
 import { MemoryDeliveryRepository } from '../repositories/memory-deliveries';
 import { MemoryConnectionRepository } from '../repositories/memory-connections';
 import { MemorySettingsRepository } from '../repositories/memory-settings';
+import type { SettingsRepository } from '../repositories/settings';
 import type { UserRecord } from '../repositories/types';
 
 export const JWT_SECRET = 'test-secret-value-with-at-least-32-chars';
@@ -50,7 +51,7 @@ export type TestContext = {
   deliveryService: DeliveryService;
   connections: MemoryConnectionRepository;
   connectionMonitor: ConnectionMonitor;
-  settings: MemorySettingsRepository;
+  settings: SettingsRepository;
 };
 
 export type TestContextOptions = Pick<
@@ -59,6 +60,7 @@ export type TestContextOptions = Pick<
 > &
   Partial<Pick<AppDeps, 'databaseSizeBytes'>> & {
     nodeEnv?: 'test' | 'production';
+    settings?: SettingsRepository;
   };
 
 export async function createTestContext(options: TestContextOptions = {}): Promise<TestContext> {
@@ -87,7 +89,7 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   const deliveries = new MemoryDeliveryRepository(recipients, feeds);
   const whatsapp = new MockWhatsAppAdapter();
   const connections = new MemoryConnectionRepository();
-  const settings = new MemorySettingsRepository();
+  const settings = testOptions.settings ?? new MemorySettingsRepository();
   const connectionMonitor = new ConnectionMonitor(connections, managedEmail, whatsapp, clock.now);
   const previews = new AlertPreviewService(recipients, recipients, recipients, clock.now);
   const deliveryService = new DeliveryService(

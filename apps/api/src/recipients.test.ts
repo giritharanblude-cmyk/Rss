@@ -60,7 +60,10 @@ describe('recipient management and public preferences', () => {
       recipient: {
         name: 'Asha',
         consentStatus: 'pending',
-        whatsappE164: recipientInput.whatsappE164,
+        whatsappE164: null,
+        email: null,
+        hasWhatsapp: true,
+        hasEmail: true,
       },
     });
     expect(created.body).not.toContain('unsubscribeToken');
@@ -97,6 +100,69 @@ describe('recipient management and public preferences', () => {
     });
     expect(list.statusCode).toBe(200);
     expect(list.body).not.toContain(unsubscribeToken);
+  });
+
+  it('never returns recipient contacts or unsubscribe tokens from recipient routes', async () => {
+    context = await createTestContext();
+    const cookie = await masterCookie();
+    const create = await context.app.inject({
+      method: 'POST',
+      url: '/api/recipients',
+      headers: { cookie },
+      payload: recipientInput,
+    });
+    expect(create.statusCode).toBe(201);
+    const created = (create.json() as { recipient: { id: string } }).recipient;
+    const stored = await context.recipients.findRecipient(created.id);
+    if (!stored) throw new Error('Expected the recipient to be stored.');
+
+    await context.recipients.setConsent(
+      created.id,
+      'granted',
+      context.clock.now(),
+      'Consent noted',
+    );
+    const responses = [
+      create,
+      await context.app.inject({
+        method: 'GET',
+        url: '/api/recipients',
+        headers: { cookie },
+      }),
+      await context.app.inject({
+        method: 'PATCH',
+        url: `/api/recipients/${created.id}`,
+        headers: { cookie },
+        payload: recipientInput,
+      }),
+      await context.app.inject({
+        method: 'PATCH',
+        url: `/api/recipients/${created.id}/consent`,
+        headers: { cookie },
+        payload: { status: 'granted', note: 'Consent confirmed' },
+      }),
+      await context.app.inject({ method: 'GET', url: `/api/public/preferences/${stored.unsubscribeToken}` }),
+      await context.app.inject({
+        method: 'PATCH',
+        url: `/api/public/preferences/${stored.unsubscribeToken}`,
+        payload: { topics: ['Drugs and approvals'] },
+      }),
+      await context.app.inject({
+        method: 'POST',
+        url: `/api/public/unsubscribe/${stored.unsubscribeToken}`,
+      }),
+    ];
+
+    for (const response of responses) {
+      expect(response.statusCode).toBeLessThan(400);
+      expect(response.body).not.toContain(stored.email!);
+      expect(response.body).not.toContain(stored.whatsappE164!);
+      expect(response.body).not.toContain(stored.unsubscribeToken);
+    }
+
+    expect(create.json()).toMatchObject({
+      recipient: { email: null, whatsappE164: null, hasEmail: true, hasWhatsapp: true },
+    });
   });
 
   it('supports public topic management and immediately revokes on unsubscribe', async () => {

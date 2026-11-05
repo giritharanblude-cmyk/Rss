@@ -35,8 +35,10 @@ function toRecipientResponse(recipient: RecipientRecord) {
   return recipientSchema.parse({
     id: recipient.id,
     name: recipient.name,
-    whatsappE164: recipient.whatsappE164,
-    email: recipient.email,
+    whatsappE164: null,
+    hasWhatsapp: recipient.whatsappE164 !== null,
+    email: null,
+    hasEmail: recipient.email !== null,
     topics: recipient.topics,
     channel: recipient.channel,
     consentStatus: recipient.consentStatus,

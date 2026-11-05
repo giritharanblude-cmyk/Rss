@@ -30,6 +30,7 @@ function requireMaster(role: string): void {
 function toResponse(record: DeliveryRecord) {
   return {
     ...record,
+    recipientContact: null,
     queuedAt: record.queuedAt.toISOString(),
     sentAt: record.sentAt?.toISOString() ?? null,
   };
@@ -94,7 +95,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
         [
           row.queuedAt.toISOString(),
           row.recipientName,
-          row.recipientContact,
+          row.recipientContact ? '[redacted]' : null,
           row.channel,
           row.kind,
           row.status,
@@ -138,7 +139,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...rows.map((row) => [
         row.queuedAt.toISOString(),
         row.recipientName,
-        row.recipientContact,
+        row.recipientContact ? '[redacted]' : null,
         row.channel,
         row.kind,
         row.status,

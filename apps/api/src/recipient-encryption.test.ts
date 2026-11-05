@@ -20,7 +20,7 @@ type StoredContact = {
 };
 
 describe('recipient contact encryption', () => {
-  it('encrypts contact fields on repository writes and decrypts them on reads', async () => {
+  it('stores email and WhatsApp values encrypted in the recipient database layer', async () => {
     const storage: { row: typeof recipients.$inferSelect | null } = { row: null };
     const database = {
       insert: () => ({
