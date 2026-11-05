@@ -75,6 +75,8 @@ describe('recipient contact encryption', () => {
     expect(storage.row?.email).not.toBe(input.email);
     expect(storage.row?.whatsappE164).toMatch(/^contact:v1\./);
     expect(storage.row?.email).toMatch(/^contact:v1\./);
+    expect(storage.row?.whatsappE164).not.toContain(input.whatsappE164);
+    expect(storage.row?.email).not.toContain(input.email);
     expect(created).toMatchObject(input);
     expect(await repository.findRecipient(created.id)).toMatchObject(input);
     const updatedInput: RecipientInput = {
@@ -87,6 +89,8 @@ describe('recipient contact encryption', () => {
     expect(storage.row?.email).not.toBe(updatedInput.email);
     expect(storage.row?.whatsappE164).toMatch(/^contact:v1\./);
     expect(storage.row?.email).toMatch(/^contact:v1\./);
+    expect(storage.row?.whatsappE164).not.toContain(updatedInput.whatsappE164);
+    expect(storage.row?.email).not.toContain(updatedInput.email);
     expect(await repository.listRecipients('asha.updated@example.test')).toMatchObject([
       updatedInput,
     ]);

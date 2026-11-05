@@ -51,6 +51,11 @@ describe('recipient management and public preferences', () => {
       payload: recipientInput,
     });
     expect(created.statusCode).toBe(201);
+    const createdRecipient = (created.json() as { recipient: { id: string } }).recipient;
+    const unsubscribeToken = (await context.recipients.findRecipient(createdRecipient.id))
+      ?.unsubscribeToken;
+    if (!unsubscribeToken) throw new Error('Expected generated recipient token.');
+    expect(created.body).not.toContain(unsubscribeToken);
     expect(created.json()).toMatchObject({
       recipient: {
         name: 'Asha',
@@ -83,6 +88,15 @@ describe('recipient management and public preferences', () => {
         consentAt: context.clock.now().toISOString(),
       },
     });
+    expect(confirmed.body).not.toContain(unsubscribeToken);
+
+    const list = await context.app.inject({
+      method: 'GET',
+      url: '/api/recipients',
+      headers: { cookie },
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.body).not.toContain(unsubscribeToken);
   });
 
   it('supports public topic management and immediately revokes on unsubscribe', async () => {
@@ -109,11 +123,15 @@ describe('recipient management and public preferences', () => {
       url: `/api/public/preferences/${token}`,
     });
     expect(preferences.statusCode).toBe(200);
+    expect(preferences.body).not.toContain(token);
+    expect(preferences.json()).not.toHaveProperty('email');
+    expect(preferences.json()).not.toHaveProperty('whatsappE164');
     const updatedTopics = await context.app.inject({
       method: 'PATCH',
       url: `/api/public/preferences/${token}`,
       payload: { topics: ['Drugs and approvals'] },
     });
+    expect(updatedTopics.body).not.toContain(token);
     expect(updatedTopics.json()).toMatchObject({ topics: ['Drugs and approvals'] });
 
     const unsubscribed = await context.app.inject({
@@ -121,6 +139,7 @@ describe('recipient management and public preferences', () => {
       url: `/api/public/unsubscribe/${token}`,
     });
     expect(unsubscribed.statusCode).toBe(200);
+    expect(unsubscribed.body).not.toContain(token);
     expect((await context.recipients.findRecipient(recipient.id))?.consentStatus).toBe('revoked');
     expect(
       (

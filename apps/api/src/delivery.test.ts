@@ -271,6 +271,16 @@ describe('delivery pipeline', () => {
     expect(stored).not.toContain(password);
     expect(JSON.parse(decryptSettings(stored!, '9f'.repeat(32)))).toMatchObject({ password });
     expect(context.managedEmail.getPublicSettings()).not.toHaveProperty('password');
+
+    const publicSettings = await context.app.inject({
+      method: 'GET',
+      url: '/api/settings/email',
+      headers: { cookie },
+    });
+    expect(publicSettings.statusCode).toBe(200);
+    expect(publicSettings.body).not.toContain(password);
+    expect(publicSettings.json()).toMatchObject({ passwordConfigured: true });
+    expect(publicSettings.json().settings).not.toHaveProperty('password');
   });
 
   it('exports XLSX as an OpenXML zip workbook', async () => {

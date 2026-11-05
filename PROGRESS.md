@@ -155,7 +155,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 - [x] `7.1.4` buildable locally — Add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests. (commit `debf2cd`)
 - [x] `7.1.5` buildable locally — Run `npm audit`; 2026-11-05 results: 16 moderate, 0 high, 0 critical. No high or critical advisories to resolve; triage is recorded in the Phase 7 report.
 - [x] `7.1.6` buildable locally — Add log scrubbing so passwords, OTPs, cookies, JWTs, SMTP/OpenWA credentials, recipient contacts, and unsubscribe tokens never reach logs; add tests. (commit `57ac195`)
-- [ ] `7.1.7` buildable locally — Confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests.
+- [x] `7.1.7` buildable locally — Confirm SMTP passwords and recipient contacts remain encrypted at rest and that no route returns secret values; extend tests. (verified on Node 20.19.5: lint/typecheck/test/build passed; API 74, web 17, shared 2)
 - [x] `7.1.8` buildable locally — Enforce the origin secret for API requests and test that browser login requests without it are rejected.
 - [ ] `7.1.9` needs human — Verify on the real deployed origin that direct traffic bypassing Netlify is refused.
 
