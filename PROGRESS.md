@@ -149,7 +149,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 
 **7.1 Security review**
 
-- [ ] `7.1.1` buildable locally — Audit every route for input validation and confirm each body, query, and params value is parsed with the shared zod schemas; add regression tests for rejected payloads.
+- [x] `7.1.1` buildable locally — Audit every route for input validation and confirm each body, query, and params value is parsed with the shared zod schemas; add regression tests for rejected payloads. (verified on Node 20.19.5: lint/typecheck/test/build passed; API 73, web 17, shared 2)
 - [ ] `7.1.2` buildable locally — Verify session cookies are `HttpOnly`, `Secure` in production, `SameSite` scoped correctly, and cleared on logout; add tests.
 - [x] `7.1.3` buildable locally — Add CSRF protection for state-changing requests (same-site origin check and/or token) and tests proving cross-origin writes are rejected. (commit `debf2cd`)
 - [x] `7.1.4` buildable locally — Add security headers (helmet or equivalent: CSP, HSTS, `X-Content-Type-Options`, frame protection, referrer policy) and assert them in API tests. (commit `debf2cd`)

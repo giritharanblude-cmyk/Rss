@@ -4,11 +4,13 @@ import {
   alertPreviewInputSchema,
   alertRuleInputSchema,
   consentUpdateSchema,
+  publicTokenParamsSchema,
   publicTopicsUpdateSchema,
+  recipientListQuerySchema,
   recipientInputSchema,
   recipientSchema,
+  uuidParamsSchema,
 } from '@healthcare/shared';
-import { z } from 'zod';
 import type { AuthService } from '../auth/service';
 import type { AlertPreviewService } from '../alerts/preview';
 import { ForbiddenError, HttpError } from '../errors';
@@ -60,7 +62,7 @@ async function requireMaster(
 }
 
 function readId(request: Parameters<typeof readUser>[0]): string {
-  const parsed = z.object({ id: z.string().uuid() }).safeParse(request.params);
+  const parsed = uuidParamsSchema.safeParse(request.params);
   if (!parsed.success) throw new HttpError(400, 'Check the id and try again.');
   return parsed.data.id;
 }
@@ -80,7 +82,7 @@ export function registerRecipientRoutes(
 ): void {
   app.get('/api/recipients', async (request, reply) => {
     await readUser(request, options.auth, options.jwtSecret);
-    const query = z.object({ q: z.string().trim().max(120).optional() }).safeParse(request.query);
+    const query = recipientListQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the search text and try again.');
     const recipients = await options.recipients.listRecipients(query.data.q);
     return reply.send({ recipients: recipients.map(toRecipientResponse) });
@@ -196,7 +198,7 @@ export function registerRecipientRoutes(
 }
 
 function readPublicToken(request: Parameters<typeof readUser>[0]): string {
-  const params = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/i) }).safeParse(request.params);
+  const params = publicTokenParamsSchema.safeParse(request.params);
   if (!params.success) throw new HttpError(404, 'This link is invalid or has expired.');
   return params.data.token;
 }
