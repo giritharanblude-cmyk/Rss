@@ -41,7 +41,18 @@ pg_restore --list "$BACKUP_FILE"
 pg_restore --exit-on-error --no-owner --dbname="$RESTORE_DATABASE_URL" "$BACKUP_FILE"
 ```
 
-Restore to a new disposable database first. Do not overwrite production during a restore check. The OpenWA session archive job is not implemented yet (`7.4.2` remains open); identify and archive the OpenWA service's actual persistent data separately. To restore an available session archive, stop that service, restore its data to the same volume and permissions, restart it, then verify the session or relink using the QR procedure above.
+Restore to a new disposable database first. Do not overwrite production during a restore check.
+
+## OpenWA session archive
+
+Set `OPENWA_SESSION_DIR` to the OpenWA service's actual persistent session directory and `OPENWA_BACKUP_DIR` to a protected location outside that directory. The session archive contains account credentials; restrict access to the archive and its storage. Verify the source path before scheduling because OpenWA may run separately from the API container.
+
+```sh
+node deploy/backup-openwa.mjs --dry-run
+node deploy/backup-openwa.mjs
+```
+
+The script writes compressed archives and retains the seven newest. Schedule it weekly using the host's protected scheduler environment (for example, Sunday at 03:00 with `0 3 * * 0`). Monitor its logs and confirm that each archive is created successfully. Detailed session restore steps are tracked separately in `7.4.3`.
 
 ## Neon asleep or over its limit
 
