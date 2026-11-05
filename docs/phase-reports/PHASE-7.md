@@ -30,7 +30,7 @@ The test command did not exercise a live PostgreSQL dump or restore. Playwright 
 
 ## Gate status and remaining work
 
-The local origin guard test rejects a request without the secret, but the live Netlify-to-origin path and direct-origin bypass still require human deployment verification. No backup schedule, live dump/restore, OpenWA session archive, or production service credentials were installed or verified. The requirement traceability table is the next scoped item and is not included in this initial report.
+The local origin guard test rejects a request without the secret, but the live Netlify-to-origin path and direct-origin bypass still require human deployment verification. No backup schedule, live dump/restore, OpenWA session archive, or production service credentials were installed or verified. `docs/requirements/TRACEABILITY.md` maps all 129 non-empty DOCX paragraphs; its `Partial` and `Open` entries keep the traceability acceptance criterion open pending implementation or explicit human-approved deferrals.
 
 Other open buildable items include full route/cookie/secrets audits, query and pagination/per-route performance work, OpenWA archive and restore testing, the user guide, Playwright regression, and encryption-key migration/rotation. The runbook marks the key-rotation tool as unavailable until `7.8.3` is implemented.
 
@@ -46,3 +46,4 @@ No merge, tag, or push was performed. The traceability table and final gate revi
 - `2dc140d` — finalize secret-free Netlify and VM config
 - `a85118c` — add rotating PostgreSQL dump script
 - `d437d95` — add minimal deployment runbook
+- `00e8ae4` — add README and initial gate report

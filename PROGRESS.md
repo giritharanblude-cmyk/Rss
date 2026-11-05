@@ -198,7 +198,7 @@ Counts cover the task list below; acceptance criteria are gate checks and are no
 **7.7 Final regression**
 
 - [ ] `7.7.1` buildable locally — Run lint, typecheck, tests, build, and Playwright; record evidence.
-- [ ] `7.7.2` buildable locally — Produce the requirements traceability table mapping every line of `docs/requirements/Healthcare_RSS_News_Reader.docx` to feature, test, and status.
+- [x] `7.7.2` buildable locally — Map all 129 non-empty source paragraphs to a feature, test/evidence, and status in `docs/requirements/TRACEABILITY.md`.
 - [ ] `7.7.3` needs human — Approve every requirement marked Deferred and provide the reason recorded in the table.
 - [ ] `7.7.4` needs human — Perform the fresh-deploy check on a clean VM and a clean Netlify site from the docs alone.
 - [ ] `7.7.5` needs human — Create tag `v1.0.0` after final approval.
