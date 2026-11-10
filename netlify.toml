@@ -9,7 +9,7 @@
 # Replace the example origin hostname with the deployed Caddy hostname.
 [[redirects]]
   from = "/api/*"
-  to = "https://origin.example.com/api/:splat"
+  to = "https://rss-origin-proxy.giritharanblude.workers.dev/api/:splat"
   status = 200
   force = true
 
