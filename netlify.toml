@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build -w @healthcare/web"
+  command = "npm run build -w @healthcare/shared && npm run build -w @healthcare/web"
   publish = "apps/web/dist"
 
 [build.environment]
