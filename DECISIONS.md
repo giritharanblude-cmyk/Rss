@@ -41,6 +41,7 @@ One entry per decision: date, decision, reason.
 ## 2026-11-10
 
 - **Frontend hosting: Cloudflare Pages.** The frontend moved to Cloudflare Pages, so the Netlify proxy configuration is no longer used. Reason: the frontend no longer uses Netlify.
+- **Cloudflare Pages API proxy:** Route `/api/*` through `functions/api/[[path]].ts` to `ORIGIN_BASE` and inject `X-Origin-Secret` from `ORIGIN_SECRET`. Reason: keep the API origin protected while serving the frontend from Cloudflare Pages.
 
 ## Verified free-tier limits (checked 2026-11-03)
 
