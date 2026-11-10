@@ -5,15 +5,15 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# The edge function injects ORIGIN_SECRET without exposing it to browser code.
-# Replace the example origin hostname with the deployed Caddy hostname.
+# API requests go to the Cloudflare Worker, which adds the origin secret.
+# The secret is stored in the Worker and is never in this file.
 [[redirects]]
   from = "/api/*"
   to = "https://rss-origin-proxy.giritharanblude.workers.dev/api/:splat"
   status = 200
   force = true
 
-# API proxy must stay before the SPA fallback.
+# The SPA fallback must stay after the API rule.
 [[redirects]]
   from = "/*"
   to = "/index.html"
