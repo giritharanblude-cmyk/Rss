@@ -38,6 +38,10 @@ One entry per decision: date, decision, reason.
 - **Durable keyboard/label checks live in Playwright.** `apps/web/e2e/accessibility.e2e.ts` covers the skip link, visible focus indicator, reverse keyboard navigation into the module bar, accessible names on all form controls, one `h1`, and word-based connection states. Reason: those behaviours depend on real browser focus handling and cannot be proven in jsdom unit tests.
 - **Playwright runs one worker.** `apps/web/playwright.config.ts` sets `workers: 1`. Reason: on this Windows host, two simultaneous Chromium launches crashed at startup (`0xC0000409`) during the clean-worktree check, while serialized runs pass reliably; the suite is only two tests, so serial execution costs little.
 
+## 2026-11-10
+
+- **Frontend hosting: Cloudflare Pages.** The frontend moved to Cloudflare Pages, so the Netlify proxy configuration is no longer used. Reason: the frontend no longer uses Netlify.
+
 ## Verified free-tier limits (checked 2026-11-03)
 
 - **Netlify Free:** 300 credits/month, 1 concurrent build, 1 team owner. Production deploy = 15 credits; compute = 5–10 credits/GB-hour; bandwidth = 10–20 credits/GB; web requests = 2–3 credits per 10k. Projects pause when credits run out. Implication: keep the bundle small, cache aggressively, keep API calls short, and do long work as background jobs. The ~26 s proxy cut-off is treated as the operational ceiling.
