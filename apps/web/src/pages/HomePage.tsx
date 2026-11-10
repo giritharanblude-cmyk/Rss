@@ -49,6 +49,8 @@ export function HomePage() {
     return <Navigate to="/login" replace />;
   }
 
+  const connections = live.data?.connections;
+
   return (
     <div className="app-frame">
       <AppHeader user={data.user} />
@@ -87,15 +89,19 @@ export function HomePage() {
             <section className="connection-grid" aria-label="Service connections">
               <ConnectionLight
                 label="OpenWA socket"
-                connected={live.data.connections.whatsapp}
+                connected={connections?.whatsapp ?? false}
                 connectedText="Connected"
-                disconnectedText="Disconnected"
+                disconnectedText={
+                  connections?.whatsapp === undefined ? 'Not connected yet' : 'Disconnected'
+                }
               />
               <ConnectionLight
                 label="Hostinger email"
-                connected={live.data.connections.email}
+                connected={connections?.email ?? false}
                 connectedText="Working"
-                disconnectedText="Not working"
+                disconnectedText={
+                  connections?.email === undefined ? 'Not connected yet' : 'Not working'
+                }
               />
             </section>
             <section className="latest-section">

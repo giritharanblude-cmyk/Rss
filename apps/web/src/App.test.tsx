@@ -107,6 +107,8 @@ describe('App', () => {
 
     expect(await screen.findByText('Admin')).toBeInTheDocument();
     expect(screen.getByText('master')).toBeInTheDocument();
+    expect(await screen.findByText('Disconnected')).toBeInTheDocument();
+    expect(screen.getByText('Not working')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
     expect(
       within(screen.getByRole('navigation', { name: 'Modules' })).getAllByRole('link'),
@@ -116,6 +118,38 @@ describe('App', () => {
       '#main-content',
     );
     expect(await screen.findByRole('main')).toHaveAttribute('id', 'main-content');
+  });
+
+  it('renders default connection statuses when dashboard connection data is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const path = String(input);
+        if (path === '/api/dashboard/live') {
+          return jsonResponse(200, {
+            itemsToday: 0,
+            activeSources: 0,
+            recipients: 0,
+            deliveriesToday: 0,
+            failedDeliveries: 0,
+            latestItems: [],
+            lastFetchAt: null,
+          });
+        }
+        return jsonResponse(200, {
+          user: {
+            id: '00000000-0000-4000-8000-000000000000',
+            name: 'Admin',
+            role: 'master',
+          },
+        });
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(await screen.findAllByText('Not connected yet')).toHaveLength(2);
   });
 
   it('shows members only the modules allowed by their role', async () => {
