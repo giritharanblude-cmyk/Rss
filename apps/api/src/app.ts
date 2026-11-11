@@ -208,6 +208,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get('/api/health', async (): Promise<HealthResponse> => {
+    const missingSmtpVariables = (
+      ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM_EMAIL'] as const
+    ).filter((variable) => !process.env[variable]);
     const payload = {
       status: 'ok' as const,
       service: 'healthcare-rss-api',
@@ -217,7 +220,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       databaseSizeBytes: await deps.databaseSizeBytes(),
       components: {
         database: { status: 'ok' as const, detail: 'Database connection healthy.' },
-        smtp: { status: 'unknown' as const, detail: 'SMTP not configured in this environment.' },
+        smtp:
+          missingSmtpVariables.length === 0
+            ? { status: 'ok' as const, detail: 'SMTP configuration is present.' }
+            : {
+                status: 'unknown' as const,
+                detail: `Missing required SMTP configuration: ${missingSmtpVariables.join(', ')}.`,
+              },
         openwa: { status: 'unknown' as const, detail: 'WhatsApp socket not connected.' },
         scheduler: { status: 'ok' as const, detail: 'Background jobs online.' },
       },
