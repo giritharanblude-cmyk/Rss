@@ -128,6 +128,24 @@ describe('encryption key rotation', () => {
     expect(decryptRecipientContact(state.recipients[0]!.whatsapp_e164!, oldKey)).toBe(
       '+14155550123',
     );
+    expect(decryptRecipientContact(state.recipients[0]!.email!, oldKey)).toBe(
+      'person@example.test',
+    );
+    expect(
+      JSON.parse(decryptSettings(state.settings[0]!.encrypted_value, oldKey)),
+    ).toMatchObject({ host: 'smtp.example.test', password: 'mail-secret' });
     expect(rollback).toHaveBeenCalledOnce();
+  });
+
+  it('fails authentication when recipient contacts or SMTP settings use a wrong key', () => {
+    const state = initialState();
+    const wrongKey = 'c3'.repeat(32);
+
+    expect(() =>
+      decryptRecipientContact(state.recipients[0]!.whatsapp_e164!, wrongKey),
+    ).toThrow(/unable to authenticate/i);
+    expect(() => decryptSettings(state.settings[0]!.encrypted_value, wrongKey)).toThrow(
+      /unable to authenticate/i,
+    );
   });
 });
