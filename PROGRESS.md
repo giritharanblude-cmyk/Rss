@@ -5,6 +5,34 @@ Gate mode: MANUAL
 Milestone decision: Code Complete, Deploy Pending (development milestone; not production approval)
 Last green commit: fd669d0
 
+## Stabilisation phases A-C (2026-11-11)
+
+This is the current operational status; earlier phase notes below are retained as historical records.
+
+### Phase A: Stable backend address
+
+- [x] Run the backend through Tailscale Funnel at `blude-lstx003.tailc42c8b.ts.net` in the background. After a full PC restart, with no manual commands, the Pages Function's `/api/health` returned HTTP 200.
+
+### Phase B: Security and SMTP
+
+- [x] SMTP health configuration fix: commit `35fb3bb`, merged in `bf0384a`. Live `/api/health` reports `smtp` status `ok`.
+- [x] Key-rotation recovery tests: commit `e120606`, merged in `49e46e7`.
+- [x] Contact-prefix legacy encryption fix: commit `e7a11b6` is already on `main`.
+
+### Phase C: Live account verification
+
+- [x] Rotate the Hostinger mailbox password and Neon database password; confirm the old credentials are invalid.
+- [x] Verify OTP login end to end on the live Pages site.
+
+### Current open items
+
+- The Pages Function depends on the Tailscale Funnel address and `ORIGIN_BASE`.
+- `PUBLIC_APP_ORIGIN` must match the active Pages deployment.
+- WhatsApp (OpenWA) is not connected; this is optional Phase D work.
+- The backend runs on the owner PC and is available only while that PC is on.
+- The master password was reset for the fresh database.
+- The `v1.0.0` tag has not been created, pending owner review.
+
 ## Phase 0: Discovery, Foundation, and Free-Stack Proof
 
 - [x] Read requirements docx and master prompt; inspect empty repo
