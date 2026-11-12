@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { emailTestBodySchema, smtpSettingsSchema } from '@healthcare/shared';
+import { emailTestBodySchema, maskEmail, smtpSettingsSchema } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { ConnectionMonitor } from '../delivery/connections';
 import type { WhatsAppAdapter } from '../delivery/whatsapp';
@@ -20,6 +20,17 @@ export type SettingsRouteOptions = {
 };
 
 export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRouteOptions): void {
+  const getPublicSettings = () => {
+    const settings = options.email.getPublicSettings();
+    return settings
+      ? {
+          ...settings,
+          user: maskEmail(settings.user),
+          fromEmail: maskEmail(settings.fromEmail),
+        }
+      : null;
+  };
+
   app.get('/api/settings/connections', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     const connections = await options.monitor.check();
@@ -35,7 +46,7 @@ export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRo
     const user = await readUser(request, options.auth, options.jwtSecret);
     if (user.role !== 'master') throw new ForbiddenError();
     return reply.send({
-      settings: options.email.getPublicSettings(),
+      settings: getPublicSettings(),
       passwordConfigured: options.email.hasPassword(),
     });
   });
@@ -52,7 +63,7 @@ export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRo
     await options.settings.set('smtp_transport', encoded);
     options.email.configure(parsed.data);
     return reply.send({
-      settings: options.email.getPublicSettings(),
+      settings: getPublicSettings(),
       passwordConfigured: true,
     });
   });

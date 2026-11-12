@@ -21,9 +21,7 @@ function workbookText(buffer: Buffer): string {
     const extraLength = buffer.readUInt16LE(offset + 28);
     const dataStart = offset + 30 + nameLength + extraLength;
     const data = buffer.subarray(dataStart, dataStart + compressedSize);
-    contents.push(
-      (method === 8 ? inflateRawSync(data) : data).toString('utf8'),
-    );
+    contents.push((method === 8 ? inflateRawSync(data) : data).toString('utf8'));
     offset = dataStart + compressedSize;
   }
   return contents.join('\n');
@@ -307,6 +305,7 @@ describe('delivery pipeline', () => {
     const stored = await context.settings.get('smtp_transport');
     expect(response.statusCode).toBe(200);
     expect(response.body).not.toContain(password);
+    expect(response.body).not.toContain('admin@example.test');
     expect(stored).not.toContain(password);
     expect(stored).toMatch(/^v1\./);
     expect(JSON.parse(decryptSettings(stored!, '9f'.repeat(32)))).toMatchObject({ password });
@@ -329,8 +328,13 @@ describe('delivery pipeline', () => {
     });
     expect(publicSettings.statusCode).toBe(200);
     expect(publicSettings.body).not.toContain(password);
+    expect(publicSettings.body).not.toContain('admin@example.test');
     expect(publicSettings.json()).toMatchObject({ passwordConfigured: true });
     expect(publicSettings.json().settings).not.toHaveProperty('password');
+    expect(publicSettings.json().settings).toMatchObject({
+      user: 'ad***@example.test',
+      fromEmail: 'ad***@example.test',
+    });
 
     const settingsResponses = [
       response,
@@ -396,11 +400,7 @@ describe('delivery pipeline', () => {
       url: '/api/deliveries/export.xlsx',
       headers: { cookie },
     });
-    const responseBodies = [
-      listed.body,
-      csv.body,
-      workbookText(xlsx.rawPayload),
-    ];
+    const responseBodies = [listed.body, csv.body, workbookText(xlsx.rawPayload)];
 
     expect(listed.statusCode).toBe(200);
     expect(csv.statusCode).toBe(200);

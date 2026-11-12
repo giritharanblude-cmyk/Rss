@@ -60,8 +60,8 @@ describe('recipient management and public preferences', () => {
       recipient: {
         name: 'Asha',
         consentStatus: 'pending',
-        whatsappE164: null,
-        email: null,
+        whatsappE164: '+91********10',
+        email: 'as***@example.test',
         hasWhatsapp: true,
         hasEmail: true,
       },
@@ -100,6 +100,9 @@ describe('recipient management and public preferences', () => {
     });
     expect(list.statusCode).toBe(200);
     expect(list.body).not.toContain(unsubscribeToken);
+    expect(list.json()).toMatchObject({
+      recipients: [{ email: 'as***@example.test', whatsappE164: '+91********10' }],
+    });
   });
 
   it('never returns recipient contacts or unsubscribe tokens from recipient routes', async () => {
@@ -141,7 +144,10 @@ describe('recipient management and public preferences', () => {
         headers: { cookie },
         payload: { status: 'granted', note: 'Consent confirmed' },
       }),
-      await context.app.inject({ method: 'GET', url: `/api/public/preferences/${stored.unsubscribeToken}` }),
+      await context.app.inject({
+        method: 'GET',
+        url: `/api/public/preferences/${stored.unsubscribeToken}`,
+      }),
       await context.app.inject({
         method: 'PATCH',
         url: `/api/public/preferences/${stored.unsubscribeToken}`,
@@ -161,7 +167,12 @@ describe('recipient management and public preferences', () => {
     }
 
     expect(create.json()).toMatchObject({
-      recipient: { email: null, whatsappE164: null, hasEmail: true, hasWhatsapp: true },
+      recipient: {
+        email: 'as***@example.test',
+        whatsappE164: '+91********10',
+        hasEmail: true,
+        hasWhatsapp: true,
+      },
     });
   });
 

@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import {
   TOPIC_CATEGORIES,
+  maskEmail,
+  maskPhone,
   recipientInputSchema,
   type Recipient,
   type RecipientInput,
@@ -89,7 +91,7 @@ function RecipientForm({
       />
       <label htmlFor="recipient-phone">WhatsApp number (E.164)</label>
       {initial.whatsappE164 === null && initial.channel !== 'email' ? (
-        <p>Saved WhatsApp number is hidden. Enter it again to keep WhatsApp enabled.</p>
+        <p>Saved WhatsApp number is masked. Enter it again to keep WhatsApp enabled.</p>
       ) : null}
       <input
         id="recipient-phone"
@@ -100,7 +102,7 @@ function RecipientForm({
       />
       <label htmlFor="recipient-email">Email id</label>
       {initial.email === null && initial.channel !== 'whatsapp' ? (
-        <p>Saved email address is hidden. Enter it again to keep email enabled.</p>
+        <p>Saved email address is masked. Enter it again to keep email enabled.</p>
       ) : null}
       <input
         id="recipient-email"
@@ -305,8 +307,8 @@ export function RecipientsPage() {
               editing
                 ? {
                     name: editing.name,
-                    whatsappE164: editing.whatsappE164,
-                    email: editing.email,
+                    whatsappE164: null,
+                    email: null,
                     topics: editing.topics,
                     channel: editing.channel,
                   }
@@ -329,8 +331,10 @@ export function RecipientsPage() {
                 <div>
                   <h2>{recipient.name}</h2>
                   <p>
-                    {recipient.hasWhatsapp ? 'WhatsApp configured (hidden)' : 'No WhatsApp number'}{' '}
-                    · {recipient.hasEmail ? 'Email configured (hidden)' : 'No email'}
+                    {recipient.whatsappE164
+                      ? `WhatsApp: ${maskPhone(recipient.whatsappE164)}`
+                      : 'No WhatsApp number'}{' '}
+                    · {recipient.email ? `Email: ${maskEmail(recipient.email)}` : 'No email'}
                   </p>
                 </div>
                 <span className={`consent-badge consent-${recipient.consentStatus}`}>

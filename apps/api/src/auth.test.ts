@@ -16,6 +16,11 @@ afterEach(async () => {
 describe('sign in with name, password and emailed code', () => {
   it('completes the login flow and sets a scoped session cookie', async () => {
     context = await createTestContext();
+    const privateProfile = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+    });
+    expect(privateProfile.statusCode).toBe(401);
 
     const login = await context.app.inject({
       method: 'POST',
@@ -34,6 +39,7 @@ describe('sign in with name, password and emailed code', () => {
     });
     expect(verify.statusCode).toBe(200);
     expect(verify.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
+    expect(verify.json().user).not.toHaveProperty('email');
     const setCookie = String(verify.headers['set-cookie']);
     expect(sessionCookieFrom(verify)).toContain('session=');
     expect(setCookie).toContain('HttpOnly');
@@ -47,7 +53,9 @@ describe('sign in with name, password and emailed code', () => {
       headers: { cookie: sessionCookieFrom(verify) },
     });
     expect(me.statusCode).toBe(200);
-    expect(me.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
+    expect(me.json()).toMatchObject({
+      user: { name: 'Admin', role: 'master', email: 'admin@example.com' },
+    });
   });
 
   it('keeps an active session valid by refreshing its last-active time', async () => {

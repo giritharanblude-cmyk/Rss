@@ -40,9 +40,9 @@ export type RecipientInput = z.infer<typeof recipientInputSchema>;
 export const recipientSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(120),
-  whatsappE164: z.null(),
+  whatsappE164: z.string().max(16).nullable(),
   hasWhatsapp: z.boolean(),
-  email: z.null(),
+  email: z.string().max(260).nullable(),
   hasEmail: z.boolean(),
   topics: z.array(z.enum(TOPIC_CATEGORIES)).max(TOPIC_CATEGORIES.length),
   channel: recipientChannelSchema,

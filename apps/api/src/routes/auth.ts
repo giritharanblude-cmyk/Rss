@@ -130,7 +130,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
 
   app.get('/api/auth/me', async (request, reply) => {
     const user = await readUser(request, auth, jwtSecret);
-    return reply.send({ user: toPublicUser(user) });
+    return reply.send({ user: { ...toPublicUser(user), email: user.email } });
   });
 
   app.post(
