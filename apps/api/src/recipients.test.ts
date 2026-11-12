@@ -228,8 +228,14 @@ describe('recipient management and public preferences', () => {
     ).toBe(404);
   });
 
-  it('allows members to view recipients but denies writes and alert configuration', async () => {
+  it('lets members manage only their own recipients and alert rules', async () => {
     context = await createTestContext();
+    const masterRecipient = await context.recipients.createRecipient(
+      recipientInput,
+      'b'.repeat(64),
+      context.master.id,
+    );
+    const masterRule = await context.recipients.createAlertRule(digestRule, context.master.id);
     const member = await seedMember(context.users, {
       name: 'Mina',
       email: 'mina@example.test',
@@ -241,7 +247,7 @@ describe('recipient management and public preferences', () => {
       member.name,
       'member-password-1',
     );
-    const list = await context.app.inject({
+    const empty = await context.app.inject({
       method: 'GET',
       url: '/api/recipients',
       headers: { cookie },
@@ -252,34 +258,77 @@ describe('recipient management and public preferences', () => {
       headers: { cookie },
       payload: recipientInput,
     });
+    const memberRecipient = (create.json() as { recipient: { id: string } }).recipient;
     const update = await context.app.inject({
       method: 'PATCH',
-      url: '/api/recipients/00000000-0000-4000-8000-000000000001',
+      url: `/api/recipients/${memberRecipient.id}`,
+      headers: { cookie },
+      payload: recipientInput,
+    });
+    const updateOtherOwner = await context.app.inject({
+      method: 'PATCH',
+      url: `/api/recipients/${masterRecipient.id}`,
       headers: { cookie },
       payload: recipientInput,
     });
     const consent = await context.app.inject({
       method: 'PATCH',
-      url: '/api/recipients/00000000-0000-4000-8000-000000000001/consent',
+      url: `/api/recipients/${memberRecipient.id}/consent`,
       headers: { cookie },
-      payload: { status: 'revoked' },
+      payload: { status: 'granted', note: 'Member consent' },
     });
-    const remove = await context.app.inject({
-      method: 'DELETE',
-      url: '/api/recipients/00000000-0000-4000-8000-000000000001',
+    const createRule = await context.app.inject({
+      method: 'POST',
+      url: '/api/alert-rules',
       headers: { cookie },
+      payload: digestRule,
     });
     const rules = await context.app.inject({
       method: 'GET',
       url: '/api/alert-rules',
       headers: { cookie },
     });
-    expect(list.statusCode).toBe(200);
-    expect(create.statusCode).toBe(403);
-    expect(update.statusCode).toBe(403);
-    expect(consent.statusCode).toBe(403);
-    expect(remove.statusCode).toBe(403);
-    expect(rules.statusCode).toBe(403);
+    const memberRule = (createRule.json() as { rule: { id: string } }).rule;
+    const memberDelivery = await context.deliveries.enqueue(
+      {
+        recipientId: memberRecipient.id,
+        channel: 'email',
+        kind: 'manual',
+        subjectOrRef: 'member-owner',
+        newsItemIds: [],
+      },
+      context.clock.now(),
+    );
+    const masterList = await context.app.inject({
+      method: 'GET',
+      url: '/api/recipients',
+      headers: {
+        cookie: (
+          await loginAndVerify(context.app, context.email, 'Admin', 'master-password-1')
+        ).cookie,
+      },
+    });
+    expect(empty.json()).toMatchObject({ recipients: [], total: 0 });
+    expect(create.statusCode).toBe(201);
+    expect(await context.recipients.findRecipient(memberRecipient.id)).toMatchObject({
+      ownerUserId: member.id,
+    });
+    expect(memberDelivery.ownerUserId).toBe(member.id);
+    expect(await context.recipients.listAlertRules(member.id)).toMatchObject([
+      { id: memberRule.id, ownerUserId: member.id },
+    ]);
+    expect(update.statusCode).toBe(200);
+    expect(updateOtherOwner.statusCode).toBe(404);
+    expect(consent.statusCode).toBe(200);
+    expect(createRule.statusCode).toBe(201);
+    expect(rules.json()).toMatchObject({ rules: [{ id: memberRule.id }], total: 1 });
+    expect(masterList.json()).toMatchObject({
+      recipients: [{ id: masterRecipient.id }],
+      total: 1,
+    });
+    expect(await context.recipients.listAlertRules(context.master.id)).toMatchObject([
+      { id: masterRule.id },
+    ]);
   });
 });
 

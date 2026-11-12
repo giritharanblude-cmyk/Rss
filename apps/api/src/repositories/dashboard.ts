@@ -10,6 +10,7 @@ export type DashboardNewsItem = Pick<
 };
 
 export type NewsFeedFilters = {
+  ownerUserId?: string;
   category?: NewsCategory;
   sourceId?: string;
   from?: Date;

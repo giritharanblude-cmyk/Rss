@@ -14,6 +14,7 @@ export type DeliveryInput = {
 
 export type DeliveryRecord = DeliveryInput & {
   id: string;
+  ownerUserId: string;
   status: DeliveryState;
   attempts: number;
   lastError: string | null;
@@ -51,6 +52,7 @@ export type DeliveryFilters = {
   toExclusive?: Date;
   channel?: DeliveryChannel;
   recipientId?: string;
+  ownerUserId?: string;
   status?: DeliveryState;
   page: number;
   pageSize: number;
@@ -64,9 +66,9 @@ export type DeliveryRepository = {
   complete(jobId: string, id: string, at: Date): Promise<void>;
   retry(jobId: string, id: string, error: string, runAt: Date): Promise<void>;
   fail(jobId: string, id: string, error: string): Promise<void>;
-  retryFailed(id: string, now: Date): Promise<boolean>;
-  findNewsItem(id: string): Promise<DeliveryNewsItem | null>;
-  listEligibleRecipients(category: NewsCategory): Promise<
+  retryFailed(id: string, now: Date, ownerUserId?: string): Promise<boolean>;
+  findNewsItem(id: string, ownerUserId?: string): Promise<DeliveryNewsItem | null>;
+  listEligibleRecipients(category: NewsCategory, ownerUserId?: string): Promise<
     {
       id: string;
       channel: 'email' | 'whatsapp' | 'both';

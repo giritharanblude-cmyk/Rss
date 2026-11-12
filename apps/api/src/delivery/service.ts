@@ -28,10 +28,14 @@ export class DeliveryService {
     },
   ) {}
 
-  async sendNow(newsItemId: string, channel: 'email' | 'whatsapp'): Promise<number> {
-    const item = await this.deliveries.findNewsItem(newsItemId);
+  async sendNow(
+    newsItemId: string,
+    channel: 'email' | 'whatsapp',
+    ownerUserId: string,
+  ): Promise<number> {
+    const item = await this.deliveries.findNewsItem(newsItemId, ownerUserId);
     if (!item) return 0;
-    const eligible = await this.deliveries.listEligibleRecipients(item.category);
+    const eligible = await this.deliveries.listEligibleRecipients(item.category, ownerUserId);
     let queued = 0;
     for (const recipient of eligible) {
       const channelAllowed = recipient.channel === 'both' || recipient.channel === channel;
@@ -57,8 +61,9 @@ export class DeliveryService {
     kind: 'digest' | 'instant',
     ruleId: string,
     idempotencyPrefix: string,
+    ownerUserId: string,
   ): Promise<number> {
-    const preview = await this.previews.build({ kind, ruleId, limit: 10 });
+    const preview = await this.previews.build({ kind, ruleId, limit: 10 }, ownerUserId);
     let queued = 0;
     for (const group of preview.groups) {
       const itemIds = group.itemsByCategory.flatMap((category) =>
@@ -88,7 +93,10 @@ export class DeliveryService {
     let queued = 0;
     for (const rule of rules) {
       if (rule.kind !== 'instant' || !rule.active) continue;
-      const preview = await this.previews.build({ kind: 'instant', ruleId: rule.id, limit: 50 });
+      const preview = await this.previews.build(
+        { kind: 'instant', ruleId: rule.id, limit: 50 },
+        rule.ownerUserId,
+      );
       for (const group of preview.groups) {
         const matchingIds = group.itemsByCategory
           .flatMap((category) => category.items)
@@ -160,7 +168,12 @@ export class DeliveryService {
     for (const rule of rules) {
       if (rule.kind !== 'digest' || !rule.active || !isRuleDue(rule, now)) continue;
       const dateKey = localDateKey(now, rule.timezone);
-      queued += await this.enqueuePreview('digest', rule.id, `digest:${rule.id}:${dateKey}`);
+      queued += await this.enqueuePreview(
+        'digest',
+        rule.id,
+        `digest:${rule.id}:${dateKey}`,
+        rule.ownerUserId,
+      );
     }
     return queued;
   }

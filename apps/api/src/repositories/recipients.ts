@@ -3,6 +3,7 @@ import type { NewsCategory } from '../rss/categories';
 
 export type RecipientRecord = RecipientInput & {
   id: string;
+  ownerUserId: string;
   unsubscribeToken: string;
   consentStatus: 'pending' | 'granted' | 'revoked';
   consentAt: Date | null;
@@ -12,6 +13,7 @@ export type RecipientRecord = RecipientInput & {
 
 export type AlertRuleRecord = AlertRuleInput & {
   id: string;
+  ownerUserId: string;
   createdAt: Date;
 };
 
@@ -28,19 +30,28 @@ export type PreviewNewsRecord = {
 };
 
 export type RecipientRepository = {
-  listRecipients(query?: string): Promise<RecipientRecord[]>;
-  findRecipient(id: string): Promise<RecipientRecord | null>;
+  listRecipients(query?: string, ownerUserId?: string): Promise<RecipientRecord[]>;
+  findRecipient(id: string, ownerUserId?: string): Promise<RecipientRecord | null>;
   findByUnsubscribeToken(token: string): Promise<RecipientRecord | null>;
   findByWhatsappE164(phone: string): Promise<RecipientRecord | null>;
-  createRecipient(input: RecipientInput, unsubscribeToken: string): Promise<RecipientRecord>;
-  updateRecipient(id: string, input: RecipientInput): Promise<RecipientRecord | null>;
+  createRecipient(
+    input: RecipientInput,
+    unsubscribeToken: string,
+    ownerUserId: string,
+  ): Promise<RecipientRecord>;
+  updateRecipient(
+    id: string,
+    input: RecipientInput,
+    ownerUserId?: string,
+  ): Promise<RecipientRecord | null>;
   setConsent(
     id: string,
     status: RecipientRecord['consentStatus'],
     at: Date,
     note: string | null,
+    ownerUserId?: string,
   ): Promise<RecipientRecord | null>;
-  deleteRecipient(id: string): Promise<boolean>;
+  deleteRecipient(id: string, ownerUserId?: string): Promise<boolean>;
   updateTopicsByToken(
     token: string,
     topics: RecipientInput['topics'],
@@ -48,15 +59,20 @@ export type RecipientRepository = {
 };
 
 export type AlertRuleRepository = {
-  listAlertRules(): Promise<AlertRuleRecord[]>;
-  createAlertRule(input: AlertRuleInput): Promise<AlertRuleRecord>;
-  updateAlertRule(id: string, input: AlertRuleInput): Promise<AlertRuleRecord | null>;
-  deleteAlertRule(id: string): Promise<boolean>;
+  listAlertRules(ownerUserId?: string): Promise<AlertRuleRecord[]>;
+  createAlertRule(input: AlertRuleInput, ownerUserId: string): Promise<AlertRuleRecord>;
+  updateAlertRule(
+    id: string,
+    input: AlertRuleInput,
+    ownerUserId?: string,
+  ): Promise<AlertRuleRecord | null>;
+  deleteAlertRule(id: string, ownerUserId?: string): Promise<boolean>;
 };
 
 export type AlertPreviewRepository = {
   lastDigestAt(recipientId: string): Promise<Date | null>;
   listPreviewNews(options: {
+    ownerUserId: string;
     since: Date | null;
     importantOnly: boolean;
     categories: NewsCategory[];

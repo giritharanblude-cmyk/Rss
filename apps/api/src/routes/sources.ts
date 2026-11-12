@@ -39,10 +39,10 @@ async function requireMaster(
 
 export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteOptions): void {
   app.get('/api/sources', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const query = listPaginationQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the source page and page size.');
-    const sources = await options.sources.listSources();
+    const sources = await options.sources.listSources(user.id);
     const page = paginate(sources, query.data.page, query.data.pageSize);
     return reply.send({
       sources: page.items.map(toSourceResponse),
@@ -53,27 +53,27 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
   });
 
   app.post('/api/sources', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const body = parseBody(sourceInputSchema, request.body);
-    const source = await options.sources.createSource(body);
+    const source = await options.sources.createSource(body, user.id);
     return reply.code(201).send({ source: toSourceResponse(source) });
   });
 
   app.patch('/api/sources/:id', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const params = uuidParamsSchema.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'Check the source id and try again.');
     const updates = parseBody(sourceUpdateSchema, request.body);
-    const source = await options.sources.updateSource(params.data.id, updates);
+    const source = await options.sources.updateSource(params.data.id, updates, user.id);
     if (!source) throw new HttpError(404, 'That source was not found.');
     return reply.send({ source: toSourceResponse(source) });
   });
 
   app.delete('/api/sources/:id', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const params = uuidParamsSchema.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'Check the source id and try again.');
-    if (!(await options.sources.deleteSource(params.data.id))) {
+    if (!(await options.sources.deleteSource(params.data.id, user.id))) {
       throw new HttpError(404, 'That source was not found.');
     }
     return reply.code(204).send();

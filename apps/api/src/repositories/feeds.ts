@@ -3,6 +3,7 @@ import type { SourceInput } from '@healthcare/shared';
 
 export type SourceRecord = SourceInput & {
   id: string;
+  ownerUserId: string;
   lastFetchedAt: Date | null;
   lastStatus: string | null;
   etag: string | null;
@@ -31,11 +32,15 @@ export type NewNews = Omit<NewsRecord, 'id' | 'fetchedAt' | 'important' | 'dupli
 };
 
 export type SourceRepository = {
-  listSources(): Promise<SourceRecord[]>;
-  findSource(id: string): Promise<SourceRecord | null>;
-  createSource(source: SourceInput): Promise<SourceRecord>;
-  updateSource(id: string, updates: Partial<SourceInput>): Promise<SourceRecord | null>;
-  deleteSource(id: string): Promise<boolean>;
+  listSources(ownerUserId?: string): Promise<SourceRecord[]>;
+  findSource(id: string, ownerUserId?: string): Promise<SourceRecord | null>;
+  createSource(source: SourceInput, ownerUserId: string): Promise<SourceRecord>;
+  updateSource(
+    id: string,
+    updates: Partial<SourceInput>,
+    ownerUserId?: string,
+  ): Promise<SourceRecord | null>;
+  deleteSource(id: string, ownerUserId?: string): Promise<boolean>;
   updateFetchState(
     id: string,
     values: { fetchedAt: Date; status: string; etag?: string | null; lastModified?: string | null },

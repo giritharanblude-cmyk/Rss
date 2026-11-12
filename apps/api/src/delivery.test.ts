@@ -571,7 +571,7 @@ describe('delivery pipeline', () => {
     expect(saveEmail.statusCode).toBe(403);
     expect(checkConnections.statusCode).toBe(403);
     expect(deliveries.statusCode).toBe(200);
-    expect(resend.statusCode).toBe(403);
+    expect(resend.statusCode).toBe(409);
     expect(resetMember.statusCode).toBe(403);
   });
 });

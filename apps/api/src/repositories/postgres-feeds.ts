@@ -18,6 +18,7 @@ type NewsRow = typeof newsItems.$inferSelect;
 function toSource(row: SourceRow): SourceRecord {
   return {
     id: row.id,
+    ownerUserId: row.ownerUserId,
     name: row.name,
     website: row.website,
     rssUrl: row.rssUrl,
@@ -56,21 +57,30 @@ export class PostgresFeedRepository
 {
   constructor(private readonly db: Database) {}
 
-  async listSources(): Promise<SourceRecord[]> {
-    const rows = await this.db.select().from(sources).orderBy(sources.name);
+  async listSources(ownerUserId?: string): Promise<SourceRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(sources)
+      .where(ownerUserId ? eq(sources.ownerUserId, ownerUserId) : undefined)
+      .orderBy(sources.name);
     return rows.map(toSource);
   }
 
-  async findSource(id: string): Promise<SourceRecord | null> {
-    const rows = await this.db.select().from(sources).where(eq(sources.id, id)).limit(1);
+  async findSource(id: string, ownerUserId?: string): Promise<SourceRecord | null> {
+    const rows = await this.db
+      .select()
+      .from(sources)
+      .where(and(eq(sources.id, id), ...(ownerUserId ? [eq(sources.ownerUserId, ownerUserId)] : [])))
+      .limit(1);
     return rows[0] ? toSource(rows[0]) : null;
   }
 
-  async createSource(input: SourceInput): Promise<SourceRecord> {
+  async createSource(input: SourceInput, ownerUserId: string): Promise<SourceRecord> {
     const rows = await this.db
       .insert(sources)
       .values({
         ...input,
+        ownerUserId,
         region: input.region || null,
       })
       .returning();
@@ -79,19 +89,27 @@ export class PostgresFeedRepository
     return toSource(row);
   }
 
-  async updateSource(id: string, updates: Partial<SourceInput>): Promise<SourceRecord | null> {
+  async updateSource(
+    id: string,
+    updates: Partial<SourceInput>,
+    ownerUserId?: string,
+  ): Promise<SourceRecord | null> {
     const values = {
       ...updates,
       ...(updates.region !== undefined ? { region: updates.region || null } : {}),
     };
-    const rows = await this.db.update(sources).set(values).where(eq(sources.id, id)).returning();
+    const rows = await this.db
+      .update(sources)
+      .set(values)
+      .where(and(eq(sources.id, id), ...(ownerUserId ? [eq(sources.ownerUserId, ownerUserId)] : [])))
+      .returning();
     return rows[0] ? toSource(rows[0]) : null;
   }
 
-  async deleteSource(id: string): Promise<boolean> {
+  async deleteSource(id: string, ownerUserId?: string): Promise<boolean> {
     const rows = await this.db
       .delete(sources)
-      .where(eq(sources.id, id))
+      .where(and(eq(sources.id, id), ...(ownerUserId ? [eq(sources.ownerUserId, ownerUserId)] : [])))
       .returning({ id: sources.id });
     return rows.length === 1;
   }

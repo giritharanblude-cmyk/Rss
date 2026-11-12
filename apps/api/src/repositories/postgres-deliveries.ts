@@ -32,6 +32,7 @@ function toRecord(
 ): DeliveryRecord {
   return {
     id: row.id,
+    ownerUserId: row.ownerUserId,
     recipientId: row.recipientId,
     recipientName,
     recipientContact,
@@ -79,6 +80,13 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
 
   async enqueue(input: DeliveryInput, now: Date): Promise<DeliveryRecord> {
     return this.db.transaction(async (tx) => {
+      const ownerRows = await tx
+        .select({ ownerUserId: recipients.ownerUserId })
+        .from(recipients)
+        .where(eq(recipients.id, input.recipientId))
+        .limit(1);
+      const owner = ownerRows[0];
+      if (!owner) throw new Error('Recipient does not exist');
       const existing = await tx
         .select()
         .from(deliveries)
@@ -117,6 +125,7 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
         .insert(deliveries)
         .values({
           recipientId: input.recipientId,
+          ownerUserId: owner.ownerUserId,
           channel: input.channel,
           kind: input.kind,
           subjectOrRef: input.subjectOrRef,
@@ -203,6 +212,7 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
       ...(filters.toExclusive ? [lt(deliveries.queuedAt, filters.toExclusive)] : []),
       ...(filters.channel ? [eq(deliveries.channel, filters.channel)] : []),
       ...(filters.recipientId ? [eq(deliveries.recipientId, filters.recipientId)] : []),
+      ...(filters.ownerUserId ? [eq(deliveries.ownerUserId, filters.ownerUserId)] : []),
       ...(filters.status ? [eq(deliveries.status, filters.status)] : []),
     ];
     const where = conditions.length ? and(...conditions) : undefined;
@@ -375,12 +385,18 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
     });
   }
 
-  async retryFailed(id: string, now: Date): Promise<boolean> {
+  async retryFailed(id: string, now: Date, ownerUserId?: string): Promise<boolean> {
     return this.db.transaction(async (tx) => {
       const rows = await tx
         .update(deliveries)
         .set({ status: 'pending', attempts: 0, lastError: null, sentAt: null, queuedAt: now })
-        .where(and(eq(deliveries.id, id), eq(deliveries.status, 'failed')))
+        .where(
+          and(
+            eq(deliveries.id, id),
+            eq(deliveries.status, 'failed'),
+            ...(ownerUserId ? [eq(deliveries.ownerUserId, ownerUserId)] : []),
+          ),
+        )
         .returning({ id: deliveries.id });
       if (!rows[0]) return false;
       await tx.insert(jobs).values({
@@ -393,17 +409,23 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
     });
   }
 
-  async findNewsItem(id: string): Promise<DeliveryNewsItem | null> {
+  async findNewsItem(id: string, ownerUserId?: string): Promise<DeliveryNewsItem | null> {
     const rows = await this.db
       .select({ item: newsItems, sourceName: sources.name })
       .from(newsItems)
       .innerJoin(sources, eq(newsItems.sourceId, sources.id))
-      .where(and(eq(newsItems.id, id), isNull(newsItems.duplicateOf)))
+      .where(
+        and(
+          eq(newsItems.id, id),
+          isNull(newsItems.duplicateOf),
+          ...(ownerUserId ? [eq(sources.ownerUserId, ownerUserId)] : []),
+        ),
+      )
       .limit(1);
     return rows[0] ? toNewsItem(rows[0].item, rows[0].sourceName) : null;
   }
 
-  async listEligibleRecipients(category: NewsCategory) {
+  async listEligibleRecipients(category: NewsCategory, ownerUserId?: string) {
     const rows = await this.db
       .select()
       .from(recipients)
@@ -411,6 +433,7 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
         and(
           eq(recipients.consentStatus, 'granted'),
           arrayContains(recipients.topics, [category]),
+          ...(ownerUserId ? [eq(recipients.ownerUserId, ownerUserId)] : []),
         ),
       );
     return rows.map((recipient) => ({
