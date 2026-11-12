@@ -38,8 +38,10 @@ export class SmtpEmailSender implements EmailSender {
         text: message.text,
         html: message.html,
       });
-    } catch {
-      throw new EmailUnavailableError();
+    } catch (error) {
+      const reason =
+        error instanceof Error && error.message ? error.message : 'Unknown SMTP error.';
+      throw new EmailUnavailableError(`Could not send email: ${reason}`);
     }
   }
 

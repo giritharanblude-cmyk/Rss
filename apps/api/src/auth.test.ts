@@ -310,6 +310,35 @@ describe('authentication rate limits', () => {
 });
 
 describe('password change', () => {
+  it.each([
+    ['short1!', 'Password must be at least 8 characters'],
+    ['password1', 'Password must include at least one symbol'],
+    ['password!', 'Password must include at least one number'],
+    ['1234567!', 'Password must include at least one letter'],
+  ])('rejects new passwords that violate the rule', async (newPassword, message) => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/change-password',
+      headers: { cookie },
+      payload: {
+        currentPassword: 'master-password-1',
+        code: '123456',
+        newPassword,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe(message);
+  });
+
   it('requires a session, the current password and an emailed code', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(

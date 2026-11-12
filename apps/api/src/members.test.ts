@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMasterIfNone } from './auth/seed';
-import { DuplicateMasterError } from './errors';
+import { DuplicateMasterError, EmailUnavailableError } from './errors';
 import { MemoryUserRepository } from './repositories/memory';
 import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
 
@@ -27,6 +27,11 @@ describe('member management', () => {
       payload: { name: 'Ravi', email: 'ravi@example.com', password: 'member-password-1' },
     });
     expect(created.statusCode).toBe(201);
+    expect(context.email.sent.at(-1)).toMatchObject({
+      to: 'ravi@example.com',
+      subject: 'Your Healthcare News account details',
+      text: expect.stringContaining('Initial password: member-password-1'),
+    });
     const member = (created.json() as { member: { id: string; role: string } }).member;
     expect(member.role).toBe('member');
     const { cookie: oldMemberCookie } = await loginAndVerify(
@@ -81,6 +86,62 @@ describe('member management', () => {
     });
     expect(disabled.statusCode).toBe(200);
     expect(disabled.json()).toMatchObject({ member: { disabled: true } });
+  });
+
+  it('returns the SMTP failure when an invite cannot be sent', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    vi.spyOn(context.managedEmail, 'send').mockRejectedValue(
+      new EmailUnavailableError('SMTP rejected the message: 535 Authentication failed'),
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/members',
+      headers: { cookie },
+      payload: {
+        name: 'Ravi',
+        email: 'ravi@example.com',
+        password: 'member-password-1',
+      },
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json().error).toBe(
+      'Member account created, but the login details email could not be sent: SMTP rejected the message: 535 Authentication failed',
+    );
+    expect(await context.users.findByName('Ravi')).not.toBeNull();
+  });
+
+  it.each([
+    ['short1!', 'Password must be at least 8 characters'],
+    ['password1', 'Password must include at least one symbol'],
+    ['password!', 'Password must include at least one number'],
+    ['1234567!', 'Password must include at least one letter'],
+  ])('rejects member passwords that violate the rule', async (password, message) => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/members',
+      headers: { cookie },
+      payload: { name: 'Ravi', email: 'ravi@example.com', password },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe(message);
+    expect(await context.users.findByName('Ravi')).toBeNull();
   });
 
   it('rejects a duplicate member name', async () => {

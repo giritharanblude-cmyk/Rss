@@ -31,7 +31,7 @@ export function MemberManagementPanel() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['members'] });
       setNewMember(emptyMember);
-      setNotice('Member account created.');
+      setNotice('Member account created and login details emailed.');
     },
   });
   const update = useMutation({
@@ -116,6 +116,9 @@ export function MemberManagementPanel() {
             onChange={(event) => setNewMember({ ...newMember, password: event.target.value })}
           />
         </label>
+        <p className="form-hint">
+          Use at least 8 characters, including a letter, number, and symbol.
+        </p>
         <button type="submit" disabled={create.isPending}>
           Add member
         </button>
@@ -175,6 +178,9 @@ export function MemberManagementPanel() {
                     onChange={(event) => setResetPassword(event.target.value)}
                   />
                 </label>
+                <p className="form-hint">
+                  Use at least 8 characters, including a letter, number, and symbol.
+                </p>
                 <button type="submit" disabled={reset.isPending}>
                   Set password and revoke sessions
                 </button>

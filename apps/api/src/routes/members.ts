@@ -9,6 +9,7 @@ import {
 } from '@healthcare/shared';
 import type { MemberService } from '../auth/members';
 import type { AuthService } from '../auth/service';
+import type { EmailSender } from '../email/types';
 import { HttpError } from '../errors';
 import type { UserRecord } from '../repositories/types';
 import { parseBody, readUser } from './auth';
@@ -17,7 +18,9 @@ import { paginate } from './pagination';
 export type MemberRouteOptions = {
   auth: AuthService;
   members: MemberService;
+  email: EmailSender;
   jwtSecret: string;
+  publicOrigin: string;
 };
 
 export function toMember(user: UserRecord): Member {
@@ -32,7 +35,7 @@ export function toMember(user: UserRecord): Member {
 }
 
 export function registerMemberRoutes(app: FastifyInstance, options: MemberRouteOptions): void {
-  const { auth, members, jwtSecret } = options;
+  const { auth, members, email, jwtSecret, publicOrigin } = options;
 
   app.get('/api/members', async (request, reply) => {
     const actor = await readUser(request, auth, jwtSecret);
@@ -52,6 +55,30 @@ export function registerMemberRoutes(app: FastifyInstance, options: MemberRouteO
     const actor = await readUser(request, auth, jwtSecret);
     const body = parseBody(createMemberBodySchema, request.body);
     const member = await members.create(actor, body);
+    try {
+      await email.send({
+        to: member.email,
+        subject: 'Your Healthcare News account details',
+        text: [
+          `Hello ${member.name},`,
+          '',
+          'Your Healthcare News account has been created.',
+          `Username: ${member.name}`,
+          `Email: ${member.email}`,
+          `Initial password: ${body.password}`,
+          `Sign in: ${new URL('/login', publicOrigin).toString()}`,
+          '',
+          'Please change your password after signing in.',
+        ].join('\n'),
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error && error.message ? error.message : 'Unknown email error.';
+      throw new HttpError(
+        502,
+        `Member account created, but the login details email could not be sent: ${reason}`,
+      );
+    }
     return reply.code(201).send({ member: toMember(member) });
   });
 

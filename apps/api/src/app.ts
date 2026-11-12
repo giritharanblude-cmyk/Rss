@@ -159,7 +159,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     registerMemberRoutes(routes, {
       auth: authService,
       members: memberService,
+      email: deps.managedEmail,
       jwtSecret: deps.jwtSecret,
+      publicOrigin,
     });
 
     registerSourceRoutes(routes, {

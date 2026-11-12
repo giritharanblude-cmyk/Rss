@@ -225,7 +225,9 @@ describe('Phase 5 pages', () => {
       target: { value: 'member-password-1' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
-    expect(await screen.findByText('Member account created.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Member account created and login details emailed.'),
+    ).toBeInTheDocument();
     expect(await screen.findByText('Ravi')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Disable access' }));
