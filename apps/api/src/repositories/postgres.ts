@@ -21,6 +21,7 @@ function toUser(row: UserRow): UserRecord {
     id: row.id,
     name: row.name,
     email: row.email,
+    phone: row.phone,
     role: row.role,
     passwordHash: row.passwordHash,
     sessionVersion: row.sessionVersion,
@@ -146,6 +147,15 @@ export class PostgresUserRepository implements UserRepository {
     const rows = await this.db.update(users).set({ disabled }).where(eq(users.id, id)).returning();
     const row = rows[0];
     return row ? toUser(row) : null;
+  }
+
+  async updateContacts(id: string, email: string, phone: string | null): Promise<boolean> {
+    const rows = await this.db
+      .update(users)
+      .set({ email: email.trim().toLowerCase(), phone })
+      .where(eq(users.id, id))
+      .returning({ id: users.id });
+    return rows.length === 1;
   }
 
   async deleteMember(id: string): Promise<boolean> {

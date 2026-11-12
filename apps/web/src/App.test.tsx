@@ -134,7 +134,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
     expect(
       within(screen.getByRole('navigation', { name: 'Modules' })).getAllByRole('link'),
-    ).toHaveLength(6);
+    ).toHaveLength(7);
     expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute(
       'href',
       '#main-content',
@@ -199,7 +199,61 @@ describe('App', () => {
       within(navigation)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['News Feed', 'Sources', 'Recipients', 'Delivery Log']);
+    ).toEqual(['News Feed', 'Sources', 'Recipients', 'Delivery Log', 'Profile']);
+  });
+
+  it('lets members change contacts from their profile only after requesting a code', async () => {
+    const calls: { path: string; init?: RequestInit }[] = [];
+    const member = {
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Mina',
+      role: 'member',
+      email: 'mina@example.test',
+      phone: null,
+    };
+    window.history.pushState({}, '', '/profile');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const path = String(input);
+        calls.push({ path, init });
+        if (path === '/api/auth/me') return jsonResponse(200, { user: member });
+        if (path === '/api/auth/contact-change/request') {
+          return jsonResponse(202, { status: 'otp_sent', message: 'Check your current email.' });
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'mina.new@example.test' },
+    });
+    fireEvent.change(screen.getByLabelText('Phone (E.164)'), {
+      target: { value: '+14155552671' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Request contact change' }));
+    expect(await screen.findByLabelText('Verification code')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Verification code'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify and save' }));
+
+    expect(await screen.findByText('Contact information updated.')).toBeInTheDocument();
+    expect(calls.map(({ path }) => path)).toEqual([
+      '/api/auth/me',
+      '/api/auth/contact-change/request',
+      '/api/auth/contact-change/verify',
+    ]);
+    expect(JSON.parse(String(calls[1]?.init?.body))).toEqual({
+      email: 'mina.new@example.test',
+      phone: '+14155552671',
+    });
+    expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({
+      email: 'mina.new@example.test',
+      phone: '+14155552671',
+      code: '123456',
+    });
   });
 
   it.each(['/alerts', '/settings'])('redirects members away from %s', async (path) => {

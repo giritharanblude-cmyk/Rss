@@ -2,8 +2,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   changePasswordBodySchema,
   loginBodySchema,
+  requestContactChangeBodySchema,
   type PublicUser,
   resendOtpBodySchema,
+  verifyContactChangeBodySchema,
   verifyOtpBodySchema,
 } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
@@ -130,8 +132,33 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
 
   app.get('/api/auth/me', async (request, reply) => {
     const user = await readUser(request, auth, jwtSecret);
-    return reply.send({ user: { ...toPublicUser(user), email: user.email } });
+    return reply.send({ user: { ...toPublicUser(user), email: user.email, phone: user.phone } });
   });
+
+  app.post(
+    '/api/auth/contact-change/request',
+    { config: { rateLimit: { max: rateLimits.password, timeWindow: rateLimits.windowMs } } },
+    async (request, reply) => {
+      const user = await readUser(request, auth, jwtSecret);
+      const body = parseBody(requestContactChangeBodySchema, request.body);
+      await auth.requestContactChange(user.id, body);
+      return reply.code(202).send({
+        status: 'otp_sent',
+        message: 'Check your current email for the verification code.',
+      });
+    },
+  );
+
+  app.post(
+    '/api/auth/contact-change/verify',
+    { config: { rateLimit: { max: rateLimits.verify, timeWindow: rateLimits.windowMs } } },
+    async (request, reply) => {
+      const user = await readUser(request, auth, jwtSecret);
+      const body = parseBody(verifyContactChangeBodySchema, request.body);
+      await auth.changeContacts(user.id, body, body.code);
+      return reply.code(204).send();
+    },
+  );
 
   app.post(
     '/api/auth/password-otp',

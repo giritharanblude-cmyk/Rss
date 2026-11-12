@@ -14,7 +14,7 @@ import {
 import { sql } from 'drizzle-orm';
 
 export const userRole = pgEnum('user_role', ['master', 'member']);
-export const otpPurpose = pgEnum('otp_purpose', ['login', 'password_change']);
+export const otpPurpose = pgEnum('otp_purpose', ['login', 'password_change', 'contact_change']);
 export const sourceMode = pgEnum('source_mode', ['all', 'topics']);
 export const recipientChannel = pgEnum('recipient_channel', ['whatsapp', 'email', 'both']);
 export const consentStatus = pgEnum('consent_status', ['granted', 'revoked', 'pending']);
@@ -37,6 +37,7 @@ export const users = pgTable(
     passwordHash: text('password_hash').notNull(),
     role: userRole('role').notNull().default('member'),
     email: text('email').notNull(),
+    phone: text('phone'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     sessionVersion: integer('session_version').notNull().default(0),
     disabled: boolean('disabled').notNull().default(false),

@@ -8,6 +8,7 @@ export const publicUserSchema = z.object({
   name: z.string().min(1),
   role: userRoleSchema,
   email: z.string().email().optional(),
+  phone: z.string().nullable().optional(),
 });
 export type PublicUser = z.infer<typeof publicUserSchema>;
 
@@ -30,6 +31,20 @@ const otpCodeSchema = z
   .string()
   .trim()
   .regex(/^\d{6}$/, 'Enter the 6-digit code');
+const contactDetailsSchema = z.object({
+  email: z.string().trim().email('Enter a valid email address'),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+[1-9]\d{7,14}$/, 'Enter a valid E.164 phone number')
+    .nullable(),
+});
+
+export const requestContactChangeBodySchema = contactDetailsSchema;
+export type RequestContactChangeBody = z.infer<typeof requestContactChangeBodySchema>;
+
+export const verifyContactChangeBodySchema = contactDetailsSchema.extend({ code: otpCodeSchema });
+export type VerifyContactChangeBody = z.infer<typeof verifyContactChangeBodySchema>;
 
 export const loginBodySchema = z.object({
   name: nameSchema,

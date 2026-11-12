@@ -95,7 +95,7 @@ describe('Phase 4 pages', () => {
     expect(
       fetchMock.mock.calls.some(([, init]) => String(init?.body).includes('Agreed on call, 4 Nov')),
     ).toBe(true);
-    expect(document.querySelectorAll('.module-nav .module-link')).toHaveLength(6);
+    expect(document.querySelectorAll('.module-nav .module-link')).toHaveLength(7);
   });
 
   it('shows a consent-safe grouped preview on the Alerts page', async () => {
