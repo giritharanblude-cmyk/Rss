@@ -42,6 +42,7 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
     const record: DeliveryRecord = {
       ...input,
       id: randomUUID(),
+      ownerUserId: recipient.ownerUserId,
       status: 'pending',
       attempts: 0,
       lastError: null,
@@ -69,6 +70,7 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
           (!filters.toExclusive || record.queuedAt < filters.toExclusive) &&
           (!filters.channel || record.channel === filters.channel) &&
           (!filters.recipientId || record.recipientId === filters.recipientId) &&
+          (!filters.ownerUserId || record.ownerUserId === filters.ownerUserId) &&
           (!filters.status || record.status === filters.status),
       )
       .sort((a, b) => b.queuedAt.getTime() - a.queuedAt.getTime());
@@ -167,9 +169,15 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
     this.finishJob(jobId);
   }
 
-  async retryFailed(id: string, now: Date): Promise<boolean> {
+  async retryFailed(id: string, now: Date, ownerUserId?: string): Promise<boolean> {
     const delivery = this.records.get(id);
-    if (!delivery || delivery.status !== 'failed') return false;
+    if (
+      !delivery ||
+      delivery.status !== 'failed' ||
+      (ownerUserId && delivery.ownerUserId !== ownerUserId)
+    ) {
+      return false;
+    }
     delivery.status = 'pending';
     delivery.attempts = 0;
     delivery.lastError = null;
@@ -185,8 +193,8 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
     return true;
   }
 
-  async findNewsItem(id: string): Promise<DeliveryNewsItem | null> {
-    const page = await this.dashboard.listNews({ page: 1, pageSize: 50 });
+  async findNewsItem(id: string, ownerUserId?: string): Promise<DeliveryNewsItem | null> {
+    const page = await this.dashboard.listNews({ page: 1, pageSize: 50, ownerUserId });
     const item = page.items.find((candidate) => candidate.id === id);
     return item
       ? {
@@ -201,9 +209,9 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
       : null;
   }
 
-  async listEligibleRecipients(category: NewsCategory) {
+  async listEligibleRecipients(category: NewsCategory, ownerUserId?: string) {
     if (category === 'Uncategorized') return [];
-    return (await this.recipients.listRecipients())
+    return (await this.recipients.listRecipients(undefined, ownerUserId))
       .filter(
         (recipient) => recipient.consentStatus === 'granted' && recipient.topics.includes(category),
       )

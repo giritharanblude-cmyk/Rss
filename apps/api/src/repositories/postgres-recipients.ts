@@ -24,6 +24,7 @@ type AlertRuleRow = typeof alertRules.$inferSelect;
 function toRecipient(row: RecipientRow, encryptionKey: string): RecipientRecord {
   return {
     id: row.id,
+    ownerUserId: row.ownerUserId,
     name: row.name,
     whatsappE164: row.whatsappE164
       ? decryptRecipientContact(row.whatsappE164, encryptionKey)
@@ -42,6 +43,7 @@ function toRecipient(row: RecipientRow, encryptionKey: string): RecipientRecord 
 function toAlertRule(row: AlertRuleRow): AlertRuleRecord {
   return {
     id: row.id,
+    ownerUserId: row.ownerUserId,
     kind: row.kind,
     daysOfWeek: row.daysOfWeek,
     timeLocal: row.timeLocal,
@@ -65,8 +67,12 @@ export class PostgresRecipientRepository
     validateSettingsEncryptionKey(encryptionKey);
   }
 
-  async listRecipients(query?: string): Promise<RecipientRecord[]> {
-    const rows = await this.db.select().from(recipients).orderBy(recipients.name);
+  async listRecipients(query?: string, ownerUserId?: string): Promise<RecipientRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(recipients)
+      .where(ownerUserId ? eq(recipients.ownerUserId, ownerUserId) : undefined)
+      .orderBy(recipients.name);
     const records = rows.map((row) => toRecipient(row, this.encryptionKey));
     const needle = query?.trim().toLocaleLowerCase();
     return needle
@@ -79,8 +85,14 @@ export class PostgresRecipientRepository
       : records;
   }
 
-  async findRecipient(id: string): Promise<RecipientRecord | null> {
-    const rows = await this.db.select().from(recipients).where(eq(recipients.id, id)).limit(1);
+  async findRecipient(id: string, ownerUserId?: string): Promise<RecipientRecord | null> {
+    const rows = await this.db
+      .select()
+      .from(recipients)
+      .where(
+        and(eq(recipients.id, id), ...(ownerUserId ? [eq(recipients.ownerUserId, ownerUserId)] : [])),
+      )
+      .limit(1);
     return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
@@ -103,11 +115,16 @@ export class PostgresRecipientRepository
     return match ? toRecipient(match, this.encryptionKey) : null;
   }
 
-  async createRecipient(input: RecipientInput, unsubscribeToken: string): Promise<RecipientRecord> {
+  async createRecipient(
+    input: RecipientInput,
+    unsubscribeToken: string,
+    ownerUserId: string,
+  ): Promise<RecipientRecord> {
     const rows = await this.db
       .insert(recipients)
       .values({
         ...input,
+        ownerUserId,
         whatsappE164: input.whatsappE164
           ? encryptRecipientContact(input.whatsappE164, this.encryptionKey)
           : null,
@@ -124,7 +141,11 @@ export class PostgresRecipientRepository
     return toRecipient(row, this.encryptionKey);
   }
 
-  async updateRecipient(id: string, input: RecipientInput): Promise<RecipientRecord | null> {
+  async updateRecipient(
+    id: string,
+    input: RecipientInput,
+    ownerUserId?: string,
+  ): Promise<RecipientRecord | null> {
     const rows = await this.db
       .update(recipients)
       .set({
@@ -135,7 +156,9 @@ export class PostgresRecipientRepository
         email: input.email ? encryptRecipientContact(input.email, this.encryptionKey) : null,
         topics: [...input.topics],
       })
-      .where(eq(recipients.id, id))
+      .where(
+        and(eq(recipients.id, id), ...(ownerUserId ? [eq(recipients.ownerUserId, ownerUserId)] : [])),
+      )
       .returning();
     return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
@@ -145,6 +168,7 @@ export class PostgresRecipientRepository
     status: RecipientRecord['consentStatus'],
     at: Date,
     note: string | null,
+    ownerUserId?: string,
   ): Promise<RecipientRecord | null> {
     const rows = await this.db
       .update(recipients)
@@ -153,15 +177,19 @@ export class PostgresRecipientRepository
         consentAt: status === 'pending' ? null : at,
         consentNote: status === 'pending' ? null : note,
       })
-      .where(eq(recipients.id, id))
+      .where(
+        and(eq(recipients.id, id), ...(ownerUserId ? [eq(recipients.ownerUserId, ownerUserId)] : [])),
+      )
       .returning();
     return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
-  async deleteRecipient(id: string): Promise<boolean> {
+  async deleteRecipient(id: string, ownerUserId?: string): Promise<boolean> {
     const rows = await this.db
       .delete(recipients)
-      .where(eq(recipients.id, id))
+      .where(
+        and(eq(recipients.id, id), ...(ownerUserId ? [eq(recipients.ownerUserId, ownerUserId)] : [])),
+      )
       .returning({ id: recipients.id });
     return rows.length === 1;
   }
@@ -178,16 +206,21 @@ export class PostgresRecipientRepository
     return rows[0] ? toRecipient(rows[0], this.encryptionKey) : null;
   }
 
-  async listAlertRules(): Promise<AlertRuleRecord[]> {
-    const rows = await this.db.select().from(alertRules).orderBy(alertRules.createdAt);
+  async listAlertRules(ownerUserId?: string): Promise<AlertRuleRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(alertRules)
+      .where(ownerUserId ? eq(alertRules.ownerUserId, ownerUserId) : undefined)
+      .orderBy(alertRules.createdAt);
     return rows.map(toAlertRule);
   }
 
-  async createAlertRule(input: AlertRuleInput): Promise<AlertRuleRecord> {
+  async createAlertRule(input: AlertRuleInput, ownerUserId: string): Promise<AlertRuleRecord> {
     const rows = await this.db
       .insert(alertRules)
       .values({
         ...input,
+        ownerUserId,
         daysOfWeek: [...input.daysOfWeek],
         topics: [...input.topics],
         channels: [...input.channels],
@@ -198,7 +231,11 @@ export class PostgresRecipientRepository
     return toAlertRule(row);
   }
 
-  async updateAlertRule(id: string, input: AlertRuleInput): Promise<AlertRuleRecord | null> {
+  async updateAlertRule(
+    id: string,
+    input: AlertRuleInput,
+    ownerUserId?: string,
+  ): Promise<AlertRuleRecord | null> {
     const rows = await this.db
       .update(alertRules)
       .set({
@@ -207,15 +244,19 @@ export class PostgresRecipientRepository
         topics: [...input.topics],
         channels: [...input.channels],
       })
-      .where(eq(alertRules.id, id))
+      .where(
+        and(eq(alertRules.id, id), ...(ownerUserId ? [eq(alertRules.ownerUserId, ownerUserId)] : [])),
+      )
       .returning();
     return rows[0] ? toAlertRule(rows[0]) : null;
   }
 
-  async deleteAlertRule(id: string): Promise<boolean> {
+  async deleteAlertRule(id: string, ownerUserId?: string): Promise<boolean> {
     const rows = await this.db
       .delete(alertRules)
-      .where(eq(alertRules.id, id))
+      .where(
+        and(eq(alertRules.id, id), ...(ownerUserId ? [eq(alertRules.ownerUserId, ownerUserId)] : [])),
+      )
       .returning({ id: alertRules.id });
     return rows.length === 1;
   }
@@ -235,6 +276,7 @@ export class PostgresRecipientRepository
   }
 
   async listPreviewNews(options: {
+    ownerUserId: string;
     since: Date | null;
     importantOnly: boolean;
     categories: NewsCategory[];
@@ -258,7 +300,7 @@ export class PostgresRecipientRepository
       .select({ item: newsItems, sourceName: sources.name })
       .from(newsItems)
       .innerJoin(sources, eq(newsItems.sourceId, sources.id))
-      .where(and(...conditions))
+      .where(and(...conditions, eq(sources.ownerUserId, options.ownerUserId)))
       .orderBy(
         sql`coalesce(${newsItems.publishedAt}, ${newsItems.fetchedAt}) desc`,
         desc(newsItems.id),

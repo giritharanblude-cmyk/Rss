@@ -30,8 +30,8 @@ export class AlertPreviewService {
     private readonly now: () => Date,
   ) {}
 
-  async build(input: AlertPreviewInput) {
-    const rules = await this.rules.listAlertRules();
+  async build(input: AlertPreviewInput, ownerUserId: string) {
+    const rules = await this.rules.listAlertRules(ownerUserId);
     const selected = input.ruleId ? rules.find((rule) => rule.id === input.ruleId) : undefined;
     if (input.ruleId && !selected) throw new HttpError(404, 'That alert rule was not found.');
     const rule =
@@ -55,7 +55,7 @@ export class AlertPreviewService {
     }
 
     const categories = effectiveRule.topics.length ? effectiveRule.topics : [...NEWS_CATEGORIES];
-    const recipients = await this.recipients.listRecipients();
+    const recipients = await this.recipients.listRecipients(undefined, ownerUserId);
     const groups = [];
     for (const recipient of recipients) {
       if (recipient.consentStatus !== 'granted') continue;
@@ -69,6 +69,7 @@ export class AlertPreviewService {
       if (!recipientCategories.length) continue;
       const since = input.kind === 'digest' ? await this.preview.lastDigestAt(recipient.id) : null;
       const items = await this.preview.listPreviewNews({
+        ownerUserId,
         since,
         importantOnly: input.kind === 'instant',
         categories: recipientCategories,

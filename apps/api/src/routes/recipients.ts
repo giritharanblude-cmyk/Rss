@@ -16,7 +16,7 @@ import {
 } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { AlertPreviewService } from '../alerts/preview';
-import { ForbiddenError, HttpError } from '../errors';
+import { HttpError } from '../errors';
 import type {
   AlertRuleRecord,
   AlertRuleRepository,
@@ -59,14 +59,6 @@ function toRuleResponse(rule: AlertRuleRecord) {
   };
 }
 
-async function requireMaster(
-  request: Parameters<typeof readUser>[0],
-  options: RecipientRouteOptions,
-) {
-  const user = await readUser(request, options.auth, options.jwtSecret);
-  if (user.role !== 'master') throw new ForbiddenError();
-}
-
 function readId(request: Parameters<typeof readUser>[0]): string {
   const parsed = uuidParamsSchema.safeParse(request.params);
   if (!parsed.success) throw new HttpError(400, 'Check the id and try again.');
@@ -87,10 +79,10 @@ export function registerRecipientRoutes(
   options: RecipientRouteOptions,
 ): void {
   app.get('/api/recipients', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const query = recipientListQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the search text and try again.');
-    const recipients = await options.recipients.listRecipients(query.data.q);
+    const recipients = await options.recipients.listRecipients(query.data.q, user.id);
     const page = paginate(recipients, query.data.page, query.data.pageSize);
     return reply.send({
       recipients: page.items.map(toRecipientResponse),
@@ -101,26 +93,27 @@ export function registerRecipientRoutes(
   });
 
   app.post('/api/recipients', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const input = parseBody(recipientInputSchema, request.body);
     const recipient = await options.recipients.createRecipient(
       input,
       randomBytes(32).toString('hex'),
+      user.id,
     );
     return reply.code(201).send({ recipient: toRecipientResponse(recipient) });
   });
 
   app.patch('/api/recipients/:id', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const id = readId(request);
     const input = parseBody(recipientInputSchema, request.body);
-    const recipient = await options.recipients.updateRecipient(id, input);
+    const recipient = await options.recipients.updateRecipient(id, input, user.id);
     if (!recipient) throw new HttpError(404, 'That recipient was not found.');
     return reply.send({ recipient: toRecipientResponse(recipient) });
   });
 
   app.patch('/api/recipients/:id/consent', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const id = readId(request);
     const body = parseBody(consentUpdateSchema, request.body);
     const recipient = await options.recipients.setConsent(
@@ -128,24 +121,25 @@ export function registerRecipientRoutes(
       body.status,
       options.now(),
       body.status === 'pending' ? null : body.note?.trim() || null,
+      user.id,
     );
     if (!recipient) throw new HttpError(404, 'That recipient was not found.');
     return reply.send({ recipient: toRecipientResponse(recipient) });
   });
 
   app.delete('/api/recipients/:id', async (request, reply) => {
-    await requireMaster(request, options);
-    if (!(await options.recipients.deleteRecipient(readId(request)))) {
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    if (!(await options.recipients.deleteRecipient(readId(request), user.id))) {
       throw new HttpError(404, 'That recipient was not found.');
     }
     return reply.code(204).send();
   });
 
   app.get('/api/alert-rules', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const query = listPaginationQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the alert-rule page and page size.');
-    const rules = await options.rules.listAlertRules();
+    const rules = await options.rules.listAlertRules(user.id);
     const page = paginate(rules, query.data.page, query.data.pageSize);
     return reply.send({
       rules: page.items.map(toRuleResponse),
@@ -156,34 +150,34 @@ export function registerRecipientRoutes(
   });
 
   app.post('/api/alert-rules', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const rule = validateTimezone(parseBody(alertRuleInputSchema, request.body));
-    const created = await options.rules.createAlertRule(rule);
+    const created = await options.rules.createAlertRule(rule, user.id);
     return reply.code(201).send({ rule: toRuleResponse(created) });
   });
 
   app.patch('/api/alert-rules/:id', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const id = readId(request);
     const rule = validateTimezone(parseBody(alertRuleInputSchema, request.body));
-    const updated = await options.rules.updateAlertRule(id, rule);
+    const updated = await options.rules.updateAlertRule(id, rule, user.id);
     if (!updated) throw new HttpError(404, 'That alert rule was not found.');
     return reply.send({ rule: toRuleResponse(updated) });
   });
 
   app.delete('/api/alert-rules/:id', async (request, reply) => {
-    await requireMaster(request, options);
-    if (!(await options.rules.deleteAlertRule(readId(request)))) {
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    if (!(await options.rules.deleteAlertRule(readId(request), user.id))) {
       throw new HttpError(404, 'That alert rule was not found.');
     }
     return reply.code(204).send();
   });
 
   app.post('/api/alert-rules/preview', async (request, reply) => {
-    await requireMaster(request, options);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const input = parseBody(alertPreviewInputSchema, request.body);
     if (input.rule) validateTimezone(input.rule);
-    return reply.send(await options.previews.build(input));
+    return reply.send(await options.previews.build(input, user.id));
   });
 
   app.get('/api/public/preferences/:token', async (request, reply) => {

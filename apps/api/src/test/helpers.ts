@@ -80,12 +80,17 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
   });
   const clock = createClock();
   const users = new MemoryUserRepository(clock.now);
+  const master = await createMasterIfNone(users, {
+    name: 'Admin',
+    email: 'admin@example.com',
+    password: 'master-password-1',
+  });
   const otps = new MemoryOtpRepository(clock.now);
   const email = new MockEmailSender();
   const managedEmail = new ManagedEmailSender(email);
-  const feeds = new MemoryFeedRepository();
+  const feeds = new MemoryFeedRepository(master.id);
   const feedJobs = new MemoryFeedTestJobRepository();
-  const recipients = new MemoryRecipientRepository(feeds);
+  const recipients = new MemoryRecipientRepository(feeds, master.id);
   const deliveries = new MemoryDeliveryRepository(recipients, feeds);
   const whatsapp = new MockWhatsAppAdapter();
   const connections = new MemoryConnectionRepository();
@@ -132,12 +137,6 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     now: clock.now,
     rateLimits: { login: 1000, verify: 1000, resend: 1000, password: 1000, windowMs: 60_000 },
     ...testOptions,
-  });
-
-  const master = await createMasterIfNone(users, {
-    name: 'Admin',
-    email: 'admin@example.com',
-    password: 'master-password-1',
   });
 
   return {

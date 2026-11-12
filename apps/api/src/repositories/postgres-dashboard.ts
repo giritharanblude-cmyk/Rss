@@ -166,6 +166,7 @@ export class PostgresDashboardRepository implements DashboardRepository {
 
   async listNews(filters: NewsFeedFilters): Promise<{ items: DashboardNewsItem[]; total: number }> {
     const conditions: SQL[] = [isNull(newsItems.duplicateOf)];
+    if (filters.ownerUserId) conditions.push(eq(sources.ownerUserId, filters.ownerUserId));
     if (filters.category) conditions.push(eq(newsItems.category, filters.category));
     if (filters.sourceId) conditions.push(eq(newsItems.sourceId, filters.sourceId));
     if (filters.from) conditions.push(gte(newsItems.publishedAt, filters.from));

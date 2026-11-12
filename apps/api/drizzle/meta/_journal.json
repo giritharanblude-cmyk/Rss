@@ -50,6 +50,13 @@
       "when": 1794472326097,
       "tag": "0006_nebulous_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794481693431,
+      "tag": "0007_chilly_grey_gargoyle",
+      "breakpoints": true
     }
   ]
 }

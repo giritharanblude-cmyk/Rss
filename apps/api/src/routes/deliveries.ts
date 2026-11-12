@@ -8,7 +8,7 @@ import type { AuthService } from '../auth/service';
 import type { DeliveryRepository, DeliveryRecord } from '../delivery/types';
 import type { DeliveryService } from '../delivery/service';
 import { buildDeliveryWorkbook } from '../delivery/xlsx';
-import { ForbiddenError, HttpError } from '../errors';
+import { HttpError } from '../errors';
 import { readUser } from './auth';
 
 export type DeliveryRouteOptions = {
@@ -23,13 +23,10 @@ function asDate(value: string, endOfDay = false): Date {
   return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}+05:30`);
 }
 
-function requireMaster(role: string): void {
-  if (role !== 'master') throw new ForbiddenError();
-}
-
 function toResponse(record: DeliveryRecord) {
+  const { ownerUserId: _ownerUserId, ...response } = record;
   return {
-    ...record,
+    ...response,
     recipientContact: null,
     queuedAt: record.queuedAt.toISOString(),
     sentAt: record.sentAt?.toISOString() ?? null,
@@ -44,7 +41,7 @@ function csvCell(value: string | number | null): string {
 
 export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRouteOptions): void {
   app.get('/api/deliveries', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const parsed = deliveryListQuerySchema.safeParse(request.query);
     if (!parsed.success) throw new HttpError(400, 'Check the delivery filters and try again.');
     const filters = parsed.data;
@@ -54,6 +51,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.recipientId ? { recipientId: filters.recipientId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
+      ownerUserId: user.id,
       page: filters.page,
       pageSize: filters.pageSize,
     });
@@ -66,7 +64,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
   });
 
   app.get('/api/deliveries/export.csv', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const parsed = deliveryListQuerySchema.safeParse(request.query);
     if (!parsed.success) throw new HttpError(400, 'Check the delivery filters and try again.');
     const filters = parsed.data;
@@ -76,6 +74,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.recipientId ? { recipientId: filters.recipientId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
+      ownerUserId: user.id,
     };
     const first = await options.deliveries.list({ ...dateFilters, page: 1, pageSize: 100 });
     if (first.total > 5000) {
@@ -113,7 +112,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
   });
 
   app.get('/api/deliveries/export.xlsx', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const parsed = deliveryListQuerySchema.safeParse(request.query);
     if (!parsed.success) throw new HttpError(400, 'Check the delivery filters and try again.');
     const filters = parsed.data;
@@ -123,6 +122,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.recipientId ? { recipientId: filters.recipientId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
+      ownerUserId: user.id,
     };
     const first = await options.deliveries.list({ ...dateFilters, page: 1, pageSize: 100 });
     if (first.total > 5000) {
@@ -156,10 +156,9 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
 
   app.post('/api/deliveries/:id/resend', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
-    requireMaster(user.role);
     const params = uuidParamsSchema.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'Check the delivery id and try again.');
-    if (!(await options.deliveries.retryFailed(params.data.id, options.now()))) {
+    if (!(await options.deliveries.retryFailed(params.data.id, options.now(), user.id))) {
       throw new HttpError(409, 'Only failed deliveries can be resent.');
     }
     return reply.code(202).send({ status: 'queued' });
@@ -167,13 +166,12 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
 
   app.post('/api/news/:id/send', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
-    requireMaster(user.role);
     const params = uuidParamsSchema.safeParse(request.params);
     const body = sendNewsBodySchema.safeParse(request.body);
     if (!params.success || !body.success) {
       throw new HttpError(400, 'Check the news item and channel and try again.');
     }
-    const queued = await options.service.sendNow(params.data.id, body.data.channel);
+    const queued = await options.service.sendNow(params.data.id, body.data.channel, user.id);
     return reply.code(202).send({ queued });
   });
 }

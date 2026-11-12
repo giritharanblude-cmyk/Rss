@@ -14,8 +14,80 @@ export async function runMigrations(pool: Pool, encryptionKey: string): Promise<
   validateSettingsEncryptionKey(encryptionKey);
   const migrationsFolder = path.resolve(__dirname, '..', '..', 'drizzle');
   await migrate(createDatabase(pool), { migrationsFolder });
+  await migrateDataOwnership(pool);
   await migrateUserContacts(pool, encryptionKey);
   await migrateRecipientContacts(pool, encryptionKey);
+}
+
+const ownershipTables = ['alert_rules', 'deliveries', 'recipients', 'sources'] as const;
+
+export async function migrateDataOwnership(pool: Pool): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'LOCK TABLE users, alert_rules, deliveries, recipients, sources IN SHARE ROW EXCLUSIVE MODE',
+    );
+    const masters = await client.query<{ id: string }>(
+      `SELECT id FROM users WHERE role = 'master' FOR UPDATE`,
+    );
+    const masterId = masters.rows[0]?.id;
+    if (!masterId || masters.rows.length !== 1) {
+      throw new Error('Data ownership migration requires exactly one master account.');
+    }
+
+    await client.query(
+      `CREATE TEMP TABLE data_owner_backfill_backup ON COMMIT DROP AS
+       SELECT 'alert_rules'::text AS table_name, id, owner_user_id FROM alert_rules
+       UNION ALL
+       SELECT 'deliveries', id, owner_user_id FROM deliveries
+       UNION ALL
+       SELECT 'recipients', id, owner_user_id FROM recipients
+       UNION ALL
+       SELECT 'sources', id, owner_user_id FROM sources`,
+    );
+
+    let updated = 0;
+    for (const table of ownershipTables) {
+      const result = await client.query(
+        `UPDATE ${table} SET owner_user_id = $1 WHERE owner_user_id IS NULL`,
+        [masterId],
+      );
+      updated += result.rowCount ?? 0;
+    }
+
+    for (const table of ownershipTables) {
+      const result = await client.query<{ mismatches: number }>(
+        `SELECT count(*)::int AS mismatches
+         FROM (
+           SELECT previous.id
+           FROM data_owner_backfill_backup AS previous
+           FULL OUTER JOIN ${table} AS current
+             ON previous.table_name = $2 AND previous.id = current.id
+           WHERE (previous.table_name = $2 OR current.id IS NOT NULL)
+             AND (
+               previous.id IS NULL OR current.id IS NULL OR
+               current.owner_user_id IS DISTINCT FROM coalesce(previous.owner_user_id, $1)
+             )
+         ) AS mismatches`,
+        [masterId, table],
+      );
+      if (result.rows[0]?.mismatches !== 0) {
+        throw new Error(`Data ownership migration verification failed for ${table}.`);
+      }
+    }
+
+    for (const table of ownershipTables) {
+      await client.query(`ALTER TABLE ${table} ALTER COLUMN owner_user_id SET NOT NULL`);
+    }
+    await client.query('COMMIT');
+    return updated;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 type UserContactRow = {

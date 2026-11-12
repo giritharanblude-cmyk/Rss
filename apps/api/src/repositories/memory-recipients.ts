@@ -18,24 +18,30 @@ export class MemoryRecipientRepository
   private readonly rules = new Map<string, AlertRuleRecord>();
   private readonly digestDates = new Map<string, Date>();
 
-  constructor(private readonly dashboard: DashboardRepository) {}
+  constructor(
+    private readonly dashboard: DashboardRepository,
+    private readonly defaultOwnerUserId = 'test-owner',
+  ) {}
 
-  async listRecipients(query?: string): Promise<RecipientRecord[]> {
+  async listRecipients(query?: string, ownerUserId?: string): Promise<RecipientRecord[]> {
     const key = query?.trim().toLocaleLowerCase();
     return [...this.recipients.values()]
       .filter(
         (recipient) =>
-          !key ||
-          recipient.name.toLocaleLowerCase().includes(key) ||
-          recipient.email?.toLocaleLowerCase().includes(key),
+          (!ownerUserId || recipient.ownerUserId === ownerUserId) &&
+          (!key ||
+            recipient.name.toLocaleLowerCase().includes(key) ||
+            recipient.email?.toLocaleLowerCase().includes(key)),
       )
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(cloneRecipient);
   }
 
-  async findRecipient(id: string): Promise<RecipientRecord | null> {
+  async findRecipient(id: string, ownerUserId?: string): Promise<RecipientRecord | null> {
     const value = this.recipients.get(id);
-    return value ? cloneRecipient(value) : null;
+    return value && (!ownerUserId || value.ownerUserId === ownerUserId)
+      ? cloneRecipient(value)
+      : null;
   }
 
   async findByUnsubscribeToken(token: string): Promise<RecipientRecord | null> {
@@ -50,11 +56,16 @@ export class MemoryRecipientRepository
     return recipient ? cloneRecipient(recipient) : null;
   }
 
-  async createRecipient(input: RecipientInput, unsubscribeToken: string): Promise<RecipientRecord> {
+  async createRecipient(
+    input: RecipientInput,
+    unsubscribeToken: string,
+    ownerUserId = this.defaultOwnerUserId,
+  ): Promise<RecipientRecord> {
     const record: RecipientRecord = {
       ...input,
       topics: [...input.topics],
       id: randomUUID(),
+      ownerUserId,
       unsubscribeToken,
       consentStatus: 'pending',
       consentAt: null,
@@ -65,9 +76,13 @@ export class MemoryRecipientRepository
     return cloneRecipient(record);
   }
 
-  async updateRecipient(id: string, input: RecipientInput): Promise<RecipientRecord | null> {
+  async updateRecipient(
+    id: string,
+    input: RecipientInput,
+    ownerUserId?: string,
+  ): Promise<RecipientRecord | null> {
     const current = this.recipients.get(id);
-    if (!current) return null;
+    if (!current || (ownerUserId && current.ownerUserId !== ownerUserId)) return null;
     const updated = { ...current, ...input, topics: [...input.topics] };
     this.recipients.set(id, updated);
     return cloneRecipient(updated);
@@ -78,9 +93,10 @@ export class MemoryRecipientRepository
     status: RecipientRecord['consentStatus'],
     at: Date,
     note: string | null,
+    ownerUserId?: string,
   ): Promise<RecipientRecord | null> {
     const current = this.recipients.get(id);
-    if (!current) return null;
+    if (!current || (ownerUserId && current.ownerUserId !== ownerUserId)) return null;
     const updated = {
       ...current,
       consentStatus: status,
@@ -91,7 +107,9 @@ export class MemoryRecipientRepository
     return cloneRecipient(updated);
   }
 
-  async deleteRecipient(id: string): Promise<boolean> {
+  async deleteRecipient(id: string, ownerUserId?: string): Promise<boolean> {
+    const recipient = this.recipients.get(id);
+    if (!recipient || (ownerUserId && recipient.ownerUserId !== ownerUserId)) return false;
     return this.recipients.delete(id);
   }
 
@@ -107,25 +125,41 @@ export class MemoryRecipientRepository
     return cloneRecipient(recipient);
   }
 
-  async listAlertRules(): Promise<AlertRuleRecord[]> {
-    return [...this.rules.values()].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  async listAlertRules(ownerUserId?: string): Promise<AlertRuleRecord[]> {
+    return [...this.rules.values()]
+      .filter((rule) => !ownerUserId || rule.ownerUserId === ownerUserId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
-  async createAlertRule(input: AlertRuleInput): Promise<AlertRuleRecord> {
-    const record: AlertRuleRecord = { ...input, id: randomUUID(), createdAt: new Date() };
+  async createAlertRule(
+    input: AlertRuleInput,
+    ownerUserId = this.defaultOwnerUserId,
+  ): Promise<AlertRuleRecord> {
+    const record: AlertRuleRecord = {
+      ...input,
+      id: randomUUID(),
+      ownerUserId,
+      createdAt: new Date(),
+    };
     this.rules.set(record.id, record);
     return record;
   }
 
-  async updateAlertRule(id: string, input: AlertRuleInput): Promise<AlertRuleRecord | null> {
+  async updateAlertRule(
+    id: string,
+    input: AlertRuleInput,
+    ownerUserId?: string,
+  ): Promise<AlertRuleRecord | null> {
     const current = this.rules.get(id);
-    if (!current) return null;
-    const updated = { ...input, id, createdAt: current.createdAt };
+    if (!current || (ownerUserId && current.ownerUserId !== ownerUserId)) return null;
+    const updated = { ...input, id, ownerUserId: current.ownerUserId, createdAt: current.createdAt };
     this.rules.set(id, updated);
     return updated;
   }
 
-  async deleteAlertRule(id: string): Promise<boolean> {
+  async deleteAlertRule(id: string, ownerUserId?: string): Promise<boolean> {
+    const rule = this.rules.get(id);
+    if (!rule || (ownerUserId && rule.ownerUserId !== ownerUserId)) return false;
     return this.rules.delete(id);
   }
 
@@ -135,6 +169,7 @@ export class MemoryRecipientRepository
   }
 
   async listPreviewNews(options: {
+    ownerUserId: string;
     since: Date | null;
     importantOnly: boolean;
     categories: NewsCategory[];
@@ -144,6 +179,7 @@ export class MemoryRecipientRepository
       options.categories.map((category) =>
         this.dashboard.listNews({
           category,
+          ownerUserId: options.ownerUserId,
           page: 1,
           pageSize: Math.min(Math.max(options.limit, 20), 50),
         }),

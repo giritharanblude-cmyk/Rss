@@ -88,6 +88,9 @@ export const otpCodes = pgTable(
 
 export const sources = pgTable('sources', {
   id: uuid('id').primaryKey().defaultRandom(),
+  ownerUserId: uuid('owner_user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   website: text('website').notNull(),
   rssUrl: text('rss_url').notNull(),
@@ -101,7 +104,7 @@ export const sources = pgTable('sources', {
   etag: text('etag'),
   lastModified: text('last_modified'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [index('sources_owner_user_id_idx').on(table.ownerUserId)]);
 
 export const newsItems = pgTable(
   'news_items',
@@ -135,6 +138,9 @@ export const recipients = pgTable(
   'recipients',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     whatsappE164: text('whatsapp_e164'),
     email: text('email'),
@@ -146,25 +152,38 @@ export const recipients = pgTable(
     unsubscribeToken: text('unsubscribe_token').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex('recipients_unsubscribe_token_unique').on(table.unsubscribeToken)],
+  (table) => [
+    uniqueIndex('recipients_unsubscribe_token_unique').on(table.unsubscribeToken),
+    index('recipients_owner_user_id_idx').on(table.ownerUserId),
+  ],
 );
 
-export const alertRules = pgTable('alert_rules', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  kind: alertKind('kind').notNull().default('digest'),
-  daysOfWeek: integer('days_of_week').array().notNull().default([]),
-  timeLocal: text('time_local').notNull().default('08:00'),
-  timezone: text('timezone').notNull().default('Asia/Kolkata'),
-  topics: text('topics').array().notNull().default([]),
-  channels: recipientChannel('channels').array().notNull().default([]),
-  active: boolean('active').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const alertRules = pgTable(
+  'alert_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: alertKind('kind').notNull().default('digest'),
+    daysOfWeek: integer('days_of_week').array().notNull().default([]),
+    timeLocal: text('time_local').notNull().default('08:00'),
+    timezone: text('timezone').notNull().default('Asia/Kolkata'),
+    topics: text('topics').array().notNull().default([]),
+    channels: recipientChannel('channels').array().notNull().default([]),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('alert_rules_owner_user_id_idx').on(table.ownerUserId)],
+);
 
 export const deliveries = pgTable(
   'deliveries',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     recipientId: uuid('recipient_id')
       .notNull()
       .references(() => recipients.id, { onDelete: 'cascade' }),
@@ -179,6 +198,7 @@ export const deliveries = pgTable(
     newsItemIds: uuid('news_item_ids').array().notNull().default([]),
   },
   (table) => [
+    index('deliveries_owner_user_id_idx').on(table.ownerUserId),
     index('deliveries_status_idx').on(table.status),
     index('deliveries_queued_at_idx').on(table.queuedAt),
     uniqueIndex('deliveries_idempotency_unique')

@@ -36,25 +36,36 @@ function cloneNews(news: NewsRecord): NewsRecord {
 export class MemoryFeedRepository
   implements SourceRepository, NewsRepository, RetentionRepository, DashboardRepository
 {
+  constructor(private readonly defaultOwnerUserId = 'test-owner') {}
+
   private readonly sources = new Map<string, SourceRecord>();
   private readonly news = new Map<string, NewsRecord>();
   private readonly deliveries: { id: string; queuedAt: Date; status: string }[] = [];
   private recipientsCount = 0;
   private readonly connections = { whatsapp: false, email: false };
 
-  async listSources(): Promise<SourceRecord[]> {
-    return [...this.sources.values()].sort((a, b) => a.name.localeCompare(b.name)).map(cloneSource);
+  async listSources(ownerUserId?: string): Promise<SourceRecord[]> {
+    return [...this.sources.values()]
+      .filter((source) => !ownerUserId || source.ownerUserId === ownerUserId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(cloneSource);
   }
 
-  async findSource(id: string): Promise<SourceRecord | null> {
+  async findSource(id: string, ownerUserId?: string): Promise<SourceRecord | null> {
     const source = this.sources.get(id);
-    return source ? cloneSource(source) : null;
+    return source && (!ownerUserId || source.ownerUserId === ownerUserId)
+      ? cloneSource(source)
+      : null;
   }
 
-  async createSource(input: SourceInput): Promise<SourceRecord> {
+  async createSource(
+    input: SourceInput,
+    ownerUserId = this.defaultOwnerUserId,
+  ): Promise<SourceRecord> {
     const source: SourceRecord = {
       ...input,
       id: randomUUID(),
+      ownerUserId,
       lastFetchedAt: null,
       lastStatus: null,
       etag: null,
@@ -65,14 +76,20 @@ export class MemoryFeedRepository
     return cloneSource(source);
   }
 
-  async updateSource(id: string, updates: Partial<SourceInput>): Promise<SourceRecord | null> {
+  async updateSource(
+    id: string,
+    updates: Partial<SourceInput>,
+    ownerUserId?: string,
+  ): Promise<SourceRecord | null> {
     const source = this.sources.get(id);
-    if (!source) return null;
+    if (!source || (ownerUserId && source.ownerUserId !== ownerUserId)) return null;
     Object.assign(source, updates);
     return cloneSource(source);
   }
 
-  async deleteSource(id: string): Promise<boolean> {
+  async deleteSource(id: string, ownerUserId?: string): Promise<boolean> {
+    const source = this.sources.get(id);
+    if (!source || (ownerUserId && source.ownerUserId !== ownerUserId)) return false;
     const deleted = this.sources.delete(id);
     if (deleted) {
       for (const [newsId, item] of this.news) {
@@ -264,6 +281,11 @@ export class MemoryFeedRepository
     const query = filters.query?.toLocaleLowerCase();
     const matching = [...this.news.values()]
       .filter((item) => !item.duplicateOf)
+      .filter(
+        (item) =>
+          !filters.ownerUserId ||
+          this.sources.get(item.sourceId)?.ownerUserId === filters.ownerUserId,
+      )
       .filter((item) => !filters.category || item.category === filters.category)
       .filter((item) => !filters.sourceId || item.sourceId === filters.sourceId)
       .filter((item) => !filters.from || (item.publishedAt && item.publishedAt >= filters.from))

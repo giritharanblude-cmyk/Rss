@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import type { SourceInput } from '@healthcare/shared';
 import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
 
 let context: TestContext;
 
 afterEach(async () => context.app.close());
 
-const validSource = {
+const validSource: SourceInput = {
   name: 'Health News',
   website: 'https://news.example.test',
   rssUrl: 'https://news.example.test/feed.xml',
@@ -132,8 +133,15 @@ describe('source management routes', () => {
     expect(forbidden.statusCode).toBe(403);
   });
 
-  it('allows members to view sources but not change them', async () => {
+  it('lets members manage only their own sources', async () => {
     context = await createTestContext();
+    const masterCookie = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const masterSource = await context.feeds.createSource(validSource, context.master.id);
     const member = await seedMember(context.users, {
       name: 'Mina',
       email: 'mina@example.test',
@@ -146,7 +154,7 @@ describe('source management routes', () => {
       'member-password-1',
     );
 
-    const list = await context.app.inject({
+    const empty = await context.app.inject({
       method: 'GET',
       url: '/api/sources',
       headers: { cookie },
@@ -155,23 +163,46 @@ describe('source management routes', () => {
       method: 'POST',
       url: '/api/sources',
       headers: { cookie },
-      payload: validSource,
+      payload: { ...validSource, name: 'Member News' },
     });
-    const update = await context.app.inject({
+    const memberSource = (create.json() as { source: { id: string } }).source;
+    const storedMemberSource = await context.feeds.findSource(memberSource.id);
+    const list = await context.app.inject({
+      method: 'GET',
+      url: '/api/sources',
+      headers: { cookie },
+    });
+    const updateOtherOwner = await context.app.inject({
       method: 'PATCH',
-      url: '/api/sources/00000000-0000-4000-8000-000000000001',
+      url: `/api/sources/${masterSource.id}`,
+      headers: { cookie },
+      payload: { active: false },
+    });
+    const updateOwn = await context.app.inject({
+      method: 'PATCH',
+      url: `/api/sources/${memberSource.id}`,
       headers: { cookie },
       payload: { active: false },
     });
     const remove = await context.app.inject({
       method: 'DELETE',
-      url: '/api/sources/00000000-0000-4000-8000-000000000001',
+      url: `/api/sources/${memberSource.id}`,
       headers: { cookie },
     });
 
+    expect(empty.json()).toMatchObject({ sources: [], total: 0 });
     expect(list.statusCode).toBe(200);
-    expect(create.statusCode).toBe(403);
-    expect(update.statusCode).toBe(403);
-    expect(remove.statusCode).toBe(403);
+    expect(create.statusCode).toBe(201);
+    expect(storedMemberSource).toMatchObject({ ownerUserId: member.id });
+    expect(list.json()).toMatchObject({ sources: [{ name: 'Member News' }], total: 1 });
+    expect(updateOtherOwner.statusCode).toBe(404);
+    expect(updateOwn.statusCode).toBe(200);
+    expect(remove.statusCode).toBe(204);
+    const masterList = await context.app.inject({
+      method: 'GET',
+      url: '/api/sources',
+      headers: { cookie: masterCookie.cookie },
+    });
+    expect(masterList.json()).toMatchObject({ sources: [{ name: 'Health News' }], total: 1 });
   });
 });

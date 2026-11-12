@@ -53,8 +53,8 @@ describe('recipient contact encryption', () => {
         from: () => ({
           where: () => ({
             limit: async () => (storage.row ? [storage.row] : []),
+            orderBy: async () => (storage.row ? [storage.row] : []),
           }),
-          orderBy: async () => (storage.row ? [storage.row] : []),
         }),
       }),
     };
@@ -70,7 +70,7 @@ describe('recipient contact encryption', () => {
       channel: 'both',
     };
 
-    const created = await repository.createRecipient(input, 'a'.repeat(64));
+    const created = await repository.createRecipient(input, 'a'.repeat(64), 'owner-1');
     expect(storage.row?.whatsappE164).not.toBe(input.whatsappE164);
     expect(storage.row?.email).not.toBe(input.email);
     expect(storage.row?.whatsappE164).toMatch(/^contact:v1\./);
