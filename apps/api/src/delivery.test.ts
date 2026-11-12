@@ -561,7 +561,13 @@ describe('delivery pipeline', () => {
       headers: { cookie },
       payload: { disabled: true },
     });
-    expect(connections.statusCode).toBe(403);
+    expect(connections.statusCode).toBe(200);
+    expect(connections.json().connections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ service: 'email', detail: null }),
+        expect.objectContaining({ service: 'whatsapp', detail: null }),
+      ]),
+    );
     expect(saveEmail.statusCode).toBe(403);
     expect(checkConnections.statusCode).toBe(403);
     expect(deliveries.statusCode).toBe(200);

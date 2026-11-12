@@ -26,6 +26,23 @@ const emptyDashboard = {
   connections: { whatsapp: false, email: false },
 };
 
+const disconnectedConnections = {
+  connections: [
+    {
+      service: 'whatsapp',
+      state: 'disconnected',
+      checkedAt: '2026-11-03T08:00:00.000Z',
+      detail: null,
+    },
+    {
+      service: 'email',
+      state: 'disconnected',
+      checkedAt: '2026-11-03T08:00:00.000Z',
+      detail: null,
+    },
+  ],
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -64,6 +81,9 @@ describe('App', () => {
           return jsonResponse(200, { user });
         }
         if (path === '/api/dashboard/live') return jsonResponse(200, emptyDashboard);
+        if (path === '/api/settings/connections') {
+          return jsonResponse(200, disconnectedConnections);
+        }
         return hasSession
           ? jsonResponse(200, { user })
           : jsonResponse(401, { error: 'Please sign in to continue.' });
@@ -93,13 +113,15 @@ describe('App', () => {
       vi.fn(async (input: string | URL | Request) =>
         String(input) === '/api/dashboard/live'
           ? jsonResponse(200, emptyDashboard)
-          : jsonResponse(200, {
-              user: {
-                id: '00000000-0000-4000-8000-000000000000',
-                name: 'Admin',
-                role: 'master',
-              },
-            }),
+          : String(input) === '/api/settings/connections'
+            ? jsonResponse(200, disconnectedConnections)
+            : jsonResponse(200, {
+                user: {
+                  id: '00000000-0000-4000-8000-000000000000',
+                  name: 'Admin',
+                  role: 'master',
+                },
+              }),
       ),
     );
 
@@ -136,6 +158,7 @@ describe('App', () => {
             lastFetchAt: null,
           });
         }
+        if (path === '/api/settings/connections') return jsonResponse(200, { connections: [] });
         return jsonResponse(200, {
           user: {
             id: '00000000-0000-4000-8000-000000000000',
@@ -149,7 +172,7 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(await screen.findAllByText('Not connected yet')).toHaveLength(2);
+    expect(await screen.findAllByText('Not checked yet')).toHaveLength(2);
   });
 
   it('shows members only the modules allowed by their role', async () => {

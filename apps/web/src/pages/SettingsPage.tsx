@@ -106,7 +106,9 @@ export function SettingsPage() {
   const mutationError =
     save.error ?? test.error ?? check.error ?? connectWhatsApp.error ?? logoutWhatsApp.error;
   const connectionByService = new Map(
-    (connections.data?.connections ?? []).map((connection) => [connection.service, connection]),
+    (connections.isSuccess && !connections.isFetching ? connections.data.connections : []).map(
+      (connection) => [connection.service, connection],
+    ),
   );
   const storagePercent = health.data
     ? (health.data.databaseSizeBytes / DATABASE_STORAGE_LIMIT_BYTES) * 100

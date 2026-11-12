@@ -22,8 +22,13 @@ export type SettingsRouteOptions = {
 export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRouteOptions): void {
   app.get('/api/settings/connections', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
-    if (user.role !== 'master') throw new ForbiddenError();
-    return reply.send({ connections: await options.monitor.check() });
+    const connections = await options.monitor.check();
+    return reply.send({
+      connections:
+        user.role === 'master'
+          ? connections
+          : connections.map((connection) => ({ ...connection, detail: null })),
+    });
   });
 
   app.get('/api/settings/email', async (request, reply) => {
