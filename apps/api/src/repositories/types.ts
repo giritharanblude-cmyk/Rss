@@ -29,6 +29,7 @@ export type NewUserSession = {
 
 export type UserRepository = {
   findByName(name: string): Promise<UserRecord | null>;
+  findByLogin(identifier: string): Promise<UserRecord | null>;
   findById(id: string): Promise<UserRecord | null>;
   listMembers(): Promise<UserRecord[]>;
   countMasters(): Promise<number>;

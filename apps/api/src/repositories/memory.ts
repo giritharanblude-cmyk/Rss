@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DuplicateMasterError } from '../errors';
+import { DuplicateContactError, DuplicateMasterError } from '../errors';
 import type {
   NewOtp,
   NewUser,
@@ -38,6 +38,16 @@ export class MemoryUserRepository implements UserRepository {
     return null;
   }
 
+  async findByLogin(identifier: string): Promise<UserRecord | null> {
+    const key = identifier.trim().toLowerCase();
+    for (const user of this.users.values()) {
+      if (user.name.trim().toLowerCase() === key || user.email.trim().toLowerCase() === key) {
+        return cloneUser(user);
+      }
+    }
+    return null;
+  }
+
   async findById(id: string): Promise<UserRecord | null> {
     const user = this.users.get(id);
     return user ? cloneUser(user) : null;
@@ -68,10 +78,14 @@ export class MemoryUserRepository implements UserRepository {
     if (exists) {
       throw new Error('name is already in use');
     }
+    const email = user.email.trim().toLowerCase();
+    if ([...this.users.values()].some((candidate) => candidate.email === email)) {
+      throw new DuplicateContactError();
+    }
     const record: UserRecord = {
       id: randomUUID(),
       name: user.name.trim(),
-      email: user.email.trim().toLowerCase(),
+      email,
       phone: null,
       role: user.role,
       passwordHash: user.passwordHash,
@@ -125,8 +139,20 @@ export class MemoryUserRepository implements UserRepository {
   async updateContacts(id: string, email: string, phone: string | null): Promise<boolean> {
     const user = this.users.get(id);
     if (!user) return false;
-    user.email = email.trim().toLowerCase();
-    user.phone = phone;
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone?.trim() || null;
+    if (
+      [...this.users.values()].some(
+        (candidate) =>
+          candidate.id !== id &&
+          (candidate.email === normalizedEmail ||
+            (normalizedPhone !== null && candidate.phone === normalizedPhone)),
+      )
+    ) {
+      throw new DuplicateContactError();
+    }
+    user.email = normalizedEmail;
+    user.phone = normalizedPhone;
     return true;
   }
 

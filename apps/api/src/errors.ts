@@ -44,6 +44,12 @@ export class DuplicateNameError extends HttpError {
   }
 }
 
+export class DuplicateContactError extends HttpError {
+  constructor() {
+    super(409, 'That email or phone is already in use.');
+  }
+}
+
 export class DuplicateMasterError extends HttpError {
   constructor() {
     super(409, 'A master user already exists. Refusing to create another.');

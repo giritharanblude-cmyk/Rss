@@ -59,6 +59,23 @@ describe('sign in with name, password and emailed code', () => {
     });
   });
 
+  it('finds an account by the normalized email lookup during login', async () => {
+    context = await createTestContext();
+    const login = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: ' ADMIN@example.com ', password: 'master-password-1' },
+    });
+    expect(login.statusCode).toBe(202);
+    const verify = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: 'admin@example.com', code: latestOtpCode(context.email) },
+    });
+    expect(verify.statusCode).toBe(200);
+    expect(verify.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
+  });
+
   it.each([
     { role: 'master', name: 'Admin', email: 'admin@example.com' },
     { role: 'member', name: 'Mina', email: 'mina@example.test' },

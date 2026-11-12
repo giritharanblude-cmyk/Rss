@@ -58,7 +58,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /healthcare news reader/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/^name$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^name or email$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
   });
 
@@ -91,7 +91,7 @@ describe('App', () => {
     );
 
     render(<App />);
-    fireEvent.change(await screen.findByLabelText(/^name$/i), {
+    fireEvent.change(await screen.findByLabelText(/^name or email$/i), {
       target: { value: 'Admin' },
     });
     fireEvent.change(screen.getByLabelText(/^password$/i), {

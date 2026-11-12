@@ -74,7 +74,7 @@ export function LoginPage() {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="login-title">
         <h1 id="login-title">Healthcare News Reader</h1>
-        <p className="auth-subtitle">Sign in with your name, password and email code.</p>
+        <p className="auth-subtitle">Sign in with your name or email, password and email code.</p>
 
         {error ? (
           <p className="banner banner-error" role="alert">
@@ -85,7 +85,7 @@ export function LoginPage() {
 
         {step === 'credentials' ? (
           <form onSubmit={handleCredentials} noValidate>
-            <label htmlFor="name">Name</label>
+            <label htmlFor="name">Name or email</label>
             <input
               id="name"
               name="name"

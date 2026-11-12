@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 
 const recipientContactPrefix = 'contact:';
 const encryptedRecipientContactPattern =
@@ -16,6 +16,13 @@ function encryptionKey(value: string): Buffer {
 
 export function validateSettingsEncryptionKey(value: string): void {
   encryptionKey(value);
+}
+
+export function hashUserContactLookup(type: 'email' | 'phone', value: string, key: string): string {
+  const normalized = type === 'email' ? value.trim().toLowerCase() : value.trim();
+  return createHmac('sha256', encryptionKey(key))
+    .update(`${type}\0${normalized}`, 'utf8')
+    .digest('hex');
 }
 
 export function encryptSettings(value: string, key: string): string {

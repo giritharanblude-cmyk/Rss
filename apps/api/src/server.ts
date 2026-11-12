@@ -103,7 +103,7 @@ async function main(): Promise<void> {
     () => new Date(),
   );
   const app = buildApp({
-    users: new PostgresUserRepository(db),
+    users: new PostgresUserRepository(db, config.SETTINGS_ENCRYPTION_KEY),
     otps: new PostgresOtpRepository(db),
     sources: feeds,
     news: feeds,

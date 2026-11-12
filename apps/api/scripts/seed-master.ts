@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   try {
     await waitForDatabase(pool);
     await runMigrations(pool, config.SETTINGS_ENCRYPTION_KEY);
-    const users = new PostgresUserRepository(createDatabase(pool));
+    const users = new PostgresUserRepository(createDatabase(pool), config.SETTINGS_ENCRYPTION_KEY);
     const user = await createMasterIfNone(users, { name, email, password });
     process.stdout.write(`Master user created: ${user.name} <${user.email}>\n`);
   } finally {
