@@ -93,7 +93,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
       await auth.login(body.name, body.password);
       return reply
         .code(202)
-        .send({ status: 'otp_sent', message: 'Check the admin email for the 6-digit code.' });
+        .send({ status: 'otp_sent', message: 'Check your account email for the 6-digit code.' });
     },
   );
 
@@ -116,7 +116,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
       await auth.resendLoginCode(body.name);
       return reply
         .code(202)
-        .send({ status: 'otp_sent', message: 'Check the admin email for the 6-digit code.' });
+        .send({ status: 'otp_sent', message: 'Check your account email for the 6-digit code.' });
     },
   );
 

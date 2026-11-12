@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { EmailSender } from '../email';
-import { EmailUnavailableError, OtpCooldownError, OtpError } from '../errors';
+import { EmailUnavailableError, HttpError, OtpCooldownError, OtpError } from '../errors';
 import type { OtpPurpose, OtpRepository } from '../repositories/types';
 import { hashPassword, verifyPassword } from './passwords';
 
@@ -34,6 +34,17 @@ export class OtpService {
   }
 
   async request(target: OtpTarget, purpose: OtpPurpose): Promise<void> {
+    const recipient =
+      purpose === 'login'
+        ? target.email?.trim()
+        : (target.email?.trim() ?? this.options.adminEmail);
+    if (!recipient) {
+      throw new HttpError(
+        400,
+        'This account has no email address. Contact the administrator before signing in.',
+      );
+    }
+
     const now = this.now();
     const latest = await this.options.otps.findLatest(target.userId, purpose);
 
@@ -58,7 +69,7 @@ export class OtpService {
 
     try {
       await this.options.email.send({
-        to: target.email ?? this.options.adminEmail,
+        to: recipient,
         subject:
           purpose === 'contact_change'
             ? 'Your Healthcare News contact change verification code'

@@ -76,6 +76,69 @@ describe('sign in with name, password and emailed code', () => {
     expect(verify.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
   });
 
+  it('sends member login OTPs only to the member email, including resends', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+
+    const login = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: member.name, password: 'member-password-1' },
+    });
+
+    expect(login.statusCode).toBe(202);
+    expect(context.email.sent.at(-1)?.to).toBe(member.email);
+    expect(context.email.sent.at(-1)?.to).not.toBe(context.master.email);
+
+    context.clock.advance(61_000);
+    const resend = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/resend-otp',
+      payload: { name: member.name },
+    });
+
+    expect(resend.statusCode).toBe(202);
+    expect(context.email.sent.at(-1)?.to).toBe(member.email);
+    expect(context.email.sent.at(-1)?.to).not.toBe(context.master.email);
+  });
+
+  it('sends master login OTPs to the master email', async () => {
+    context = await createTestContext();
+
+    const login = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: context.master.name, password: 'master-password-1' },
+    });
+
+    expect(login.statusCode).toBe(202);
+    expect(context.email.sent.at(-1)?.to).toBe(context.master.email);
+  });
+
+  it('refuses login when the account has no email address', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'NoEmail',
+      email: '',
+      password: 'member-password-1',
+    });
+
+    const login = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: member.name, password: 'member-password-1' },
+    });
+
+    expect(login.statusCode).toBe(400);
+    expect(login.json().error).toMatch(/no email address/i);
+    expect(context.email.sent).toHaveLength(0);
+    expect(await context.otps.findLatest(member.id, 'login')).toBeNull();
+  });
+
   it.each([
     { role: 'master', name: 'Admin', email: 'admin@example.com' },
     { role: 'member', name: 'Mina', email: 'mina@example.test' },

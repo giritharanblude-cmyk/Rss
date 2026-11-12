@@ -33,7 +33,7 @@ export function LoginPage() {
       await api.login({ name, password });
       setStep('otp');
       setCode('');
-      setNotice('We emailed a 6-digit code to the admin email address.');
+      setNotice('We emailed a 6-digit code to your account email address.');
     } catch (caught) {
       setError(messageOf(caught));
     } finally {
@@ -124,7 +124,7 @@ export function LoginPage() {
               onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
               required
             />
-            <p className="form-hint">Enter the 6-digit code sent to the admin email address.</p>
+            <p className="form-hint">Enter the 6-digit code sent to your account email address.</p>
 
             <button type="submit" disabled={busy || code.length !== 6}>
               {busy ? 'Checking…' : 'Verify and sign in'}

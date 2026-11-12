@@ -69,7 +69,10 @@ export class AuthService {
     }
 
     await this.options.users.resetLoginFailures(user.id);
-    await this.options.otp.request({ userId: user.id, name: user.name }, 'login');
+    await this.options.otp.request(
+      { userId: user.id, name: user.name, email: user.email },
+      'login',
+    );
   }
 
   async resendLoginCode(name: string): Promise<void> {
@@ -78,7 +81,10 @@ export class AuthService {
       return;
     }
     await this.checkLock(user);
-    await this.options.otp.request({ userId: user.id, name: user.name }, 'login');
+    await this.options.otp.request(
+      { userId: user.id, name: user.name, email: user.email },
+      'login',
+    );
   }
 
   async verifyLogin(name: string, code: string): Promise<LoginResult> {
