@@ -117,7 +117,6 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     alertPreview: recipients,
     deliveries,
     deliveryService,
-    connections,
     connectionMonitor,
     whatsapp,
     managedEmail,
