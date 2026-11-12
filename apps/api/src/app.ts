@@ -17,7 +17,7 @@ import type {
 } from './repositories/recipients';
 import type { DeliveryRepository } from './delivery/types';
 import type { DeliveryService } from './delivery/service';
-import type { ConnectionMonitor, ConnectionRepository } from './delivery/connections';
+import type { ConnectionMonitor } from './delivery/connections';
 import type { WhatsAppAdapter } from './delivery/whatsapp';
 import type { ManagedEmailSender } from './email/managed';
 import type { SettingsRepository } from './repositories/settings';
@@ -48,7 +48,6 @@ export type AppDeps = {
   alertPreview: AlertPreviewRepository;
   deliveries: DeliveryRepository;
   deliveryService: DeliveryService;
-  connections: ConnectionRepository;
   connectionMonitor: ConnectionMonitor;
   whatsapp: WhatsAppAdapter;
   managedEmail: ManagedEmailSender;
@@ -198,7 +197,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     registerSettingsRoutes(routes, {
       auth: authService,
       jwtSecret: deps.jwtSecret,
-      connections: deps.connections,
       monitor: deps.connectionMonitor,
       whatsapp: deps.whatsapp,
       email: deps.managedEmail,

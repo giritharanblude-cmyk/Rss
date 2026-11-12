@@ -36,6 +36,12 @@ export function HomePage() {
     refetchIntervalInBackground: true,
     retry: false,
   });
+  const connectionStatus = useQuery({
+    queryKey: ['connection-settings'],
+    queryFn: api.connectionSettings,
+    enabled: online,
+    retry: false,
+  });
 
   if (isLoading) {
     return (
@@ -49,7 +55,12 @@ export function HomePage() {
     return <Navigate to="/login" replace />;
   }
 
-  const connections = live.data?.connections;
+  const connections = new Map(
+    (online && connectionStatus.isSuccess && !connectionStatus.isFetching
+      ? connectionStatus.data.connections
+      : []
+    ).map((connection) => [connection.service, connection]),
+  );
 
   return (
     <div className="app-frame">
@@ -73,6 +84,11 @@ export function HomePage() {
             Dashboard data could not be refreshed. Retrying on the next poll.
           </p>
         ) : null}
+        {connectionStatus.isError ? (
+          <p className="banner banner-error" role="alert">
+            Connection status could not be refreshed.
+          </p>
+        ) : null}
         {live.data ? (
           <>
             <section className="metric-grid" aria-label="Today at a glance">
@@ -89,19 +105,15 @@ export function HomePage() {
             <section className="connection-grid" aria-label="Service connections">
               <ConnectionLight
                 label="OpenWA socket"
-                connected={connections?.whatsapp ?? false}
+                connected={connections.get('whatsapp')?.state === 'connected'}
                 connectedText="Connected"
-                disconnectedText={
-                  connections?.whatsapp === undefined ? 'Not connected yet' : 'Disconnected'
-                }
+                disconnectedText={connections.has('whatsapp') ? 'Disconnected' : 'Not checked yet'}
               />
               <ConnectionLight
                 label="Hostinger email"
-                connected={connections?.email ?? false}
+                connected={connections.get('email')?.state === 'working'}
                 connectedText="Working"
-                disconnectedText={
-                  connections?.email === undefined ? 'Not connected yet' : 'Not working'
-                }
+                disconnectedText={connections.has('email') ? 'Not working' : 'Not checked yet'}
               />
             </section>
             <section className="latest-section">

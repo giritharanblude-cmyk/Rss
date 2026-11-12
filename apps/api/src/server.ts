@@ -113,7 +113,6 @@ async function main(): Promise<void> {
     alertPreview: recipients,
     deliveries,
     deliveryService,
-    connections,
     connectionMonitor,
     whatsapp,
     managedEmail: emailSender,

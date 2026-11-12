@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { emailTestBodySchema, smtpSettingsSchema } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
-import type { ConnectionMonitor, ConnectionRepository } from '../delivery/connections';
+import type { ConnectionMonitor } from '../delivery/connections';
 import type { WhatsAppAdapter } from '../delivery/whatsapp';
 import type { ManagedEmailSender } from '../email/managed';
 import type { SettingsRepository } from '../repositories/settings';
@@ -12,7 +12,6 @@ import { readUser } from './auth';
 export type SettingsRouteOptions = {
   auth: AuthService;
   jwtSecret: string;
-  connections: ConnectionRepository;
   monitor: ConnectionMonitor;
   whatsapp: WhatsAppAdapter;
   email: ManagedEmailSender;
@@ -23,8 +22,13 @@ export type SettingsRouteOptions = {
 export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRouteOptions): void {
   app.get('/api/settings/connections', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
-    if (user.role !== 'master') throw new ForbiddenError();
-    return reply.send({ connections: await options.connections.list() });
+    const connections = await options.monitor.check();
+    return reply.send({
+      connections:
+        user.role === 'master'
+          ? connections
+          : connections.map((connection) => ({ ...connection, detail: null })),
+    });
   });
 
   app.get('/api/settings/email', async (request, reply) => {

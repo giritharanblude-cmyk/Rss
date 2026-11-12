@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { inflateRawSync } from 'node:zlib';
 import { AlertPreviewService } from './alerts/preview';
 import { buildEmailDigest, buildWhatsAppDigest } from './delivery/message';
@@ -448,6 +448,7 @@ describe('delivery pipeline', () => {
       'Admin',
       'master-password-1',
     );
+    const verify = vi.spyOn(context.email, 'verify');
     const response = await context.app.inject({
       method: 'POST',
       url: '/api/settings/connections/check',
@@ -457,11 +458,62 @@ describe('delivery pipeline', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       connections: [
-        { service: 'whatsapp', state: 'disconnected' },
-        { service: 'email', state: 'working' },
+        {
+          service: 'whatsapp',
+          state: 'disconnected',
+          checkedAt: context.clock.now().toISOString(),
+        },
+        { service: 'email', state: 'working', checkedAt: context.clock.now().toISOString() },
       ],
     });
+    expect(verify).toHaveBeenCalledTimes(1);
     expect(await context.connections.list()).toHaveLength(2);
+  });
+
+  it('probes connections on read and returns actual failures instead of stored status', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    await context.connections.save({
+      service: 'email',
+      state: 'working',
+      checkedAt: new Date('2026-11-02T00:00:00.000Z'),
+      detail: null,
+    });
+    context.email.verifyStatus = { ok: false, detail: '535 Authentication failed' };
+    vi.spyOn(context.whatsapp, 'getStatus').mockRejectedValue(new Error('OpenWA socket timed out'));
+
+    const response = await context.app.inject({
+      method: 'GET',
+      url: '/api/settings/connections',
+      headers: { cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      connections: [
+        {
+          service: 'whatsapp',
+          state: 'disconnected',
+          detail: 'OpenWA socket timed out',
+          checkedAt: context.clock.now().toISOString(),
+        },
+        {
+          service: 'email',
+          state: 'disconnected',
+          detail: '535 Authentication failed',
+          checkedAt: context.clock.now().toISOString(),
+        },
+      ],
+    });
+    expect(await context.connections.list()).toMatchObject([
+      { service: 'email', state: 'disconnected', detail: '535 Authentication failed' },
+      { service: 'whatsapp', state: 'disconnected', detail: 'OpenWA socket timed out' },
+    ]);
   });
 
   it('rejects delivery resend and service settings writes for members', async () => {
@@ -509,7 +561,13 @@ describe('delivery pipeline', () => {
       headers: { cookie },
       payload: { disabled: true },
     });
-    expect(connections.statusCode).toBe(403);
+    expect(connections.statusCode).toBe(200);
+    expect(connections.json().connections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ service: 'email', detail: null }),
+        expect.objectContaining({ service: 'whatsapp', detail: null }),
+      ]),
+    );
     expect(saveEmail.statusCode).toBe(403);
     expect(checkConnections.statusCode).toBe(403);
     expect(deliveries.statusCode).toBe(200);

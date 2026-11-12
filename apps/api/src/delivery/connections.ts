@@ -37,12 +37,15 @@ export class ConnectionMonitor {
         checkedAt: this.now(),
         detail: status.detail ?? null,
       };
-    } catch {
+    } catch (error) {
       return {
         service: 'email',
         state: 'disconnected',
         checkedAt: this.now(),
-        detail: 'Email connection check failed.',
+        detail:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Email connection check failed.',
       };
     }
   }
@@ -56,12 +59,15 @@ export class ConnectionMonitor {
         checkedAt: this.now(),
         detail: status.detail ?? null,
       };
-    } catch {
+    } catch (error) {
       return {
         service: 'whatsapp',
         state: 'disconnected',
         checkedAt: this.now(),
-        detail: 'WhatsApp connection check failed.',
+        detail:
+          error instanceof Error && error.message
+            ? error.message
+            : 'WhatsApp connection check failed.',
       };
     }
   }
