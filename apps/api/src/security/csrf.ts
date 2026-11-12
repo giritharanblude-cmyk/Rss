@@ -20,6 +20,21 @@ function normaliseOrigin(value: string): string {
   }
 }
 
+function isPagesDeploymentOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.port === '' &&
+      /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.rss-2t2\.pages\.dev$/i.test(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Small CSRF guard for the single-URL deployment. The browser and API share one
  * origin, so a state-changing request from another origin is never legitimate.
@@ -43,7 +58,11 @@ export function registerCsrfProtection(app: FastifyInstance, options: CsrfOption
     if (!origin) {
       return;
     }
-    if (allowed.size === 0 || allowed.has(normaliseOrigin(origin))) {
+    if (
+      allowed.size === 0 ||
+      allowed.has(normaliseOrigin(origin)) ||
+      isPagesDeploymentOrigin(origin)
+    ) {
       return;
     }
     throw new HttpError(403, 'Request origin is not allowed.');
