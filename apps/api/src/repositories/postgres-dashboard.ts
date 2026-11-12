@@ -30,19 +30,45 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&');
 }
 
+function localDateKey(value: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  return `${values.get('year')}-${values.get('month')}-${values.get('day')}`;
+}
+
 export class PostgresDashboardRepository implements DashboardRepository {
   constructor(private readonly db: Database) {}
 
   async getSummary(todayStart: Date, latestLimit: number): Promise<DashboardSummary> {
+    const activityStart = new Date(todayStart);
+    activityStart.setUTCDate(activityStart.getUTCDate() - 6);
+    const dayAfterToday = new Date(todayStart);
+    dayAfterToday.setUTCDate(dayAfterToday.getUTCDate() + 1);
+    const itemDate = sql<string>`to_char(
+      coalesce(${newsItems.publishedAt}, ${newsItems.fetchedAt}) AT TIME ZONE 'Asia/Kolkata',
+      'YYYY-MM-DD'
+    )`;
+    const deliveryDate = sql<string>`to_char(
+      ${deliveries.queuedAt} AT TIME ZONE 'Asia/Kolkata',
+      'YYYY-MM-DD'
+    )`;
     const [
       itemCount,
       sourceCount,
       recipientCount,
       deliveryCount,
       failedCount,
+      deliveredCount,
       latestRows,
       latestFetch,
       statuses,
+      itemDays,
+      deliveryDays,
     ] = await Promise.all([
       this.db
         .select({ value: count() })
@@ -63,6 +89,7 @@ export class PostgresDashboardRepository implements DashboardRepository {
         .from(deliveries)
         .where(gte(deliveries.queuedAt, todayStart)),
       this.db.select({ value: count() }).from(deliveries).where(eq(deliveries.status, 'failed')),
+      this.db.select({ value: count() }).from(deliveries).where(eq(deliveries.status, 'delivered')),
       this.db
         .select({ item: newsItems, sourceName: sources.name })
         .from(newsItems)
@@ -77,15 +104,57 @@ export class PostgresDashboardRepository implements DashboardRepository {
       this.db
         .select({ service: connectionStatus.service, state: connectionStatus.state })
         .from(connectionStatus),
+      this.db
+        .select({ date: itemDate, value: count() })
+        .from(newsItems)
+        .where(
+          and(
+            isNull(newsItems.duplicateOf),
+            or(
+              and(
+                gte(newsItems.publishedAt, activityStart),
+                lt(newsItems.publishedAt, dayAfterToday),
+              ),
+              and(
+                isNull(newsItems.publishedAt),
+                gte(newsItems.fetchedAt, activityStart),
+                lt(newsItems.fetchedAt, dayAfterToday),
+              ),
+            ),
+          ),
+        )
+        .groupBy(itemDate),
+      this.db
+        .select({ date: deliveryDate, value: count() })
+        .from(deliveries)
+        .where(and(gte(deliveries.queuedAt, activityStart), lt(deliveries.queuedAt, dayAfterToday)))
+        .groupBy(deliveryDate),
     ]);
 
     const stateByService = new Map(statuses.map((row) => [row.service, row.state.toLowerCase()]));
+    const itemsByDate = new Map(itemDays.map((row) => [row.date, Number(row.value)]));
+    const deliveriesByDate = new Map(deliveryDays.map((row) => [row.date, Number(row.value)]));
+    const dailyActivity = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(activityStart);
+      date.setUTCDate(date.getUTCDate() + index);
+      const key = localDateKey(date);
+      return {
+        date: key,
+        items: itemsByDate.get(key) ?? 0,
+        deliveries: deliveriesByDate.get(key) ?? 0,
+      };
+    });
     return {
       itemsToday: Number(itemCount[0]?.value ?? 0),
       activeSources: Number(sourceCount[0]?.value ?? 0),
       recipients: Number(recipientCount[0]?.value ?? 0),
       deliveriesToday: Number(deliveryCount[0]?.value ?? 0),
       failedDeliveries: Number(failedCount[0]?.value ?? 0),
+      dailyActivity,
+      deliveryOutcomes: {
+        delivered: Number(deliveredCount[0]?.value ?? 0),
+        failed: Number(failedCount[0]?.value ?? 0),
+      },
       latestItems: latestRows.map((row) => toDashboardItem(row.item, row.sourceName)),
       lastFetchAt: latestFetch[0]?.value ?? null,
       connections: {

@@ -25,6 +25,8 @@ export type DashboardSummary = {
   recipients: number;
   deliveriesToday: number;
   failedDeliveries: number;
+  dailyActivity: { date: string; items: number; deliveries: number }[];
+  deliveryOutcomes: { delivered: number; failed: number };
   latestItems: DashboardNewsItem[];
   lastFetchAt: Date | null;
   connections: { whatsapp: boolean; email: boolean };

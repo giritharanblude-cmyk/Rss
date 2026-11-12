@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { DashboardNewsItem } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
 import { LoadingState } from '../components/LoadingState';
+
+const LazyDashboardCharts = lazy(() =>
+  import('../components/DashboardCharts').then((module) => ({
+    default: module.DashboardCharts,
+  })),
+);
 
 export function HomePage() {
   const { data, isLoading, isError } = useQuery({
@@ -116,6 +122,15 @@ export function HomePage() {
                 disconnectedText={connections.has('email') ? 'Not working' : 'Not checked yet'}
               />
             </section>
+            <Suspense
+              fallback={
+                <p className="empty-state" aria-busy="true">
+                  Loading charts…
+                </p>
+              }
+            >
+              <LazyDashboardCharts data={live.data} />
+            </Suspense>
             <section className="latest-section">
               <div className="section-heading">
                 <h2>Latest items</h2>

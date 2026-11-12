@@ -204,6 +204,10 @@ export class MemoryFeedRepository
   }
 
   async getSummary(todayStart: Date, latestLimit: number): Promise<DashboardSummary> {
+    const activityStart = new Date(todayStart);
+    activityStart.setUTCDate(activityStart.getUTCDate() - 6);
+    const dayAfterToday = new Date(todayStart);
+    dayAfterToday.setUTCDate(dayAfterToday.getUTCDate() + 1);
     const activeSources = [...this.sources.values()].filter((source) => source.active).length;
     const visibleNews = [...this.news.values()].filter((item) => !item.duplicateOf);
     const latestItems = visibleNews
@@ -211,6 +215,29 @@ export class MemoryFeedRepository
       .slice(0, latestLimit)
       .map((item) => this.toDashboardItem(item));
     const todayDeliveries = this.deliveries.filter((delivery) => delivery.queuedAt >= todayStart);
+    const itemsByDate = new Map<string, number>();
+    for (const item of visibleNews) {
+      const timestamp = this.sortDate(item);
+      if (timestamp < activityStart || timestamp >= dayAfterToday) continue;
+      const date = this.localDateKey(timestamp);
+      itemsByDate.set(date, (itemsByDate.get(date) ?? 0) + 1);
+    }
+    const deliveriesByDate = new Map<string, number>();
+    for (const delivery of this.deliveries) {
+      if (delivery.queuedAt < activityStart || delivery.queuedAt >= dayAfterToday) continue;
+      const date = this.localDateKey(delivery.queuedAt);
+      deliveriesByDate.set(date, (deliveriesByDate.get(date) ?? 0) + 1);
+    }
+    const dailyActivity = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(activityStart);
+      date.setUTCDate(date.getUTCDate() + index);
+      const key = this.localDateKey(date);
+      return {
+        date: key,
+        items: itemsByDate.get(key) ?? 0,
+        deliveries: deliveriesByDate.get(key) ?? 0,
+      };
+    });
     const lastFetch = [...this.sources.values()]
       .map((source) => source.lastFetchedAt)
       .filter((date): date is Date => date !== null)
@@ -222,6 +249,11 @@ export class MemoryFeedRepository
       recipients: this.recipientsCount,
       deliveriesToday: todayDeliveries.length,
       failedDeliveries: this.deliveries.filter((delivery) => delivery.status === 'failed').length,
+      dailyActivity,
+      deliveryOutcomes: {
+        delivered: this.deliveries.filter((delivery) => delivery.status === 'delivered').length,
+        failed: this.deliveries.filter((delivery) => delivery.status === 'failed').length,
+      },
       latestItems,
       lastFetchAt: lastFetch ?? null,
       connections: { ...this.connections },
@@ -264,6 +296,17 @@ export class MemoryFeedRepository
 
   private sortDate(item: NewsRecord): Date {
     return item.publishedAt ?? item.fetchedAt;
+  }
+
+  private localDateKey(value: Date): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(value);
+    const values = new Map(parts.map((part) => [part.type, part.value]));
+    return `${values.get('year')}-${values.get('month')}-${values.get('day')}`;
   }
 
   private toDashboardItem(item: NewsRecord): DashboardNewsItem {

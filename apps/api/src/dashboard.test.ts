@@ -48,6 +48,10 @@ describe('dashboard and news routes', () => {
       new Date(context.clock.now().getTime() - 24 * 60 * 60_000),
       'failed',
     );
+    await context.feeds.addDeliveryStatusForTest(
+      new Date(context.clock.now().getTime() - 2 * 24 * 60 * 60_000),
+      'delivered',
+    );
 
     const response = await context.app.inject({
       method: 'GET',
@@ -62,9 +66,15 @@ describe('dashboard and news routes', () => {
       recipients: 3,
       deliveriesToday: 1,
       failedDeliveries: 1,
+      deliveryOutcomes: { delivered: 1, failed: 1 },
       connections: { whatsapp: true, email: true },
       latestItems: [{ headline: 'New vaccine advisory', sourceName: 'Health News' }],
     });
+    const dailyActivity = response.json().dailyActivity;
+    expect(dailyActivity).toHaveLength(7);
+    expect(dailyActivity.at(-1)).toMatchObject({ items: 1, deliveries: 1 });
+    expect(dailyActivity.at(-2)).toMatchObject({ items: 0, deliveries: 1 });
+    expect(dailyActivity.at(-3)).toMatchObject({ items: 0, deliveries: 1 });
     const etag = response.headers.etag;
     expect(etag).toBeTruthy();
 
