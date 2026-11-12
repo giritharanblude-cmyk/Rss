@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export * from './auth';
+export * from './contact-mask';
 export * from './sources';
 export * from './recipients';
 export * from './requests';

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
-import { DATABASE_STORAGE_LIMIT_BYTES } from '@healthcare/shared';
+import { DATABASE_STORAGE_LIMIT_BYTES, maskEmail } from '@healthcare/shared';
 import type { SmtpSettings } from '../api/client';
 import { api } from '../api/client';
 import { AppHeader } from '../components/AppHeader';
@@ -55,7 +55,7 @@ export function SettingsPage() {
   });
   const test = useMutation({
     mutationFn: () => api.testEmailSettings(testTo),
-    onSuccess: () => setNotice(`Test email sent to ${testTo}.`),
+    onSuccess: () => setNotice(`Test email sent to ${maskEmail(testTo)}.`),
   });
   const check = useMutation({
     mutationFn: api.checkConnections,
@@ -80,7 +80,9 @@ export function SettingsPage() {
   });
 
   useEffect(() => {
-    if (email.data?.settings) setSettings(email.data.settings);
+    if (email.data?.settings) {
+      setSettings({ ...email.data.settings, user: '', fromEmail: '' });
+    }
   }, [email.data]);
 
   if (me.isLoading)
@@ -152,6 +154,12 @@ export function SettingsPage() {
                   ? 'A password is configured. Re-enter it when saving changes.'
                   : 'No SMTP password has been saved.'}
               </p>
+              {email.data?.settings ? (
+                <p className="form-hint">
+                  Saved username: {maskEmail(email.data.settings.user)} · Sender email:{' '}
+                  {maskEmail(email.data.settings.fromEmail)}. Re-enter both when saving changes.
+                </p>
+              ) : null}
             </div>
           </div>
           <form className="settings-form" onSubmit={saveSettings}>

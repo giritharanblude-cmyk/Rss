@@ -11,6 +11,8 @@ import {
   recipientInputSchema,
   recipientSchema,
   uuidParamsSchema,
+  maskEmail,
+  maskPhone,
 } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { AlertPreviewService } from '../alerts/preview';
@@ -37,9 +39,9 @@ function toRecipientResponse(recipient: RecipientRecord) {
   return recipientSchema.parse({
     id: recipient.id,
     name: recipient.name,
-    whatsappE164: null,
+    whatsappE164: recipient.whatsappE164 ? maskPhone(recipient.whatsappE164) : null,
     hasWhatsapp: recipient.whatsappE164 !== null,
-    email: null,
+    email: recipient.email ? maskEmail(recipient.email) : null,
     hasEmail: recipient.email !== null,
     topics: recipient.topics,
     channel: recipient.channel,

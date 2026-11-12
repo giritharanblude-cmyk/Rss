@@ -210,6 +210,12 @@ describe('Phase 5 pages', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save email settings' }));
     expect(await screen.findByRole('status')).toHaveTextContent('password is encrypted at rest');
+    expect(
+      await screen.findByText(
+        'Saved username: ad***@example.test · Sender email: ad***@example.test. Re-enter both when saving changes.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('admin@example.test')).not.toBeInTheDocument();
     const saveCall = calls.find(
       ({ path, init }) => path === '/api/settings/email' && init?.method === 'PUT',
     );
@@ -235,6 +241,7 @@ describe('Phase 5 pages', () => {
       await screen.findByText('Member account created and login details emailed.'),
     ).toBeInTheDocument();
     expect(await screen.findByText('Ravi')).toBeInTheDocument();
+    expect(await screen.findByText('ra***@example.test')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Disable access' }));
     await waitFor(() =>

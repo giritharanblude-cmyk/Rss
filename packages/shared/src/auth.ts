@@ -7,11 +7,12 @@ export const publicUserSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
   role: userRoleSchema,
+  email: z.string().email().optional(),
 });
 export type PublicUser = z.infer<typeof publicUserSchema>;
 
 export const memberSchema = publicUserSchema.extend({
-  email: z.string().email(),
+  email: z.string().max(260),
   disabled: z.boolean(),
   createdAt: z.string().datetime(),
 });

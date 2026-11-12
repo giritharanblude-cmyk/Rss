@@ -27,6 +27,7 @@ describe('member management', () => {
       payload: { name: 'Ravi', email: 'ravi@example.com', password: 'member-password-1' },
     });
     expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ member: { email: 'ra***@example.com' } });
     expect(context.email.sent.at(-1)).toMatchObject({
       to: 'ravi@example.com',
       subject: 'Your Healthcare News account details',
@@ -47,7 +48,9 @@ describe('member management', () => {
       headers: { cookie },
     });
     expect(list.statusCode).toBe(200);
-    expect(list.json()).toMatchObject({ members: [{ name: 'Ravi', disabled: false }] });
+    expect(list.json()).toMatchObject({
+      members: [{ name: 'Ravi', email: 'ra***@example.com', disabled: false }],
+    });
 
     const reset = await context.app.inject({
       method: 'POST',

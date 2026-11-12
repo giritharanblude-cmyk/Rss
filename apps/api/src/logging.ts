@@ -10,7 +10,7 @@ declare module 'fastify' {
 }
 
 const sensitiveKeyPattern =
-  /^(?:password|newPassword|currentPassword|passwordHash|code|otp|otpCode|token|unsubscribeToken|secret|originSecret|jwt|jwtSecret|apiKey|openwaApiKey|smtpPassword|authorization|cookie|set-cookie|recipientContact|whatsappE164|email|phone)$/i;
+  /^(?:password|newPassword|currentPassword|passwordHash|code|otp|otpCode|token|unsubscribeToken|secret|originSecret|jwt|jwtSecret|apiKey|openwaApiKey|smtpPassword|fromEmail|authorization|cookie|set-cookie|recipientContact|whatsappE164|email|phone)$/i;
 
 const redactedValue = '[REDACTED]';
 
@@ -36,8 +36,10 @@ export const loggerRedactPaths = [
   'jwtSecret',
   'apiKey',
   'smtpPassword',
+  'fromEmail',
   'recipientContact',
   'whatsappE164',
+  'phone',
   'email',
   '*.password',
   '*.newPassword',
@@ -47,8 +49,10 @@ export const loggerRedactPaths = [
   '*.secret',
   '*.apiKey',
   '*.smtpPassword',
+  '*.fromEmail',
   '*.recipientContact',
   '*.whatsappE164',
+  '*.phone',
   '*.email',
   '*.cookie',
 ];
@@ -110,9 +114,7 @@ export function scrubLogPayload(value: unknown, depth = 0): unknown {
 
   const output: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value)) {
-    output[key] = sensitiveKeyPattern.test(key)
-      ? redactedValue
-      : scrubLogPayload(entry, depth + 1);
+    output[key] = sensitiveKeyPattern.test(key) ? redactedValue : scrubLogPayload(entry, depth + 1);
   }
   return output;
 }

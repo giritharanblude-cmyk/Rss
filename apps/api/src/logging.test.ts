@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { redactLogText, sanitizeUrl, scrubLogPayload } from './logging';
+import { loggerRedactPaths, redactLogText, sanitizeUrl, scrubLogPayload } from './logging';
 
 describe('logging redaction', () => {
   it('sanitizes URL tokens and secrets', () => {
@@ -9,12 +9,19 @@ describe('logging redaction', () => {
   });
 
   it('scrubs known secret fields and contact data', () => {
+    expect(loggerRedactPaths).toContain('phone');
+    expect(loggerRedactPaths).toContain('*.phone');
     expect(
       scrubLogPayload({
         password: 'hunter2',
         otp: '123456',
         recipientContact: 'contact:v1.a.b.c',
-        nested: { email: 'person@example.com', token: 'jwt-value' },
+        nested: {
+          email: 'person@example.com',
+          fromEmail: 'sender@example.com',
+          phone: '+919876543210',
+          token: 'jwt-value',
+        },
       }),
     ).toMatchObject({
       password: '[REDACTED]',
@@ -22,6 +29,8 @@ describe('logging redaction', () => {
       recipientContact: '[REDACTED]',
       nested: {
         email: '[REDACTED]',
+        fromEmail: '[REDACTED]',
+        phone: '[REDACTED]',
         token: '[REDACTED]',
       },
     });

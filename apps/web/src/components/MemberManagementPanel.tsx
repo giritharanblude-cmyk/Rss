@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateMemberBody, Member } from '@healthcare/shared';
+import { maskEmail, type CreateMemberBody, type Member } from '@healthcare/shared';
 import { api } from '../api/client';
 import { deleteMember as deleteMemberRequest } from '../api/member-delete';
 import { LoadingState } from './LoadingState';
@@ -159,7 +159,7 @@ export function MemberManagementPanel() {
           <article className="source-card" key={member.id}>
             <div className="source-card-main">
               <h3>{member.name}</h3>
-              <p>{member.email}</p>
+              <p>{maskEmail(member.email)}</p>
               <p>{member.disabled ? 'Access disabled' : 'Access enabled'}</p>
             </div>
             <div className="source-actions">

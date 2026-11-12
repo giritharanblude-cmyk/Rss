@@ -6,6 +6,7 @@ import {
   resetMemberPasswordBodySchema,
   updateMemberBodySchema,
   uuidParamsSchema,
+  maskEmail,
 } from '@healthcare/shared';
 import type { MemberService } from '../auth/members';
 import type { AuthService } from '../auth/service';
@@ -28,7 +29,7 @@ export function toMember(user: UserRecord): Member {
     id: user.id,
     name: user.name,
     role: user.role,
-    email: user.email,
+    email: maskEmail(user.email),
     disabled: user.disabled,
     createdAt: user.createdAt.toISOString(),
   };
