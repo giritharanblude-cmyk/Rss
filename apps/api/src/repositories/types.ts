@@ -20,12 +20,21 @@ export type NewUser = {
   role: UserRole;
 };
 
+export type NewUserSession = {
+  id: string;
+  userId: string;
+  lastActiveAt: Date;
+};
+
 export type UserRepository = {
   findByName(name: string): Promise<UserRecord | null>;
   findById(id: string): Promise<UserRecord | null>;
   listMembers(): Promise<UserRecord[]>;
   countMasters(): Promise<number>;
   create(user: NewUser): Promise<UserRecord>;
+  createSession(session: NewUserSession): Promise<void>;
+  touchSession(id: string, userId: string, idleAfter: Date, lastActiveAt: Date): Promise<boolean>;
+  deleteSession(id: string): Promise<void>;
   deleteMember(id: string): Promise<boolean>;
   setDisabled(id: string, disabled: boolean): Promise<UserRecord | null>;
   updatePasswordHash(id: string, passwordHash: string): Promise<boolean>;

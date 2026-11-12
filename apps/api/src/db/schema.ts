@@ -51,6 +51,19 @@ export const users = pgTable(
   ],
 );
 
+export const userSessions = pgTable(
+  'user_sessions',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lastActiveAt: timestamp('last_active_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('user_sessions_user_id_idx').on(table.userId)],
+);
+
 export const otpCodes = pgTable(
   'otp_codes',
   {

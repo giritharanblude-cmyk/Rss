@@ -50,6 +50,89 @@ describe('sign in with name, password and emailed code', () => {
     expect(me.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
   });
 
+  it('keeps an active session valid by refreshing its last-active time', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+
+    context.clock.advance(6 * 24 * 60 * 60 * 1000);
+    const firstActivity = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie },
+    });
+    expect(firstActivity.statusCode).toBe(200);
+
+    context.clock.advance(6 * 24 * 60 * 60 * 1000);
+    const secondActivity = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: sessionCookieFrom(firstActivity) },
+    });
+    expect(secondActivity.statusCode).toBe(200);
+  });
+
+  it('rejects a session idle for seven days and one millisecond', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    context.clock.advance(7 * 24 * 60 * 60 * 1000 + 1);
+
+    const response = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('requires a new OTP login after the session expires from inactivity', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    context.clock.advance(7 * 24 * 60 * 60 * 1000 + 1);
+
+    const expiredSession = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie },
+    });
+    expect(expiredSession.statusCode).toBe(401);
+
+    const login = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+    expect(login.statusCode).toBe(202);
+    expect(login.json()).toMatchObject({ status: 'otp_sent' });
+
+    const verify = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: 'Admin', code: latestOtpCode(context.email) },
+    });
+    expect(verify.statusCode).toBe(200);
+    const activeSession = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: sessionCookieFrom(verify) },
+    });
+    expect(activeSession.statusCode).toBe(200);
+  });
+
   it('sets the session cookie Secure in production and clears it on logout', async () => {
     context = await createTestContext({
       nodeEnv: 'production',
@@ -91,6 +174,13 @@ describe('sign in with name, password and emailed code', () => {
     expect(clearedCookie).toContain('session=;');
     expect(clearedCookie).toContain('Path=/');
     expect(clearedCookie).toMatch(/(?:Max-Age=0|Expires=Thu, 01 Jan 1970)/i);
+
+    const revokedSession = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { ...headers, cookie: sessionCookieFrom(verify) },
+    });
+    expect(revokedSession.statusCode).toBe(401);
   });
 
   it('stores the password and the code as Argon2id hashes', async () => {

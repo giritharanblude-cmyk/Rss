@@ -1,10 +1,11 @@
-import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
-import { otpCodes, users } from '../db/schema';
+import { otpCodes, userSessions, users } from '../db/schema';
 import { DuplicateMasterError } from '../errors';
 import type {
   NewOtp,
   NewUser,
+  NewUserSession,
   OtpPurpose,
   OtpRecord,
   OtpRepository,
@@ -111,6 +112,34 @@ export class PostgresUserRepository implements UserRepository {
       throw new Error('User was not created');
     }
     return toUser(row);
+  }
+
+  async createSession(session: NewUserSession): Promise<void> {
+    await this.db.insert(userSessions).values(session);
+  }
+
+  async touchSession(
+    id: string,
+    userId: string,
+    idleAfter: Date,
+    lastActiveAt: Date,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(userSessions)
+      .set({ lastActiveAt })
+      .where(
+        and(
+          eq(userSessions.id, id),
+          eq(userSessions.userId, userId),
+          gt(userSessions.lastActiveAt, idleAfter),
+        ),
+      )
+      .returning({ id: userSessions.id });
+    return rows.length === 1;
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    await this.db.delete(userSessions).where(eq(userSessions.id, id));
   }
 
   async setDisabled(id: string, disabled: boolean): Promise<UserRecord | null> {

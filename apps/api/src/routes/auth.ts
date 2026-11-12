@@ -9,7 +9,7 @@ import {
 import type { AuthService } from '../auth/service';
 import { HttpError, UnauthorizedError } from '../errors';
 import type { UserRecord } from '../repositories/types';
-import { verifySession } from '../auth/tokens';
+import { verifySession, type SessionPayload } from '../auth/tokens';
 
 export type AuthRouteOptions = {
   auth: AuthService;
@@ -56,7 +56,12 @@ export async function readUser(
     throw new UnauthorizedError();
   }
   const session = await verifySession(token, jwtSecret);
-  return auth.authenticate(session);
+  if (!session) {
+    throw new UnauthorizedError();
+  }
+  const user = await auth.authenticate(session);
+  request.authenticatedSession = session;
+  return user;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptions): void {
@@ -69,6 +74,14 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
     path: '/',
     maxAge: sessionTtlSeconds,
   };
+
+  app.addHook('onSend', async (request, reply, payload) => {
+    const session = request.authenticatedSession;
+    if (session && !reply.getHeader('set-cookie')) {
+      reply.setCookie(SESSION_COOKIE, auth.refreshSession(session), cookieOptions);
+    }
+    return payload;
+  });
 
   app.post(
     '/api/auth/login',
@@ -105,7 +118,12 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
     },
   );
 
-  app.post('/api/auth/logout', async (_request, reply) => {
+  app.post('/api/auth/logout', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    const session = token ? await verifySession(token, jwtSecret) : null;
+    if (session) {
+      await auth.logout(session);
+    }
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return reply.code(204).send();
   });
@@ -141,6 +159,10 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
 }
 
 declare module 'fastify' {
+  interface FastifyRequest {
+    authenticatedSession?: SessionPayload;
+  }
+
   interface FastifyInstance {
     jwtSecret: string;
   }
