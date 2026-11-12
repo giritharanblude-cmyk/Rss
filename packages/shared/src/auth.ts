@@ -18,7 +18,13 @@ export const memberSchema = publicUserSchema.extend({
 export type Member = z.infer<typeof memberSchema>;
 
 const nameSchema = z.string().trim().min(1, 'Enter your name').max(100);
-const passwordSchema = z.string().min(8, 'Password must be at least 8 characters').max(200);
+const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(200)
+  .regex(/\p{L}/u, 'Password must include at least one letter')
+  .regex(/\p{N}/u, 'Password must include at least one number')
+  .regex(/[\p{P}\p{S}]/u, 'Password must include at least one symbol');
 const otpCodeSchema = z
   .string()
   .trim()
