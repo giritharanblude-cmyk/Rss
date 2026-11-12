@@ -76,7 +76,7 @@ describe('App', () => {
       vi.fn(async (input: string | URL | Request) => {
         const path = String(input);
         if (path === '/api/auth/login') {
-          return jsonResponse(202, { status: 'otp_sent', message: 'Check the admin email.' });
+          return jsonResponse(202, { status: 'otp_sent', message: 'Check your account email.' });
         }
         if (path === '/api/auth/verify-otp') {
           hasSession = true;
