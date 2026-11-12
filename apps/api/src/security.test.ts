@@ -141,6 +141,26 @@ describe('csrf protection', () => {
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ error: 'Request origin is not allowed.' });
   });
+
+  it.each([
+    { origin: 'https://ba3bcf76.rss-2t2.pages.dev', statusCode: 202 },
+    { origin: 'https://abc123.rss-2t2.pages.dev', statusCode: 202 },
+    { origin: 'https://evil-rss-2t2.pages.dev.example.com', statusCode: 403 },
+    { origin: 'http://abc123.rss-2t2.pages.dev', statusCode: 403 },
+  ])('handles deployment origin $origin', async ({ origin, statusCode }) => {
+    context = await createTestContext({ publicOrigin: testConfig.PUBLIC_APP_ORIGIN });
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { origin },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(statusCode);
+    if (statusCode === 403) {
+      expect(response.json()).toMatchObject({ error: 'Request origin is not allowed.' });
+    }
+  });
 });
 
 describe('protected routes', () => {
