@@ -9,6 +9,7 @@ import { AlertsPage } from './pages/AlertsPage';
 import { SourcesPage } from './pages/SourcesPage';
 import { DeliveryLogPage } from './pages/DeliveryLogPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { ManageTopicsPage, UnsubscribePage } from './pages/PublicRecipientPage';
 
 export function App() {
@@ -33,6 +34,7 @@ export function App() {
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/deliveries" element={<DeliveryLogPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/preferences/:token" element={<ManageTopicsPage />} />
           <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

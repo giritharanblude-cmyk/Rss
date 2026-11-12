@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { UnauthorizedError, LockedError } from '../errors';
+import { UnauthorizedError, LockedError, HttpError } from '../errors';
 import type { OtpService } from './otp';
 import type { UserRecord, UserRepository } from '../repositories/types';
 import { hashPassword, verifyPassword } from './passwords';
@@ -145,6 +145,42 @@ export class AuthService {
 
     const passwordHash = await hashPassword(newPassword);
     if (!(await this.options.users.updatePasswordHash(user.id, passwordHash))) {
+      throw new UnauthorizedError();
+    }
+  }
+
+  async requestContactChange(
+    userId: string,
+    contacts: { email: string; phone: string | null },
+  ): Promise<void> {
+    const user = await this.options.users.findById(userId);
+    if (!user || user.disabled) {
+      throw new UnauthorizedError();
+    }
+    if (contacts.email.trim().toLowerCase() === user.email && contacts.phone === user.phone) {
+      throw new HttpError(400, 'Enter a new email address or phone number.');
+    }
+    await this.options.otp.request(
+      { userId: user.id, name: user.name, email: user.email },
+      'contact_change',
+    );
+  }
+
+  async changeContacts(
+    userId: string,
+    contacts: { email: string; phone: string | null },
+    code: string,
+  ): Promise<void> {
+    const user = await this.options.users.findById(userId);
+    if (!user || user.disabled) {
+      throw new UnauthorizedError();
+    }
+    await this.options.otp.verify(
+      { userId: user.id, name: user.name, email: user.email },
+      'contact_change',
+      code,
+    );
+    if (!(await this.options.users.updateContacts(user.id, contacts.email, contacts.phone))) {
       throw new UnauthorizedError();
     }
   }

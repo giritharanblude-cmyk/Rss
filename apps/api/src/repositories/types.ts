@@ -4,6 +4,7 @@ export type UserRecord = {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
   role: UserRole;
   passwordHash: string;
   sessionVersion: number;
@@ -37,13 +38,14 @@ export type UserRepository = {
   deleteSession(id: string): Promise<void>;
   deleteMember(id: string): Promise<boolean>;
   setDisabled(id: string, disabled: boolean): Promise<UserRecord | null>;
+  updateContacts(id: string, email: string, phone: string | null): Promise<boolean>;
   updatePasswordHash(id: string, passwordHash: string): Promise<boolean>;
   recordLoginFailure(id: string): Promise<number>;
   resetLoginFailures(id: string): Promise<void>;
   lockUntil(id: string, when: Date): Promise<void>;
 };
 
-export type OtpPurpose = 'login' | 'password_change';
+export type OtpPurpose = 'login' | 'password_change' | 'contact_change';
 
 export type OtpRecord = {
   id: string;

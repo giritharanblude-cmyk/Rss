@@ -17,6 +17,7 @@ export type OtpServiceOptions = {
 export type OtpTarget = {
   userId: string;
   name: string;
+  email?: string;
 };
 
 export class OtpService {
@@ -57,15 +58,20 @@ export class OtpService {
 
     try {
       await this.options.email.send({
-        to: this.options.adminEmail,
-        subject: 'Your Healthcare News verification code',
+        to: target.email ?? this.options.adminEmail,
+        subject:
+          purpose === 'contact_change'
+            ? 'Your Healthcare News contact change verification code'
+            : 'Your Healthcare News verification code',
         text: [
           `Hello ${target.name},`,
           '',
           `Your verification code is ${code}.`,
           `It expires in ${Math.round(this.ttlSeconds / 60)} minutes.`,
           '',
-          'If you did not try to sign in, you can ignore this email.',
+          purpose === 'contact_change'
+            ? 'If you did not request a contact change, you can ignore this email.'
+            : 'If you did not try to sign in, you can ignore this email.',
         ].join('\n'),
       });
     } catch (error) {

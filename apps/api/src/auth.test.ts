@@ -3,6 +3,7 @@ import {
   createTestContext,
   latestOtpCode,
   loginAndVerify,
+  seedMember,
   sessionCookieFrom,
   type TestContext,
 } from './test/helpers';
@@ -54,8 +55,81 @@ describe('sign in with name, password and emailed code', () => {
     });
     expect(me.statusCode).toBe(200);
     expect(me.json()).toMatchObject({
-      user: { name: 'Admin', role: 'master', email: 'admin@example.com' },
+      user: { name: 'Admin', role: 'master', email: 'admin@example.com', phone: null },
     });
+  });
+
+  it.each([
+    { role: 'master', name: 'Admin', email: 'admin@example.com' },
+    { role: 'member', name: 'Mina', email: 'mina@example.test' },
+  ])('$role must verify contact changes with an OTP sent to the current email', async (account) => {
+    context = await createTestContext();
+    if (account.role === 'member') {
+      await seedMember(context.users, {
+        name: account.name,
+        email: account.email,
+        password: 'member-password-1',
+      });
+    }
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      account.name,
+      account.role === 'master' ? 'master-password-1' : 'member-password-1',
+    );
+    const user = await context.users.findByName(account.name);
+    if (!user) throw new Error('Expected the account to exist.');
+
+    const contacts = {
+      email: `${account.name.toLowerCase()}-new@example.test`,
+      phone: '+14155552671',
+    };
+    const request = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/request',
+      headers: { cookie },
+      payload: contacts,
+    });
+    expect(request.statusCode).toBe(202);
+    expect(context.email.sent.at(-1)?.to).toBe(account.email);
+
+    const withoutOtp = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/verify',
+      headers: { cookie },
+      payload: contacts,
+    });
+    expect(withoutOtp.statusCode).toBe(400);
+
+    const code = latestOtpCode(context.email);
+    const wrongCode = `${(Number(code[0]) + 1) % 10}${code.slice(1)}`;
+    const rejected = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/verify',
+      headers: { cookie },
+      payload: { ...contacts, code: wrongCode },
+    });
+    expect(rejected.statusCode).toBe(400);
+    expect(await context.users.findById(user.id)).toMatchObject({
+      email: account.email,
+      phone: null,
+    });
+
+    const verified = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/verify',
+      headers: { cookie },
+      payload: { ...contacts, code },
+    });
+    expect(verified.statusCode).toBe(204);
+    expect(await context.users.findById(user.id)).toMatchObject(contacts);
+
+    const profile = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie },
+    });
+    expect(profile.json()).toMatchObject({ user: contacts });
   });
 
   it('keeps an active session valid by refreshing its last-active time', async () => {

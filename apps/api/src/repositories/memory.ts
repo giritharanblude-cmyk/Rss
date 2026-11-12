@@ -72,6 +72,7 @@ export class MemoryUserRepository implements UserRepository {
       id: randomUUID(),
       name: user.name.trim(),
       email: user.email.trim().toLowerCase(),
+      phone: null,
       role: user.role,
       passwordHash: user.passwordHash,
       sessionVersion: 0,
@@ -119,6 +120,14 @@ export class MemoryUserRepository implements UserRepository {
     }
     user.disabled = disabled;
     return cloneUser(user);
+  }
+
+  async updateContacts(id: string, email: string, phone: string | null): Promise<boolean> {
+    const user = this.users.get(id);
+    if (!user) return false;
+    user.email = email.trim().toLowerCase();
+    user.phone = phone;
+    return true;
   }
 
   async deleteMember(id: string): Promise<boolean> {
