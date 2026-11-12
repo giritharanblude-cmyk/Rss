@@ -119,6 +119,14 @@ export class PostgresUserRepository implements UserRepository {
     return row ? toUser(row) : null;
   }
 
+  async deleteMember(id: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(users)
+      .where(and(eq(users.id, id), eq(users.role, 'member')))
+      .returning({ id: users.id });
+    return rows.length === 1;
+  }
+
   async updatePasswordHash(id: string, passwordHash: string): Promise<boolean> {
     const rows = await this.db
       .update(users)

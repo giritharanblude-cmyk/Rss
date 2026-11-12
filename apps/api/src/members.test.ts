@@ -187,6 +187,152 @@ describe('member management', () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it('lets the master delete a member without deleting shared sources or recipients', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const member = await seedMember(context.users, {
+      name: 'Ravi',
+      email: 'ravi@example.com',
+      password: 'member-password-1',
+    });
+    const source = await context.feeds.createSource({
+      name: 'Health News',
+      website: 'https://news.example.test',
+      rssUrl: 'https://news.example.test/feed.xml',
+      mode: 'all',
+      topics: [],
+      region: null,
+      intervalMinutes: 60,
+      active: true,
+    });
+    const recipient = await context.recipients.createRecipient(
+      {
+        name: 'Asha',
+        whatsappE164: null,
+        email: 'asha@example.test',
+        topics: ['Outbreaks and public health'],
+        channel: 'email',
+      },
+      'a'.repeat(64),
+    );
+
+    const response = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/members/${member.id}`,
+      headers: { cookie },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(await context.users.findById(member.id)).toBeNull();
+    expect(await context.users.findById(context.master.id)).not.toBeNull();
+    expect((await context.feeds.listSources()).map(({ id }) => id)).toContain(source.id);
+    expect((await context.recipients.listRecipients()).map(({ id }) => id)).toContain(recipient.id);
+  });
+
+  it('rejects a deleted member’s existing session immediately', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Ravi',
+      email: 'ravi@example.com',
+      password: 'member-password-1',
+    });
+    const { cookie: memberCookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Ravi',
+      'member-password-1',
+    );
+    const { cookie: masterCookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const deleted = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/members/${member.id}`,
+      headers: { cookie: masterCookie },
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    const session = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: memberCookie },
+    });
+    expect(session.statusCode).toBe(401);
+  });
+
+  it('rejects sign-in for a deleted member', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Ravi',
+      email: 'ravi@example.com',
+      password: 'member-password-1',
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    await context.app.inject({
+      method: 'DELETE',
+      url: `/api/members/${member.id}`,
+      headers: { cookie },
+    });
+
+    const signIn = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Ravi', password: 'member-password-1' },
+    });
+    expect(signIn.statusCode).toBe(401);
+  });
+
+  it('allows the same email again only by creating a new member account', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const first = await context.app.inject({
+      method: 'POST',
+      url: '/api/members',
+      headers: { cookie },
+      payload: { name: 'Ravi', email: 'ravi@example.com', password: 'member-password-1' },
+    });
+    const firstId = (first.json() as { member: { id: string } }).member.id;
+    await context.app.inject({
+      method: 'DELETE',
+      url: `/api/members/${firstId}`,
+      headers: { cookie },
+    });
+
+    const replacement = await context.app.inject({
+      method: 'POST',
+      url: '/api/members',
+      headers: { cookie },
+      payload: { name: 'Ravi', email: 'ravi@example.com', password: 'member-password-2' },
+    });
+
+    expect(replacement.statusCode).toBe(201);
+    const replacementId = (replacement.json() as { member: { id: string } }).member.id;
+    expect(replacementId).not.toBe(firstId);
+    expect(await context.users.findById(firstId)).toBeNull();
+    expect(await context.users.findById(replacementId)).toMatchObject({
+      email: 'ravi@example.com',
+      role: 'member',
+    });
+  });
+
   it('blocks a member from master-only routes', async () => {
     context = await createTestContext();
     const member = await seedMember(context.users, {
@@ -223,6 +369,14 @@ describe('member management', () => {
       payload: { password: 'member-password-2' },
     });
     expect(reset.statusCode).toBe(403);
+
+    const remove = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/members/${member.id}`,
+      headers: { cookie },
+    });
+    expect(remove.statusCode).toBe(403);
+    expect(await context.users.findById(member.id)).not.toBeNull();
   });
 });
 

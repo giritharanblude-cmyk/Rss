@@ -102,7 +102,8 @@ describe('Phase 5 pages', () => {
     const calls: { path: string; init?: RequestInit }[] = [];
     let memberCreated = false;
     let memberDisabled = false;
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    let memberDeleted = false;
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -115,10 +116,15 @@ describe('Phase 5 pages', () => {
         }
         if (path === '/api/members' && (!init?.method || init.method === 'GET')) {
           return jsonResponse(200, {
-            members: memberCreated ? [{ ...member, disabled: memberDisabled }] : [],
+            members:
+              memberCreated && !memberDeleted ? [{ ...member, disabled: memberDisabled }] : [],
           });
         }
         if (path.endsWith('/reset-password')) return jsonResponse(204, {});
+        if (path.startsWith('/api/members/') && init?.method === 'DELETE') {
+          memberDeleted = true;
+          return jsonResponse(204, {});
+        }
         if (path.startsWith('/api/members/') && init?.method === 'PATCH') {
           memberDisabled = true;
           return jsonResponse(200, { member: { ...member, disabled: true } });
@@ -246,5 +252,18 @@ describe('Phase 5 pages', () => {
     ).toBeInTheDocument();
     const resetCall = calls.find(({ path }) => path.endsWith('/reset-password'));
     expect(JSON.parse(String(resetCall?.init?.body))).toEqual({ password: 'member-password-2' });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete member' }));
+    expect(confirm).toHaveBeenCalledWith(
+      "Permanently delete Ravi's account? Their existing sessions will be revoked.",
+    );
+    await waitFor(() =>
+      expect(
+        calls.some(({ path, init }) => path.endsWith(member.id) && init?.method === 'DELETE'),
+      ).toBe(true),
+    );
+    expect(
+      await screen.findByText("Ravi's account was deleted and their sessions were revoked."),
+    ).toBeInTheDocument();
   });
 });

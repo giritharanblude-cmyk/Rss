@@ -91,6 +91,14 @@ export function registerMemberRoutes(app: FastifyInstance, options: MemberRouteO
     return reply.send({ member: toMember(member) });
   });
 
+  app.delete('/api/members/:id', async (request, reply) => {
+    const actor = await readUser(request, auth, jwtSecret);
+    const params = uuidParamsSchema.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'Check the member id and try again.');
+    await members.delete(actor, params.data.id);
+    return reply.code(204).send();
+  });
+
   app.post('/api/members/:id/reset-password', async (request, reply) => {
     const actor = await readUser(request, auth, jwtSecret);
     const body = parseBody(resetMemberPasswordBodySchema, request.body);

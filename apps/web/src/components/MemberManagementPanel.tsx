@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateMemberBody, Member } from '@healthcare/shared';
 import { api } from '../api/client';
+import { deleteMember as deleteMemberRequest } from '../api/member-delete';
 import { LoadingState } from './LoadingState';
 import { Toast } from './Toast';
 import { PageControls } from './PageControls';
@@ -54,7 +55,15 @@ export function MemberManagementPanel() {
       setNotice('Password reset. The member’s existing sessions are revoked.');
     },
   });
-  const error = create.error ?? update.error ?? reset.error;
+  const remove = useMutation({
+    mutationFn: (member: Member) => deleteMemberRequest(member.id),
+    onSuccess: async (_result, member) => {
+      await queryClient.invalidateQueries({ queryKey: ['members'] });
+      setResettingId((current) => (current === member.id ? null : current));
+      setNotice(`${member.name}'s account was deleted and their sessions were revoked.`);
+    },
+  });
+  const error = create.error ?? update.error ?? reset.error ?? remove.error;
 
   function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,6 +81,18 @@ export function MemberManagementPanel() {
     if (disabled && !window.confirm(`Disable access for ${member.name}?`)) return;
     setNotice(null);
     update.mutate({ member, disabled });
+  }
+
+  function deleteMember(member: Member) {
+    if (
+      !window.confirm(
+        `Permanently delete ${member.name}'s account? Their existing sessions will be revoked.`,
+      )
+    ) {
+      return;
+    }
+    setNotice(null);
+    remove.mutate(member);
   }
 
   return (
@@ -159,6 +180,14 @@ export function MemberManagementPanel() {
                 }}
               >
                 Reset password
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                disabled={remove.isPending}
+                onClick={() => deleteMember(member)}
+              >
+                Delete member
               </button>
             </div>
             {resettingId === member.id ? (
