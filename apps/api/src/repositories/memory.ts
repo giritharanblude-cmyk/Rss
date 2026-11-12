@@ -91,6 +91,11 @@ export class MemoryUserRepository implements UserRepository {
     return cloneUser(user);
   }
 
+  async deleteMember(id: string): Promise<boolean> {
+    const user = this.users.get(id);
+    return user?.role === 'member' ? this.users.delete(id) : false;
+  }
+
   async updatePasswordHash(id: string, passwordHash: string): Promise<boolean> {
     const user = this.users.get(id);
     if (!user) {

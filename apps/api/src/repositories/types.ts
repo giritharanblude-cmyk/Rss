@@ -26,6 +26,7 @@ export type UserRepository = {
   listMembers(): Promise<UserRecord[]>;
   countMasters(): Promise<number>;
   create(user: NewUser): Promise<UserRecord>;
+  deleteMember(id: string): Promise<boolean>;
   setDisabled(id: string, disabled: boolean): Promise<UserRecord | null>;
   updatePasswordHash(id: string, passwordHash: string): Promise<boolean>;
   recordLoginFailure(id: string): Promise<number>;

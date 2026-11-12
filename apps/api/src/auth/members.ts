@@ -49,6 +49,23 @@ export class MemberService {
     return updated;
   }
 
+  async delete(actor: UserRecord, memberId: string): Promise<void> {
+    this.assertMaster(actor);
+    if (actor.id === memberId) {
+      throw new ForbiddenError('You cannot delete your own account.');
+    }
+    const member = await this.users.findById(memberId);
+    if (!member) {
+      throw new HttpError(404, 'That member was not found.');
+    }
+    if (member.role !== 'member') {
+      throw new ForbiddenError('Only member accounts can be deleted here.');
+    }
+    if (!(await this.users.deleteMember(memberId))) {
+      throw new HttpError(404, 'That member was not found.');
+    }
+  }
+
   async resetPassword(
     actor: UserRecord,
     memberId: string,
