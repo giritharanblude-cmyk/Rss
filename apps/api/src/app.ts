@@ -36,6 +36,7 @@ import { loggerOptions, requestLogEntry } from './logging';
 import { FeedTestQueue } from './rss/background';
 import { FeedService } from './rss/service';
 import { AlertPreviewService } from './alerts/preview';
+import { SESSION_IDLE_TIMEOUT_SECONDS } from './auth/tokens';
 
 export type AppDeps = {
   users: UserRepository;
@@ -85,7 +86,10 @@ export type AppDeps = {
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: loggerOptions });
 
-  const sessionTtlSeconds = deps.sessionTtlSeconds ?? 8 * 60 * 60;
+  const sessionTtlSeconds = Math.max(
+    deps.sessionTtlSeconds ?? 8 * 60 * 60,
+    SESSION_IDLE_TIMEOUT_SECONDS,
+  );
   const now = deps.now ?? (() => new Date());
   const publicOrigin = deps.publicOrigin ?? 'https://news.example.test';
 

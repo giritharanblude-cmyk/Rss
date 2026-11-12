@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { UnauthorizedError, LockedError } from '../errors';
 import type { OtpService } from './otp';
 import type { UserRecord, UserRepository } from '../repositories/types';
 import { hashPassword, verifyPassword } from './passwords';
-import { signSession, type SessionPayload } from './tokens';
+import { SESSION_IDLE_TIMEOUT_SECONDS, signSession, type SessionPayload } from './tokens';
 
 export type AuthServiceOptions = {
   users: UserRepository;
@@ -85,13 +86,34 @@ export class AuthService {
     await this.checkLock(user);
     await this.options.otp.verify({ userId: user.id, name: user.name }, 'login', code);
 
-    const token = await signSession(
+    const sessionId = randomUUID();
+    await this.options.users.createSession({
+      id: sessionId,
+      userId: user.id,
+      lastActiveAt: this.now(),
+    });
+    const token = signSession(
       user.id,
       this.options.jwtSecret,
       this.options.sessionTtlSeconds,
       user.sessionVersion,
+      sessionId,
     );
     return { user, token };
+  }
+
+  refreshSession(session: SessionPayload): string {
+    return signSession(
+      session.userId,
+      this.options.jwtSecret,
+      this.options.sessionTtlSeconds,
+      session.sessionVersion,
+      session.sessionId,
+    );
+  }
+
+  async logout(session: SessionPayload): Promise<void> {
+    await this.options.users.deleteSession(session.sessionId);
   }
 
   async requestPasswordCode(userId: string): Promise<void> {
@@ -133,6 +155,11 @@ export class AuthService {
     }
     const user = await this.options.users.findById(session.userId);
     if (!user || user.disabled || session.sessionVersion !== user.sessionVersion) {
+      throw new UnauthorizedError();
+    }
+    const now = this.now();
+    const idleAfter = new Date(now.getTime() - SESSION_IDLE_TIMEOUT_SECONDS * 1000);
+    if (!(await this.options.users.touchSession(session.sessionId, user.id, idleAfter, now))) {
       throw new UnauthorizedError();
     }
     return user;

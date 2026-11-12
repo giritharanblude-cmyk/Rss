@@ -3,6 +3,7 @@ import { DuplicateMasterError } from '../errors';
 import type {
   NewOtp,
   NewUser,
+  NewUserSession,
   OtpPurpose,
   OtpRecord,
   OtpRepository,
@@ -20,6 +21,7 @@ function cloneOtp(otp: OtpRecord): OtpRecord {
 
 export class MemoryUserRepository implements UserRepository {
   private readonly users = new Map<string, UserRecord>();
+  private readonly sessions = new Map<string, { userId: string; lastActiveAt: Date }>();
   private readonly now: () => Date;
 
   constructor(now: () => Date = () => new Date()) {
@@ -82,6 +84,34 @@ export class MemoryUserRepository implements UserRepository {
     return cloneUser(record);
   }
 
+  async createSession(session: NewUserSession): Promise<void> {
+    if (!this.users.has(session.userId)) {
+      throw new Error('Session user was not found');
+    }
+    this.sessions.set(session.id, {
+      userId: session.userId,
+      lastActiveAt: new Date(session.lastActiveAt),
+    });
+  }
+
+  async touchSession(
+    id: string,
+    userId: string,
+    idleAfter: Date,
+    lastActiveAt: Date,
+  ): Promise<boolean> {
+    const session = this.sessions.get(id);
+    if (!session || session.userId !== userId || session.lastActiveAt <= idleAfter) {
+      return false;
+    }
+    session.lastActiveAt = new Date(lastActiveAt);
+    return true;
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    this.sessions.delete(id);
+  }
+
   async setDisabled(id: string, disabled: boolean): Promise<UserRecord | null> {
     const user = this.users.get(id);
     if (!user) {
@@ -93,7 +123,14 @@ export class MemoryUserRepository implements UserRepository {
 
   async deleteMember(id: string): Promise<boolean> {
     const user = this.users.get(id);
-    return user?.role === 'member' ? this.users.delete(id) : false;
+    if (user?.role !== 'member') {
+      return false;
+    }
+    this.users.delete(id);
+    for (const [sessionId, session] of this.sessions) {
+      if (session.userId === id) this.sessions.delete(sessionId);
+    }
+    return true;
   }
 
   async updatePasswordHash(id: string, passwordHash: string): Promise<boolean> {
