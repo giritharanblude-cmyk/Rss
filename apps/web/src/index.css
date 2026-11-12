@@ -375,6 +375,38 @@ button:disabled {
   margin-top: 1rem;
 }
 
+.dashboard-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.dashboard-chart-card {
+  min-width: 0;
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 10px;
+}
+
+.dashboard-chart-card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.dashboard-chart-canvas {
+  position: relative;
+  height: 220px;
+}
+
+.chart-summary {
+  margin: 0.75rem 0 0;
+  color: #52606d;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
 .connection-card {
   display: flex;
   align-items: center;
@@ -426,6 +458,12 @@ button:disabled {
 
 .feed-filters button {
   margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .dashboard-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .news-list {
@@ -860,6 +898,7 @@ button:disabled {
   }
 
   .connection-grid,
+  .dashboard-chart-grid,
   .feed-filters {
     grid-template-columns: 1fr;
   }

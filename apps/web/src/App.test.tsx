@@ -21,6 +21,8 @@ const emptyDashboard = {
   recipients: 0,
   deliveriesToday: 0,
   failedDeliveries: 0,
+  dailyActivity: [],
+  deliveryOutcomes: { delivered: 0, failed: 0 },
   latestItems: [],
   lastFetchAt: null,
   connections: { whatsapp: false, email: false },
