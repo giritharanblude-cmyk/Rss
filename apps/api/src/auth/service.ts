@@ -32,7 +32,7 @@ export class AuthService {
   }
 
   private async findActiveUser(name: string): Promise<UserRecord> {
-    const user = await this.options.users.findByName(name);
+    const user = await this.options.users.findByLogin(name);
     if (!user || user.disabled) {
       throw new UnauthorizedError('Name or password is incorrect.');
     }
@@ -56,7 +56,7 @@ export class AuthService {
   }
 
   async login(name: string, password: string): Promise<void> {
-    const user = await this.options.users.findByName(name);
+    const user = await this.options.users.findByLogin(name);
     if (!user || user.disabled) {
       throw new UnauthorizedError('Name or password is incorrect.');
     }
@@ -73,7 +73,7 @@ export class AuthService {
   }
 
   async resendLoginCode(name: string): Promise<void> {
-    const user = await this.options.users.findByName(name);
+    const user = await this.options.users.findByLogin(name);
     if (!user || user.disabled) {
       return;
     }

@@ -38,6 +38,8 @@ export const users = pgTable(
     role: userRole('role').notNull().default('member'),
     email: text('email').notNull(),
     phone: text('phone'),
+    emailLookupHash: text('email_lookup_hash').notNull(),
+    phoneLookupHash: text('phone_lookup_hash'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     sessionVersion: integer('session_version').notNull().default(0),
     disabled: boolean('disabled').notNull().default(false),
@@ -46,6 +48,8 @@ export const users = pgTable(
   },
   (table) => [
     uniqueIndex('users_name_key_unique').on(table.nameKey),
+    uniqueIndex('users_email_lookup_hash_unique').on(table.emailLookupHash),
+    uniqueIndex('users_phone_lookup_hash_unique').on(table.phoneLookupHash),
     uniqueIndex('users_single_master_unique')
       .on(table.role)
       .where(sql`${table.role} = 'master'`),

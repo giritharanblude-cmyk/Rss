@@ -20,6 +20,7 @@ export const memberSchema = publicUserSchema.extend({
 export type Member = z.infer<typeof memberSchema>;
 
 const nameSchema = z.string().trim().min(1, 'Enter your name').max(100);
+const loginIdentifierSchema = z.string().trim().min(1, 'Enter your name or email').max(254);
 const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters')
@@ -47,18 +48,18 @@ export const verifyContactChangeBodySchema = contactDetailsSchema.extend({ code:
 export type VerifyContactChangeBody = z.infer<typeof verifyContactChangeBodySchema>;
 
 export const loginBodySchema = z.object({
-  name: nameSchema,
+  name: loginIdentifierSchema,
   password: z.string().min(1, 'Enter your password').max(200),
 });
 export type LoginBody = z.infer<typeof loginBodySchema>;
 
 export const verifyOtpBodySchema = z.object({
-  name: nameSchema,
+  name: loginIdentifierSchema,
   code: otpCodeSchema,
 });
 export type VerifyOtpBody = z.infer<typeof verifyOtpBodySchema>;
 
-export const resendOtpBodySchema = z.object({ name: nameSchema });
+export const resendOtpBodySchema = z.object({ name: loginIdentifierSchema });
 export type ResendOtpBody = z.infer<typeof resendOtpBodySchema>;
 
 export const changePasswordBodySchema = z.object({

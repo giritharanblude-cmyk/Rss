@@ -6,12 +6,20 @@ import {
   decryptSettings,
   encryptRecipientContact,
   encryptSettings,
+  hashUserContactLookup,
 } from './settings/secrets';
 
 const oldKey = '9f'.repeat(32);
 const newKey = 'a1'.repeat(32);
 
 type RotationState = {
+  users: {
+    id: string;
+    email: string;
+    phone: string | null;
+    email_lookup_hash: string;
+    phone_lookup_hash: string | null;
+  }[];
   recipients: { id: string; whatsapp_e164: string | null; email: string | null }[];
   settings: { key: string; encrypted_value: string }[];
 };
@@ -25,6 +33,7 @@ function rotationPool(
     if (snapshot) {
       state.recipients = snapshot.recipients;
       state.settings = snapshot.settings;
+      state.users = snapshot.users;
     }
   });
   const client = {
@@ -37,6 +46,26 @@ function rotationPool(
       if (sql === 'COMMIT') return { rows: [] };
       if (sql === 'ROLLBACK') {
         await rollback();
+        return { rows: [] };
+      }
+      if (sql.startsWith('SELECT ID, EMAIL, PHONE')) {
+        return { rows: structuredClone(state.users) };
+      }
+      if (sql.startsWith('UPDATE USERS')) {
+        const [id, email, phone, emailLookupHash, phoneLookupHash] = values as [
+          string,
+          string,
+          string | null,
+          string,
+          string | null,
+        ];
+        const user = state.users.find((row) => row.id === id);
+        if (user) {
+          user.email = email;
+          user.phone = phone;
+          user.email_lookup_hash = emailLookupHash;
+          user.phone_lookup_hash = phoneLookupHash;
+        }
         return { rows: [] };
       }
       if (sql.startsWith('SELECT ID, WHATSAPP_E164, EMAIL')) {
@@ -73,6 +102,15 @@ function rotationPool(
 
 function initialState(): RotationState {
   return {
+    users: [
+      {
+        id: 'user-1',
+        email: encryptRecipientContact('person@example.test', oldKey),
+        phone: encryptRecipientContact('+14155550123', oldKey),
+        email_lookup_hash: hashUserContactLookup('email', 'person@example.test', oldKey),
+        phone_lookup_hash: hashUserContactLookup('phone', '+14155550123', oldKey),
+      },
+    ],
     recipients: [
       {
         id: 'recipient-1',
@@ -98,10 +136,19 @@ describe('encryption key rotation', () => {
     const { pool } = rotationPool(state);
 
     await expect(rotateEncryptionKey(pool, oldKey, newKey)).resolves.toEqual({
+      users: 1,
       recipients: 1,
       settings: 1,
     });
 
+    expect(decryptRecipientContact(state.users[0]!.email, newKey)).toBe('person@example.test');
+    expect(decryptRecipientContact(state.users[0]!.phone!, newKey)).toBe('+14155550123');
+    expect(state.users[0]!.email_lookup_hash).toBe(
+      hashUserContactLookup('email', 'person@example.test', newKey),
+    );
+    expect(state.users[0]!.phone_lookup_hash).toBe(
+      hashUserContactLookup('phone', '+14155550123', newKey),
+    );
     expect(decryptRecipientContact(state.recipients[0]!.whatsapp_e164!, newKey)).toBe(
       '+14155550123',
     );
@@ -113,6 +160,7 @@ describe('encryption key rotation', () => {
     ).toMatchObject({ host: 'smtp.example.test', password: 'mail-secret' });
     expect(() => decryptRecipientContact(state.recipients[0]!.email!, oldKey)).toThrow();
     expect(() => decryptSettings(state.settings[0]!.encrypted_value, oldKey)).toThrow();
+    expect(() => decryptRecipientContact(state.users[0]!.email, oldKey)).toThrow();
   });
 
   it('rolls back all contact changes if an interrupted rotation fails before commit', async () => {

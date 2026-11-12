@@ -4,8 +4,15 @@ import {
   decryptSettings,
   encryptRecipientContact,
   encryptSettings,
+  hashUserContactLookup,
   validateSettingsEncryptionKey,
 } from '../settings/secrets';
+
+type UserContactRow = {
+  id: string;
+  email: string;
+  phone: string | null;
+};
 
 type RecipientContactRow = {
   id: string;
@@ -22,7 +29,7 @@ export async function rotateEncryptionKey(
   pool: Pool,
   oldKey: string,
   newKey: string,
-): Promise<{ recipients: number; settings: number }> {
+): Promise<{ users: number; recipients: number; settings: number }> {
   validateSettingsEncryptionKey(oldKey);
   validateSettingsEncryptionKey(newKey);
   if (oldKey === newKey) throw new Error('The old and new encryption keys must differ.');
@@ -30,6 +37,11 @@ export async function rotateEncryptionKey(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const users = await client.query<UserContactRow>(
+      `SELECT id, email, phone
+       FROM users
+       FOR UPDATE`,
+    );
     const recipients = await client.query<RecipientContactRow>(
       `SELECT id, whatsapp_e164, email
        FROM recipients
@@ -42,6 +54,23 @@ export async function rotateEncryptionKey(
        WHERE key = 'smtp_transport'
        FOR UPDATE`,
     );
+
+    for (const user of users.rows) {
+      const email = decryptRecipientContact(user.email, oldKey);
+      const phone = user.phone ? decryptRecipientContact(user.phone, oldKey) : null;
+      await client.query(
+        `UPDATE users
+         SET email = $2, phone = $3, email_lookup_hash = $4, phone_lookup_hash = $5
+         WHERE id = $1`,
+        [
+          user.id,
+          encryptRecipientContact(email, newKey),
+          phone ? encryptRecipientContact(phone, newKey) : null,
+          hashUserContactLookup('email', email, newKey),
+          phone ? hashUserContactLookup('phone', phone, newKey) : null,
+        ],
+      );
+    }
 
     for (const recipient of recipients.rows) {
       await client.query(
@@ -73,7 +102,11 @@ export async function rotateEncryptionKey(
     }
 
     await client.query('COMMIT');
-    return { recipients: recipients.rows.length, settings: encryptedSettings.rows.length };
+    return {
+      users: users.rows.length,
+      recipients: recipients.rows.length,
+      settings: encryptedSettings.rows.length,
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

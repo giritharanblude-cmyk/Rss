@@ -1,7 +1,13 @@
 import { and, count, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { otpCodes, userSessions, users } from '../db/schema';
-import { DuplicateMasterError } from '../errors';
+import { DuplicateContactError, DuplicateMasterError } from '../errors';
+import {
+  decryptRecipientContact,
+  encryptRecipientContact,
+  hashUserContactLookup,
+  validateSettingsEncryptionKey,
+} from '../settings/secrets';
 import type {
   NewOtp,
   NewUser,
@@ -16,12 +22,23 @@ import type {
 type UserRow = typeof users.$inferSelect;
 type OtpRow = typeof otpCodes.$inferSelect;
 
-function toUser(row: UserRow): UserRecord {
+function toUser(row: UserRow, encryptionKey: string): UserRecord {
+  const email = decryptRecipientContact(row.email, encryptionKey);
+  const phone = row.phone ? decryptRecipientContact(row.phone, encryptionKey) : null;
+  if (row.emailLookupHash !== hashUserContactLookup('email', email, encryptionKey)) {
+    throw new Error('Stored user email lookup hash is invalid.');
+  }
+  if (
+    row.phoneLookupHash !==
+    (phone === null ? null : hashUserContactLookup('phone', phone, encryptionKey))
+  ) {
+    throw new Error('Stored user phone lookup hash is invalid.');
+  }
   return {
     id: row.id,
     name: row.name,
-    email: row.email,
-    phone: row.phone,
+    email,
+    phone,
     role: row.role,
     passwordHash: row.passwordHash,
     sessionVersion: row.sessionVersion,
@@ -45,8 +62,25 @@ function toOtp(row: OtpRow): OtpRecord {
   };
 }
 
+function isDuplicateContactConstraint(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === '23505' &&
+    'constraint' in error &&
+    (error.constraint === 'users_email_lookup_hash_unique' ||
+      error.constraint === 'users_phone_lookup_hash_unique')
+  );
+}
+
 export class PostgresUserRepository implements UserRepository {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    private readonly encryptionKey: string,
+  ) {
+    validateSettingsEncryptionKey(encryptionKey);
+  }
 
   async findByName(name: string): Promise<UserRecord | null> {
     const rows = await this.db
@@ -55,13 +89,26 @@ export class PostgresUserRepository implements UserRepository {
       .where(sql`lower(${users.name}) = lower(${name.trim()})`)
       .limit(1);
     const row = rows[0];
-    return row ? toUser(row) : null;
+    return row ? toUser(row, this.encryptionKey) : null;
+  }
+
+  async findByLogin(identifier: string): Promise<UserRecord | null> {
+    const userByName = await this.findByName(identifier);
+    if (userByName) return userByName;
+    const emailLookupHash = hashUserContactLookup('email', identifier, this.encryptionKey);
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.emailLookupHash, emailLookupHash))
+      .limit(1);
+    const row = rows[0];
+    return row ? toUser(row, this.encryptionKey) : null;
   }
 
   async findById(id: string): Promise<UserRecord | null> {
     const rows = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
     const row = rows[0];
-    return row ? toUser(row) : null;
+    return row ? toUser(row, this.encryptionKey) : null;
   }
 
   async listMembers(): Promise<UserRecord[]> {
@@ -70,7 +117,7 @@ export class PostgresUserRepository implements UserRepository {
       .from(users)
       .where(eq(users.role, 'member'))
       .orderBy(desc(users.createdAt));
-    return rows.map(toUser);
+    return rows.map((row) => toUser(row, this.encryptionKey));
   }
 
   async countMasters(): Promise<number> {
@@ -89,7 +136,10 @@ export class PostgresUserRepository implements UserRepository {
         .values({
           name: user.name.trim(),
           nameKey: user.name.trim().toLowerCase(),
-          email: user.email.trim().toLowerCase(),
+          email: encryptRecipientContact(user.email.trim().toLowerCase(), this.encryptionKey),
+          emailLookupHash: hashUserContactLookup('email', user.email, this.encryptionKey),
+          phone: null,
+          phoneLookupHash: null,
           passwordHash: user.passwordHash,
           role: user.role,
         })
@@ -106,13 +156,16 @@ export class PostgresUserRepository implements UserRepository {
       ) {
         throw new DuplicateMasterError();
       }
+      if (isDuplicateContactConstraint(error)) {
+        throw new DuplicateContactError();
+      }
       throw error;
     }
     const row = rows[0];
     if (!row) {
       throw new Error('User was not created');
     }
-    return toUser(row);
+    return toUser(row, this.encryptionKey);
   }
 
   async createSession(session: NewUserSession): Promise<void> {
@@ -146,16 +199,34 @@ export class PostgresUserRepository implements UserRepository {
   async setDisabled(id: string, disabled: boolean): Promise<UserRecord | null> {
     const rows = await this.db.update(users).set({ disabled }).where(eq(users.id, id)).returning();
     const row = rows[0];
-    return row ? toUser(row) : null;
+    return row ? toUser(row, this.encryptionKey) : null;
   }
 
   async updateContacts(id: string, email: string, phone: string | null): Promise<boolean> {
-    const rows = await this.db
-      .update(users)
-      .set({ email: email.trim().toLowerCase(), phone })
-      .where(eq(users.id, id))
-      .returning({ id: users.id });
-    return rows.length === 1;
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone?.trim() || null;
+    try {
+      const rows = await this.db
+        .update(users)
+        .set({
+          email: encryptRecipientContact(normalizedEmail, this.encryptionKey),
+          emailLookupHash: hashUserContactLookup('email', normalizedEmail, this.encryptionKey),
+          phone: normalizedPhone
+            ? encryptRecipientContact(normalizedPhone, this.encryptionKey)
+            : null,
+          phoneLookupHash: normalizedPhone
+            ? hashUserContactLookup('phone', normalizedPhone, this.encryptionKey)
+            : null,
+        })
+        .where(eq(users.id, id))
+        .returning({ id: users.id });
+      return rows.length === 1;
+    } catch (error) {
+      if (isDuplicateContactConstraint(error)) {
+        throw new DuplicateContactError();
+      }
+      throw error;
+    }
   }
 
   async deleteMember(id: string): Promise<boolean> {
