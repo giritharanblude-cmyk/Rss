@@ -51,7 +51,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.recipientId ? { recipientId: filters.recipientId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
-      ownerUserId: user.id,
+      ownerUserId: user.role === 'master' ? undefined : user.id,
       page: filters.page,
       pageSize: filters.pageSize,
     });
@@ -74,7 +74,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.recipientId ? { recipientId: filters.recipientId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
-      ownerUserId: user.id,
+      ownerUserId: user.role === 'master' ? undefined : user.id,
     };
     const first = await options.deliveries.list({ ...dateFilters, page: 1, pageSize: 100 });
     if (first.total > 5000) {
@@ -122,7 +122,7 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       ...(filters.channel ? { channel: filters.channel } : {}),
       ...(filters.recipientId ? { recipientId: filters.recipientId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
-      ownerUserId: user.id,
+      ownerUserId: user.role === 'master' ? undefined : user.id,
     };
     const first = await options.deliveries.list({ ...dateFilters, page: 1, pageSize: 100 });
     if (first.total > 5000) {
@@ -158,7 +158,13 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
     const user = await readUser(request, options.auth, options.jwtSecret);
     const params = uuidParamsSchema.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'Check the delivery id and try again.');
-    if (!(await options.deliveries.retryFailed(params.data.id, options.now(), user.id))) {
+    if (
+      !(await options.deliveries.retryFailed(
+        params.data.id,
+        options.now(),
+        user.role === 'master' ? undefined : user.id,
+      ))
+    ) {
       throw new HttpError(409, 'Only failed deliveries can be resent.');
     }
     return reply.code(202).send({ status: 'queued' });
@@ -171,7 +177,11 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
     if (!params.success || !body.success) {
       throw new HttpError(400, 'Check the news item and channel and try again.');
     }
-    const queued = await options.service.sendNow(params.data.id, body.data.channel, user.id);
+    const queued = await options.service.sendNow(
+      params.data.id,
+      body.data.channel,
+      user.role === 'master' ? undefined : user.id,
+    );
     return reply.code(202).send({ queued });
   });
 }

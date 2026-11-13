@@ -34,7 +34,11 @@ export type DashboardSummary = {
 };
 
 export type DashboardRepository = {
-  getSummary(todayStart: Date, latestLimit: number): Promise<DashboardSummary>;
+  getSummary(
+    todayStart: Date,
+    latestLimit: number,
+    ownerUserId?: string,
+  ): Promise<DashboardSummary>;
   listNews(filters: NewsFeedFilters): Promise<{ items: DashboardNewsItem[]; total: number }>;
   setImportant(id: string, important: boolean): Promise<boolean>;
 };

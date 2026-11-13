@@ -86,6 +86,86 @@ describe('dashboard and news routes', () => {
     expect(unchanged.statusCode).toBe(304);
   });
 
+  it('scopes dashboard metrics and news to members while masters see every owner', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const masterSource = await context.feeds.createSource(
+      { ...sourceInput, name: 'Master News' },
+      context.master.id,
+    );
+    const memberSource = await context.feeds.createSource(
+      { ...sourceInput, name: 'Member News' },
+      member.id,
+    );
+    const now = context.clock.now();
+    await context.feeds.addNewsForTest(
+      { sourceId: masterSource.id, headline: 'Master item', publishedAt: now },
+      now,
+    );
+    await context.feeds.addNewsForTest(
+      { sourceId: memberSource.id, headline: 'Member item', publishedAt: now },
+      now,
+    );
+    context.feeds.setRecipientsCountForTest(2, context.master.id);
+    context.feeds.setRecipientsCountForTest(1, member.id);
+    await context.feeds.addDeliveryStatusForTest(now, 'failed', context.master.id);
+    await context.feeds.addDeliveryStatusForTest(now, 'pending', member.id);
+    const masterCookie = (
+      await loginAndVerify(context.app, context.email, 'Admin', 'master-password-1')
+    ).cookie;
+    const memberCookie = (
+      await loginAndVerify(context.app, context.email, member.name, 'member-password-1')
+    ).cookie;
+
+    const memberDashboard = await context.app.inject({
+      method: 'GET',
+      url: '/api/dashboard/live',
+      headers: { cookie: memberCookie },
+    });
+    const masterDashboard = await context.app.inject({
+      method: 'GET',
+      url: '/api/dashboard/live',
+      headers: { cookie: masterCookie },
+    });
+    const memberNews = await context.app.inject({
+      method: 'GET',
+      url: '/api/news',
+      headers: { cookie: memberCookie },
+    });
+    const masterNews = await context.app.inject({
+      method: 'GET',
+      url: '/api/news',
+      headers: { cookie: masterCookie },
+    });
+
+    expect(memberDashboard.json()).toMatchObject({
+      itemsToday: 1,
+      activeSources: 1,
+      recipients: 1,
+      deliveriesToday: 1,
+      failedDeliveries: 0,
+      latestItems: [{ headline: 'Member item' }],
+    });
+    expect(masterDashboard.json()).toMatchObject({
+      itemsToday: 2,
+      activeSources: 2,
+      recipients: 3,
+      deliveriesToday: 2,
+      failedDeliveries: 1,
+    });
+    expect(masterDashboard.json().latestItems.map((item: { headline: string }) => item.headline))
+      .toEqual(expect.arrayContaining(['Member item', 'Master item']));
+    expect(memberNews.json()).toMatchObject({
+      total: 1,
+      items: [{ headline: 'Member item' }],
+    });
+    expect(masterNews.json()).toMatchObject({ total: 2 });
+  });
+
   it('allows masters to mark items important while members can only read news', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(

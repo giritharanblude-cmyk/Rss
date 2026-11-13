@@ -54,8 +54,12 @@ export function registerDashboardRoutes(
   options: DashboardRouteOptions,
 ): void {
   app.get('/api/dashboard/live', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
-    const summary = await options.dashboard.getSummary(todayStart(options.now()), 5);
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    const summary = await options.dashboard.getSummary(
+      todayStart(options.now()),
+      5,
+      user.role === 'master' ? undefined : user.id,
+    );
     const payload = {
       ...summary,
       latestItems: summary.latestItems.map(toResponseItem),
@@ -77,7 +81,7 @@ export function registerDashboardRoutes(
   });
 
   app.get('/api/news', async (request, reply) => {
-    await readUser(request, options.auth, options.jwtSecret);
+    const user = await readUser(request, options.auth, options.jwtSecret);
     const query = newsListQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the news filters and try again.');
     const filters = query.data;
@@ -87,6 +91,7 @@ export function registerDashboardRoutes(
       ...(filters.from ? { from: localDateStart(filters.from) } : {}),
       ...(filters.to ? { toExclusive: localDateAfter(filters.to) } : {}),
       ...(filters.q ? { query: filters.q } : {}),
+      ownerUserId: user.role === 'master' ? undefined : user.id,
       page: filters.page,
       pageSize: filters.pageSize,
     });

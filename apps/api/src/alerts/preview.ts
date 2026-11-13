@@ -30,7 +30,7 @@ export class AlertPreviewService {
     private readonly now: () => Date,
   ) {}
 
-  async build(input: AlertPreviewInput, ownerUserId: string) {
+  async build(input: AlertPreviewInput, ownerUserId?: string) {
     const rules = await this.rules.listAlertRules(ownerUserId);
     const selected = input.ruleId ? rules.find((rule) => rule.id === input.ruleId) : undefined;
     if (input.ruleId && !selected) throw new HttpError(404, 'That alert rule was not found.');
@@ -69,7 +69,7 @@ export class AlertPreviewService {
       if (!recipientCategories.length) continue;
       const since = input.kind === 'digest' ? await this.preview.lastDigestAt(recipient.id) : null;
       const items = await this.preview.listPreviewNews({
-        ownerUserId,
+        ...(ownerUserId ? { ownerUserId } : {}),
         since,
         importantOnly: input.kind === 'instant',
         categories: recipientCategories,
