@@ -44,7 +44,11 @@ function localDateKey(value: Date): string {
 export class PostgresDashboardRepository implements DashboardRepository {
   constructor(private readonly db: Database) {}
 
-  async getSummary(todayStart: Date, latestLimit: number): Promise<DashboardSummary> {
+  async getSummary(
+    todayStart: Date,
+    latestLimit: number,
+    ownerUserId?: string,
+  ): Promise<DashboardSummary> {
     const activityStart = new Date(todayStart);
     activityStart.setUTCDate(activityStart.getUTCDate() - 6);
     const dayAfterToday = new Date(todayStart);
@@ -57,6 +61,9 @@ export class PostgresDashboardRepository implements DashboardRepository {
       ${deliveries.queuedAt} AT TIME ZONE 'Asia/Kolkata',
       'YYYY-MM-DD'
     )`;
+    const ownerSource = ownerUserId ? eq(sources.ownerUserId, ownerUserId) : undefined;
+    const ownerRecipient = ownerUserId ? eq(recipients.ownerUserId, ownerUserId) : undefined;
+    const ownerDelivery = ownerUserId ? eq(deliveries.ownerUserId, ownerUserId) : undefined;
     const [
       itemCount,
       sourceCount,
@@ -73,43 +80,66 @@ export class PostgresDashboardRepository implements DashboardRepository {
       this.db
         .select({ value: count() })
         .from(newsItems)
+        .innerJoin(sources, eq(newsItems.sourceId, sources.id))
         .where(
           and(
             isNull(newsItems.duplicateOf),
+            ...(ownerSource ? [ownerSource] : []),
             or(
               gte(newsItems.publishedAt, todayStart),
               and(isNull(newsItems.publishedAt), gte(newsItems.fetchedAt, todayStart)),
             ),
           ),
         ),
-      this.db.select({ value: count() }).from(sources).where(eq(sources.active, true)),
-      this.db.select({ value: count() }).from(recipients),
+      this.db
+        .select({ value: count() })
+        .from(sources)
+        .where(and(eq(sources.active, true), ...(ownerSource ? [ownerSource] : []))),
+      this.db
+        .select({ value: count() })
+        .from(recipients)
+        .where(ownerRecipient),
       this.db
         .select({ value: count() })
         .from(deliveries)
-        .where(gte(deliveries.queuedAt, todayStart)),
-      this.db.select({ value: count() }).from(deliveries).where(eq(deliveries.status, 'failed')),
-      this.db.select({ value: count() }).from(deliveries).where(eq(deliveries.status, 'delivered')),
+        .where(
+          and(gte(deliveries.queuedAt, todayStart), ...(ownerDelivery ? [ownerDelivery] : [])),
+        ),
+      this.db
+        .select({ value: count() })
+        .from(deliveries)
+        .where(and(eq(deliveries.status, 'failed'), ...(ownerDelivery ? [ownerDelivery] : []))),
+      this.db
+        .select({ value: count() })
+        .from(deliveries)
+        .where(and(eq(deliveries.status, 'delivered'), ...(ownerDelivery ? [ownerDelivery] : []))),
       this.db
         .select({ item: newsItems, sourceName: sources.name })
         .from(newsItems)
         .innerJoin(sources, eq(newsItems.sourceId, sources.id))
-        .where(isNull(newsItems.duplicateOf))
+        .where(
+          and(isNull(newsItems.duplicateOf), ...(ownerSource ? [ownerSource] : [])),
+        )
         .orderBy(
           sql`coalesce(${newsItems.publishedAt}, ${newsItems.fetchedAt}) desc`,
           desc(newsItems.id),
         )
         .limit(latestLimit),
-      this.db.select({ value: max(sources.lastFetchedAt) }).from(sources),
+      this.db
+        .select({ value: max(sources.lastFetchedAt) })
+        .from(sources)
+        .where(ownerSource),
       this.db
         .select({ service: connectionStatus.service, state: connectionStatus.state })
         .from(connectionStatus),
       this.db
         .select({ date: itemDate, value: count() })
         .from(newsItems)
+        .innerJoin(sources, eq(newsItems.sourceId, sources.id))
         .where(
           and(
             isNull(newsItems.duplicateOf),
+            ...(ownerSource ? [ownerSource] : []),
             or(
               and(
                 gte(newsItems.publishedAt, activityStart),
@@ -127,7 +157,13 @@ export class PostgresDashboardRepository implements DashboardRepository {
       this.db
         .select({ date: deliveryDate, value: count() })
         .from(deliveries)
-        .where(and(gte(deliveries.queuedAt, activityStart), lt(deliveries.queuedAt, dayAfterToday)))
+        .where(
+          and(
+            gte(deliveries.queuedAt, activityStart),
+            lt(deliveries.queuedAt, dayAfterToday),
+            ...(ownerDelivery ? [ownerDelivery] : []),
+          ),
+        )
         .groupBy(deliveryDate),
     ]);
 

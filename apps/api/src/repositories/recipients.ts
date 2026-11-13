@@ -72,7 +72,7 @@ export type AlertRuleRepository = {
 export type AlertPreviewRepository = {
   lastDigestAt(recipientId: string): Promise<Date | null>;
   listPreviewNews(options: {
-    ownerUserId: string;
+    ownerUserId?: string;
     since: Date | null;
     importantOnly: boolean;
     categories: NewsCategory[];

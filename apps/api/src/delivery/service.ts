@@ -31,7 +31,7 @@ export class DeliveryService {
   async sendNow(
     newsItemId: string,
     channel: 'email' | 'whatsapp',
-    ownerUserId: string,
+    ownerUserId?: string,
   ): Promise<number> {
     const item = await this.deliveries.findNewsItem(newsItemId, ownerUserId);
     if (!item) return 0;

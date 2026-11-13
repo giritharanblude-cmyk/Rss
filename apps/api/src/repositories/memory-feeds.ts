@@ -40,8 +40,13 @@ export class MemoryFeedRepository
 
   private readonly sources = new Map<string, SourceRecord>();
   private readonly news = new Map<string, NewsRecord>();
-  private readonly deliveries: { id: string; queuedAt: Date; status: string }[] = [];
-  private recipientsCount = 0;
+  private readonly deliveries: {
+    id: string;
+    ownerUserId: string;
+    queuedAt: Date;
+    status: string;
+  }[] = [];
+  private readonly recipientsCounts = new Map<string, number>();
   private readonly connections = { whatsapp: false, email: false };
 
   async listSources(ownerUserId?: string): Promise<SourceRecord[]> {
@@ -175,16 +180,28 @@ export class MemoryFeedRepository
     return deleted;
   }
 
-  async addDeliveryForTest(queuedAt: Date): Promise<void> {
-    this.deliveries.push({ id: randomUUID(), queuedAt, status: 'pending' });
+  async addDeliveryForTest(
+    queuedAt: Date,
+    ownerUserId = this.defaultOwnerUserId,
+  ): Promise<void> {
+    this.deliveries.push({
+      id: randomUUID(),
+      ownerUserId,
+      queuedAt,
+      status: 'pending',
+    });
   }
 
-  async addDeliveryStatusForTest(queuedAt: Date, status: string): Promise<void> {
-    this.deliveries.push({ id: randomUUID(), queuedAt, status });
+  async addDeliveryStatusForTest(
+    queuedAt: Date,
+    status: string,
+    ownerUserId = this.defaultOwnerUserId,
+  ): Promise<void> {
+    this.deliveries.push({ id: randomUUID(), ownerUserId, queuedAt, status });
   }
 
-  setRecipientsCountForTest(count: number): void {
-    this.recipientsCount = count;
+  setRecipientsCountForTest(count: number, ownerUserId = this.defaultOwnerUserId): void {
+    this.recipientsCounts.set(ownerUserId, count);
   }
 
   setConnectionStatusForTest(service: 'whatsapp' | 'email', connected: boolean): void {
@@ -220,18 +237,31 @@ export class MemoryFeedRepository
     return this.deliveries.length;
   }
 
-  async getSummary(todayStart: Date, latestLimit: number): Promise<DashboardSummary> {
+  async getSummary(
+    todayStart: Date,
+    latestLimit: number,
+    ownerUserId?: string,
+  ): Promise<DashboardSummary> {
     const activityStart = new Date(todayStart);
     activityStart.setUTCDate(activityStart.getUTCDate() - 6);
     const dayAfterToday = new Date(todayStart);
     dayAfterToday.setUTCDate(dayAfterToday.getUTCDate() + 1);
-    const activeSources = [...this.sources.values()].filter((source) => source.active).length;
-    const visibleNews = [...this.news.values()].filter((item) => !item.duplicateOf);
+    const visibleSources = [...this.sources.values()].filter(
+      (source) => !ownerUserId || source.ownerUserId === ownerUserId,
+    );
+    const sourceIds = new Set(visibleSources.map((source) => source.id));
+    const activeSources = visibleSources.filter((source) => source.active).length;
+    const visibleNews = [...this.news.values()].filter(
+      (item) => !item.duplicateOf && sourceIds.has(item.sourceId),
+    );
     const latestItems = visibleNews
       .sort((a, b) => this.sortDate(b).getTime() - this.sortDate(a).getTime())
       .slice(0, latestLimit)
       .map((item) => this.toDashboardItem(item));
-    const todayDeliveries = this.deliveries.filter((delivery) => delivery.queuedAt >= todayStart);
+    const visibleDeliveries = this.deliveries.filter(
+      (delivery) => !ownerUserId || delivery.ownerUserId === ownerUserId,
+    );
+    const todayDeliveries = visibleDeliveries.filter((delivery) => delivery.queuedAt >= todayStart);
     const itemsByDate = new Map<string, number>();
     for (const item of visibleNews) {
       const timestamp = this.sortDate(item);
@@ -240,7 +270,7 @@ export class MemoryFeedRepository
       itemsByDate.set(date, (itemsByDate.get(date) ?? 0) + 1);
     }
     const deliveriesByDate = new Map<string, number>();
-    for (const delivery of this.deliveries) {
+    for (const delivery of visibleDeliveries) {
       if (delivery.queuedAt < activityStart || delivery.queuedAt >= dayAfterToday) continue;
       const date = this.localDateKey(delivery.queuedAt);
       deliveriesByDate.set(date, (deliveriesByDate.get(date) ?? 0) + 1);
@@ -255,7 +285,7 @@ export class MemoryFeedRepository
         deliveries: deliveriesByDate.get(key) ?? 0,
       };
     });
-    const lastFetch = [...this.sources.values()]
+    const lastFetch = visibleSources
       .map((source) => source.lastFetchedAt)
       .filter((date): date is Date => date !== null)
       .sort((a, b) => b.getTime() - a.getTime())[0];
@@ -263,13 +293,15 @@ export class MemoryFeedRepository
     return {
       itemsToday: visibleNews.filter((item) => this.sortDate(item) >= todayStart).length,
       activeSources,
-      recipients: this.recipientsCount,
+      recipients: ownerUserId
+        ? (this.recipientsCounts.get(ownerUserId) ?? 0)
+        : [...this.recipientsCounts.values()].reduce((total, count) => total + count, 0),
       deliveriesToday: todayDeliveries.length,
-      failedDeliveries: this.deliveries.filter((delivery) => delivery.status === 'failed').length,
+      failedDeliveries: visibleDeliveries.filter((delivery) => delivery.status === 'failed').length,
       dailyActivity,
       deliveryOutcomes: {
-        delivered: this.deliveries.filter((delivery) => delivery.status === 'delivered').length,
-        failed: this.deliveries.filter((delivery) => delivery.status === 'failed').length,
+        delivered: visibleDeliveries.filter((delivery) => delivery.status === 'delivered').length,
+        failed: visibleDeliveries.filter((delivery) => delivery.status === 'failed').length,
       },
       latestItems,
       lastFetchAt: lastFetch ?? null,

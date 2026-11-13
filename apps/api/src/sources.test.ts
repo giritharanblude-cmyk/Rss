@@ -184,12 +184,6 @@ describe('source management routes', () => {
       headers: { cookie },
       payload: { active: false },
     });
-    const remove = await context.app.inject({
-      method: 'DELETE',
-      url: `/api/sources/${memberSource.id}`,
-      headers: { cookie },
-    });
-
     expect(empty.json()).toMatchObject({ sources: [], total: 0 });
     expect(list.statusCode).toBe(200);
     expect(create.statusCode).toBe(201);
@@ -197,12 +191,27 @@ describe('source management routes', () => {
     expect(list.json()).toMatchObject({ sources: [{ name: 'Member News' }], total: 1 });
     expect(updateOtherOwner.statusCode).toBe(404);
     expect(updateOwn.statusCode).toBe(200);
-    expect(remove.statusCode).toBe(204);
     const masterList = await context.app.inject({
       method: 'GET',
       url: '/api/sources',
       headers: { cookie: masterCookie.cookie },
     });
-    expect(masterList.json()).toMatchObject({ sources: [{ name: 'Health News' }], total: 1 });
+    const masterUpdate = await context.app.inject({
+      method: 'PATCH',
+      url: `/api/sources/${memberSource.id}`,
+      headers: { cookie: masterCookie.cookie },
+      payload: { intervalMinutes: 360 },
+    });
+    expect(masterList.json()).toMatchObject({
+      sources: [{ name: 'Health News' }, { name: 'Member News' }],
+      total: 2,
+    });
+    expect(masterUpdate.statusCode).toBe(200);
+    const remove = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${memberSource.id}`,
+      headers: { cookie },
+    });
+    expect(remove.statusCode).toBe(204);
   });
 });

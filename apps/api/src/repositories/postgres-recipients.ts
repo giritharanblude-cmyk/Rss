@@ -300,7 +300,12 @@ export class PostgresRecipientRepository
       .select({ item: newsItems, sourceName: sources.name })
       .from(newsItems)
       .innerJoin(sources, eq(newsItems.sourceId, sources.id))
-      .where(and(...conditions, eq(sources.ownerUserId, options.ownerUserId)))
+      .where(
+        and(
+          ...conditions,
+          ...(options.ownerUserId ? [eq(sources.ownerUserId, options.ownerUserId)] : []),
+        ),
+      )
       .orderBy(
         sql`coalesce(${newsItems.publishedAt}, ${newsItems.fetchedAt}) desc`,
         desc(newsItems.id),
