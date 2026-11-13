@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import type { EmailSender } from '../email';
 import { EmailUnavailableError, HttpError, OtpCooldownError, OtpError } from '../errors';
+import { redactLogText } from '../logging';
 import type { OtpPurpose, OtpRepository } from '../repositories/types';
 import { hashPassword, verifyPassword } from './passwords';
 
@@ -12,6 +13,7 @@ export type OtpServiceOptions = {
   cooldownSeconds?: number;
   maxAttempts?: number;
   adminEmail: string;
+  log?: (reason: string) => void;
 };
 
 export type OtpTarget = {
@@ -50,7 +52,7 @@ export class OtpService {
 
     if (latest) {
       const elapsedSeconds = (now.getTime() - latest.createdAt.getTime()) / 1000;
-      if (elapsedSeconds < this.cooldownSeconds) {
+      if (!latest.usedAt && elapsedSeconds < this.cooldownSeconds) {
         throw new OtpCooldownError();
       }
     }
@@ -80,15 +82,18 @@ export class OtpService {
           `Your verification code is ${code}.`,
           `It expires in ${Math.round(this.ttlSeconds / 60)} minutes.`,
           '',
+          ...(latest ? ['A new code was sent; use the latest one.', ''] : []),
           purpose === 'contact_change'
             ? 'If you did not request a contact change, you can ignore this email.'
             : 'If you did not try to sign in, you can ignore this email.',
         ].join('\n'),
       });
     } catch (error) {
+      const reason = safeEmailFailureReason(error, code);
+      this.options.log?.(reason);
       await this.options.otps.markUsed(otp.id, now);
       if (error instanceof EmailUnavailableError) {
-        throw error;
+        throw new EmailUnavailableError(reason);
       }
       throw new EmailUnavailableError();
     }
@@ -122,4 +127,15 @@ export class OtpService {
       throw new OtpError();
     }
   }
+}
+
+function safeEmailFailureReason(error: unknown, code: string): string {
+  const reason = error instanceof Error && error.message ? error.message : 'Unknown SMTP error.';
+  return redactLogText(reason)
+    .replaceAll(code, '[REDACTED]')
+    .replace(
+      /\b(password|pass|secret|token|api[_ -]?key|credential|authorization)\s*[:=]\s*("[^"]*"|'[^']*'|[^\s,;]+)/gi,
+      '$1=[REDACTED]',
+    )
+    .replace(/\bBasic\s+[A-Za-z0-9+/=]+/gi, 'Basic [REDACTED]');
 }

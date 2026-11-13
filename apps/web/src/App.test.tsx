@@ -109,6 +109,53 @@ describe('App', () => {
     expect(screen.getByText('master')).toBeInTheDocument();
   });
 
+  it('continues into the app when password login finds an active session', async () => {
+    const user = {
+      id: '00000000-0000-4000-8000-000000000000',
+      name: 'Admin',
+      role: 'master',
+    };
+    let hasSession = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return hasSession
+            ? jsonResponse(200, { user })
+            : jsonResponse(401, { error: 'Please sign in to continue.' });
+        }
+        if (path === '/api/auth/login') {
+          hasSession = true;
+          return jsonResponse(200, {
+            status: 'session_active',
+            message: 'Your active session is still valid.',
+          });
+        }
+        if (path === '/api/auth/verify-otp') {
+          throw new Error('An active session must not require OTP verification.');
+        }
+        if (path === '/api/dashboard/live') return jsonResponse(200, emptyDashboard);
+        if (path === '/api/settings/connections') {
+          return jsonResponse(200, disconnectedConnections);
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+    fireEvent.change(await screen.findByLabelText(/^name or email$/i), {
+      target: { value: 'Admin' },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: 'master-password-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    expect(await screen.findByText('Admin')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/verification code/i)).not.toBeInTheDocument();
+  });
+
   it('shows the username and role when signed in', async () => {
     vi.stubGlobal(
       'fetch',

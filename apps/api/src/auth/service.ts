@@ -20,6 +20,9 @@ export type LoginResult = {
   token: string;
 };
 
+export type PasswordLoginResult =
+  { status: 'otp_sent' } | { status: 'session_active'; session: SessionPayload };
+
 export class AuthService {
   private readonly now: () => Date;
   private readonly lockoutThreshold: number;
@@ -55,7 +58,11 @@ export class AuthService {
     throw new UnauthorizedError('Name or password is incorrect.');
   }
 
-  async login(name: string, password: string): Promise<void> {
+  async login(
+    name: string,
+    password: string,
+    session: SessionPayload | null = null,
+  ): Promise<PasswordLoginResult> {
     const user = await this.options.users.findByLogin(name);
     if (!user || user.disabled) {
       throw new UnauthorizedError('Name or password is incorrect.');
@@ -69,10 +76,20 @@ export class AuthService {
     }
 
     await this.options.users.resetLoginFailures(user.id);
+    if (session?.userId === user.id) {
+      try {
+        await this.authenticate(session);
+        return { status: 'session_active', session };
+      } catch (error) {
+        if (!(error instanceof UnauthorizedError)) throw error;
+      }
+    }
+
     await this.options.otp.request(
       { userId: user.id, name: user.name, email: user.email },
       'login',
     );
+    return { status: 'otp_sent' };
   }
 
   async resendLoginCode(name: string): Promise<void> {

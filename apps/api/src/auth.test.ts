@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EmailUnavailableError } from './errors';
 import {
   createTestContext,
   latestOtpCode,
@@ -57,6 +58,34 @@ describe('sign in with name, password and emailed code', () => {
     expect(me.json()).toMatchObject({
       user: { name: 'Admin', role: 'master', email: 'admin@example.com', phone: null },
     });
+  });
+
+  it('skips OTP when the same account has a valid active session', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const sentCount = context.email.sent.length;
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { cookie },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ status: 'session_active' });
+    expect(context.email.sent).toHaveLength(sentCount);
+    const refreshedProfile = await context.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: sessionCookieFrom(response) },
+    });
+    expect(refreshedProfile.statusCode).toBe(200);
   });
 
   it('finds an account by the normalized email lookup during login', async () => {
@@ -264,7 +293,7 @@ describe('sign in with name, password and emailed code', () => {
       'Admin',
       'master-password-1',
     );
-    context.clock.advance(7 * 24 * 60 * 60 * 1000 + 1);
+    context.clock.advance(7 * 24 * 60 * 60 * 1000);
 
     const expiredSession = await context.app.inject({
       method: 'GET',
@@ -276,10 +305,12 @@ describe('sign in with name, password and emailed code', () => {
     const login = await context.app.inject({
       method: 'POST',
       url: '/api/auth/login',
+      headers: { cookie },
       payload: { name: 'Admin', password: 'master-password-1' },
     });
     expect(login.statusCode).toBe(202);
     expect(login.json()).toMatchObject({ status: 'otp_sent' });
+    expect(context.email.sent).toHaveLength(2);
 
     const verify = await context.app.inject({
       method: 'POST',
@@ -301,6 +332,7 @@ describe('sign in with name, password and emailed code', () => {
       originSecret: 'origin-secret-value-123456',
       originSecretEnforced: true,
     });
+
     const headers = {
       origin: 'https://news.example.test',
       'x-origin-secret': 'origin-secret-value-123456',
@@ -343,6 +375,33 @@ describe('sign in with name, password and emailed code', () => {
       headers: { ...headers, cookie: sessionCookieFrom(verify) },
     });
     expect(revokedSession.statusCode).toBe(401);
+  });
+
+  it('requires a new OTP after logout', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const logout = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { cookie },
+    });
+    expect(logout.statusCode).toBe(204);
+    expect(logout.headers['set-cookie']).toContain('session=;');
+
+    const login = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { cookie: sessionCookieFrom(logout) },
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+    expect(login.statusCode).toBe(202);
+    expect(login.json()).toMatchObject({ status: 'otp_sent' });
+    expect(context.email.sent).toHaveLength(2);
   });
 
   it('stores the password and the code as Argon2id hashes', async () => {
@@ -470,6 +529,7 @@ describe('sign in with name, password and emailed code', () => {
       url: '/api/auth/login',
       payload: { name: 'Admin', password: 'master-password-1' },
     });
+    const previousCode = latestOtpCode(context.email);
 
     const early = await context.app.inject({
       method: 'POST',
@@ -485,7 +545,52 @@ describe('sign in with name, password and emailed code', () => {
       payload: { name: 'Admin' },
     });
     expect(later.statusCode).toBe(202);
+    expect(later.json()).toMatchObject({
+      message: 'A new code was sent; use the latest one.',
+    });
     expect(context.email.sent).toHaveLength(2);
+    expect(context.email.sent.at(-1)?.text).toContain('A new code was sent; use the latest one.');
+
+    const oldCode = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: 'Admin', code: previousCode },
+    });
+    const latestCode = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: 'Admin', code: latestOtpCode(context.email) },
+    });
+    expect(oldCode.statusCode).toBe(400);
+    expect(latestCode.statusCode).toBe(200);
+  });
+
+  it('logs a sanitized SMTP failure reason and returns a clear error', async () => {
+    context = await createTestContext();
+    const logError = vi.spyOn(context.app.log, 'error');
+    let otpCode = '';
+    vi.spyOn(context.email, 'send').mockImplementation(async (message) => {
+      otpCode = /Your verification code is (\d{6})/.exec(message.text)?.[1] ?? '';
+      throw new EmailUnavailableError(
+        `SMTP authentication failed: password=mail-secret verification=${otpCode}`,
+      );
+    });
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error).toContain('SMTP authentication failed');
+    expect(response.json().error).not.toContain('mail-secret');
+    expect(response.json().error).not.toContain(otpCode);
+    expect(otpCode).toMatch(/^\d{6}$/);
+    const logged = JSON.stringify(logError.mock.calls);
+    expect(logged).toContain('SMTP authentication failed');
+    expect(logged).not.toContain('mail-secret');
+    expect(logged).not.toContain(otpCode);
   });
 
   it('locks the account after repeated wrong passwords', async () => {
