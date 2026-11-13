@@ -30,7 +30,12 @@ export function LoginPage() {
     setError(null);
     setNotice(null);
     try {
-      await api.login({ name, password });
+      const result = await api.login({ name, password });
+      if (result.status === 'session_active') {
+        await queryClient.invalidateQueries({ queryKey: ['me'] });
+        navigate('/', { replace: true });
+        return;
+      }
       setStep('otp');
       setCode('');
       setNotice('We emailed a 6-digit code to your account email address.');
@@ -62,7 +67,7 @@ export function LoginPage() {
     setNotice(null);
     try {
       await api.resendOtp({ name });
-      setNotice('A new code has been sent.');
+      setNotice('A new code was sent; use the latest one.');
     } catch (caught) {
       setError(messageOf(caught));
     } finally {

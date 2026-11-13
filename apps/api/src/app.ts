@@ -123,6 +123,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     ttlSeconds: deps.otp?.ttlSeconds,
     cooldownSeconds: deps.otp?.cooldownSeconds,
     maxAttempts: deps.otp?.maxAttempts,
+    log: (reason) => app.log.error({ reason }, 'OTP email send failed'),
   });
 
   const authService = new AuthService({

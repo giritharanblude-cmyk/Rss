@@ -90,7 +90,16 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
     { config: { rateLimit: { max: rateLimits.login, timeWindow: rateLimits.windowMs } } },
     async (request, reply) => {
       const body = parseBody(loginBodySchema, request.body);
-      await auth.login(body.name, body.password);
+      const token = request.cookies[SESSION_COOKIE];
+      const session = token ? await verifySession(token, jwtSecret) : null;
+      const result = await auth.login(body.name, body.password, session);
+      if (result.status === 'session_active') {
+        request.authenticatedSession = result.session;
+        return reply.send({
+          status: 'session_active',
+          message: 'Your active session is still valid.',
+        });
+      }
       return reply
         .code(202)
         .send({ status: 'otp_sent', message: 'Check your account email for the 6-digit code.' });
@@ -114,9 +123,10 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
     async (request, reply) => {
       const body = parseBody(resendOtpBodySchema, request.body);
       await auth.resendLoginCode(body.name);
-      return reply
-        .code(202)
-        .send({ status: 'otp_sent', message: 'Check your account email for the 6-digit code.' });
+      return reply.code(202).send({
+        status: 'otp_sent',
+        message: 'A new code was sent; use the latest one.',
+      });
     },
   );
 

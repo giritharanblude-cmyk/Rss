@@ -41,7 +41,10 @@ export class SmtpEmailSender implements EmailSender {
     } catch (error) {
       const reason =
         error instanceof Error && error.message ? error.message : 'Unknown SMTP error.';
-      throw new EmailUnavailableError(`Could not send email: ${reason}`);
+      const safeReason = this.settings.password
+        ? reason.replaceAll(this.settings.password, '[REDACTED]')
+        : reason;
+      throw new EmailUnavailableError(`Could not send email: ${safeReason}`);
     }
   }
 

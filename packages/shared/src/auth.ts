@@ -87,7 +87,7 @@ export const updateMemberBodySchema = z.object({
 export type UpdateMemberBody = z.infer<typeof updateMemberBodySchema>;
 
 export const loginAcceptedSchema = z.object({
-  status: z.literal('otp_sent'),
+  status: z.enum(['otp_sent', 'session_active']),
   message: z.string(),
 });
 export type LoginAccepted = z.infer<typeof loginAcceptedSchema>;
