@@ -207,8 +207,6 @@ export function RecipientsPage() {
       </div>
     );
   }
-  const canEdit = me.data.user.role === 'master';
-
   async function save(input: RecipientInput) {
     setNotice(null);
     if (editing) await update.mutateAsync({ id: editing.id, body: input });
@@ -272,17 +270,15 @@ export function RecipientsPage() {
               Manage contacts, topic preferences, and consent records.
             </p>
           </div>
-          {canEdit ? (
-            <button
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setAdding(true);
-              }}
-            >
-              Add recipient
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setAdding(true);
+            }}
+          >
+            Add recipient
+          </button>
         </div>
         <Toast message={notice} onDismiss={() => setNotice(null)} />
         <label htmlFor="recipient-search">Search recipients</label>
@@ -351,46 +347,44 @@ export function RecipientsPage() {
                   {recipient.consentAt ? new Date(recipient.consentAt).toLocaleString() : ''}
                 </p>
               ) : null}
-              {canEdit ? (
-                <div className="source-actions">
+              <div className="source-actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => {
+                    setAdding(false);
+                    setEditing(recipient);
+                  }}
+                >
+                  Edit
+                </button>
+                {recipient.consentStatus === 'granted' ? (
                   <button
                     type="button"
                     className="button-secondary"
-                    onClick={() => {
-                      setAdding(false);
-                      setEditing(recipient);
-                    }}
+                    onClick={() => void revoke(recipient)}
                   >
-                    Edit
+                    Revoke consent
                   </button>
-                  {recipient.consentStatus === 'granted' ? (
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={() => void revoke(recipient)}
-                    >
-                      Revoke consent
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setConsentFor(recipient.id);
-                        setConsentNote('');
-                      }}
-                    >
-                      Confirm consent
-                    </button>
-                  )}
+                ) : (
                   <button
                     type="button"
-                    className="button-danger"
-                    onClick={() => void deleteRecipient(recipient)}
+                    onClick={() => {
+                      setConsentFor(recipient.id);
+                      setConsentNote('');
+                    }}
                   >
-                    Delete
+                    Confirm consent
                   </button>
-                </div>
-              ) : null}
+                )}
+                <button
+                  type="button"
+                  className="button-danger"
+                  onClick={() => void deleteRecipient(recipient)}
+                >
+                  Delete
+                </button>
+              </div>
               {consentFor === recipient.id ? (
                 <form
                   className="consent-form"

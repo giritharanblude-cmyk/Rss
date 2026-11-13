@@ -38,12 +38,17 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Phase 4 pages', () => {
-  it('lets members view recipients without recipient or consent controls', async () => {
+  it('lets members add and manage their recipients', async () => {
     const member = { ...user, name: 'Mina', role: 'member' };
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+    let createdRecipient: unknown;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
       if (path === '/api/auth/me') return jsonResponse(200, { user: member });
       if (path.startsWith('/api/recipients')) {
+        if (init?.method === 'POST') {
+          createdRecipient = JSON.parse(String(init.body));
+          return jsonResponse(201, { recipient });
+        }
         return jsonResponse(200, { recipients: [recipient] });
       }
       return jsonResponse(204, {});
@@ -56,11 +61,29 @@ describe('Phase 4 pages', () => {
     expect(
       screen.getByText('WhatsApp: +91********10 · Email: as***@example.test'),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add recipient' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirm consent' })).not.toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Add recipient' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm consent' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add recipient' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mina recipient' } });
+    fireEvent.change(screen.getByLabelText('WhatsApp number (E.164)'), {
+      target: { value: '+919876543210' },
+    });
+    fireEvent.change(screen.getByLabelText('Email id'), {
+      target: { value: 'mina@example.test' },
+    });
+    fireEvent.change(screen.getByLabelText('Send through'), { target: { value: 'both' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save recipient' }));
+
+    expect(await screen.findByText('Recipient added.')).toBeInTheDocument();
+    expect(createdRecipient).toMatchObject({
+      name: 'Mina recipient',
+      whatsappE164: '+919876543210',
+      email: 'mina@example.test',
+      channel: 'both',
+    });
   });
 
   it('records consent only with a note and updates the recipient state', async () => {
@@ -85,7 +108,10 @@ describe('Phase 4 pages', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
+    expect(await screen.findByRole('button', { name: 'Add recipient' })).toBeInTheDocument();
     expect(await screen.findByText('Consent: pending')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirm consent' }));
     fireEvent.change(screen.getByLabelText('Consent note (required)'), {
       target: { value: 'Agreed on call, 4 Nov' },

@@ -17,8 +17,10 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SourcesPage', () => {
-  it('lets members view sources without source-management actions', async () => {
+  it('lets members add and manage their sources without showing the feed-test control', async () => {
+    let createdSource: unknown;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const path = String(input);
       if (String(input) === '/api/auth/me') {
         return jsonResponse(200, {
           user: {
@@ -28,7 +30,26 @@ describe('SourcesPage', () => {
           },
         });
       }
-      if (String(input) === '/api/sources') {
+      if (path.startsWith('/api/sources') && _init?.method === 'POST') {
+        createdSource = JSON.parse(String(_init.body));
+        return jsonResponse(201, {
+          source: {
+            id: '00000000-0000-4000-8000-000000000003',
+            name: 'Member source',
+            website: 'https://member.example.test',
+            rssUrl: 'https://member.example.test/feed.xml',
+            mode: 'all',
+            topics: [],
+            region: null,
+            intervalMinutes: 60,
+            active: true,
+            lastFetchedAt: null,
+            lastStatus: null,
+            createdAt: '2026-11-04T08:00:00.000Z',
+          },
+        });
+      }
+      if (path.startsWith('/api/sources')) {
         return jsonResponse(200, {
           sources: [
             {
@@ -55,14 +76,29 @@ describe('SourcesPage', () => {
     render(<App />);
 
     expect(await screen.findByText('[DEMO] Sample source')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add source' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.some(([, init]) =>
-        ['POST', 'PATCH', 'DELETE'].includes(init?.method ?? ''),
-      ),
-    ).toBe(false);
+    expect(screen.getByRole('button', { name: 'Add source' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Test feed' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add source' }));
+    fireEvent.change(screen.getByLabelText(/source name/i), {
+      target: { value: 'Member source' },
+    });
+    fireEvent.change(screen.getByLabelText(/^website$/i), {
+      target: { value: 'https://member.example.test' },
+    });
+    fireEvent.change(screen.getByLabelText(/rss link/i), {
+      target: { value: 'https://member.example.test/feed.xml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save source/i }));
+
+    expect(await screen.findByText('Source added.')).toBeInTheDocument();
+    expect(createdSource).toMatchObject({
+      name: 'Member source',
+      website: 'https://member.example.test',
+      rssUrl: 'https://member.example.test/feed.xml',
+    });
   });
 
   it('validates HTTP feed URLs and presents only supported intervals', async () => {
@@ -77,13 +113,34 @@ describe('SourcesPage', () => {
         });
       }
       if (String(input) === '/api/sources' && init?.method !== 'POST')
-        return jsonResponse(200, { sources: [] });
+        return jsonResponse(200, {
+          sources: [
+            {
+              id: '00000000-0000-4000-8000-000000000004',
+              name: 'Master source',
+              website: 'https://master.example.test',
+              rssUrl: 'https://master.example.test/feed.xml',
+              mode: 'all',
+              topics: [],
+              region: null,
+              intervalMinutes: 60,
+              active: true,
+              lastFetchedAt: null,
+              lastStatus: null,
+              createdAt: '2026-11-04T08:00:00.000Z',
+            },
+          ],
+        });
       return jsonResponse(500, { error: 'Unexpected request' });
     });
     vi.stubGlobal('fetch', fetchMock);
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /add source/i }));
+    expect(await screen.findByRole('button', { name: 'Add source' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Test feed' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /add source/i }));
     fireEvent.change(screen.getByLabelText(/source name/i), {
       target: { value: 'Health News' },
     });

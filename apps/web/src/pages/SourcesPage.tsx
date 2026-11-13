@@ -232,7 +232,7 @@ export function SourcesPage() {
       </div>
     );
   }
-  const canEdit = me.data.user.role === 'master';
+  const canTestFeed = me.data.user.role === 'master';
 
   async function save(input: SourceInput) {
     setNotice(null);
@@ -290,17 +290,15 @@ export function SourcesPage() {
             <h1>Sources</h1>
             <p className="auth-subtitle">Manage the RSS feeds used to collect healthcare news.</p>
           </div>
-          {canEdit ? (
-            <button
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setAdding(true);
-              }}
-            >
-              Add source
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setAdding(true);
+            }}
+          >
+            Add source
+          </button>
         </div>
         <Toast message={notice} onDismiss={() => setNotice(null)} />
         {error ? (
@@ -364,8 +362,8 @@ export function SourcesPage() {
                     : '6 hours'}
               </p>
               <p>Last status: {source.lastStatus ?? 'Not fetched yet'}</p>
-              {canEdit ? (
-                <div className="source-actions">
+              <div className="source-actions">
+                {canTestFeed ? (
                   <button
                     type="button"
                     className="button-secondary"
@@ -373,32 +371,32 @@ export function SourcesPage() {
                   >
                     Test feed
                   </button>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    onClick={() => {
-                      setAdding(false);
-                      setEditing(source);
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    onClick={() => void toggle(source)}
-                  >
-                    {source.active ? 'Pause' : 'Resume'}
-                  </button>
-                  <button
-                    type="button"
-                    className="button-danger"
-                    onClick={() => void deleteSource(source)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : null}
+                ) : null}
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => {
+                    setAdding(false);
+                    setEditing(source);
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => void toggle(source)}
+                >
+                  {source.active ? 'Pause' : 'Resume'}
+                </button>
+                <button
+                  type="button"
+                  className="button-danger"
+                  onClick={() => void deleteSource(source)}
+                >
+                  Delete
+                </button>
+              </div>
             </article>
           ))}
         </div>
