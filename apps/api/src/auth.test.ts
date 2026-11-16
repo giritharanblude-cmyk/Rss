@@ -377,6 +377,54 @@ describe('sign in with name, password and emailed code', () => {
     expect(revokedSession.statusCode).toBe(401);
   });
 
+  it.each(['without a session', 'master', 'member'] as const)(
+    'accepts empty JSON logout requests for %s accounts',
+    async (account) => {
+      context = await createTestContext();
+      let cookie: string | undefined;
+      if (account === 'master') {
+        cookie = (await loginAndVerify(
+          context.app,
+          context.email,
+          'Admin',
+          'master-password-1',
+        )).cookie;
+      } else if (account === 'member') {
+        const member = await seedMember(context.users, {
+          name: 'Mina',
+          email: 'mina@example.test',
+          password: 'member-password-1',
+        });
+        cookie = (await loginAndVerify(
+          context.app,
+          context.email,
+          member.name,
+          'member-password-1',
+        )).cookie;
+      }
+
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (cookie) headers.cookie = cookie;
+      const logout = await context.app.inject({
+        method: 'POST',
+        url: '/api/auth/logout',
+        headers,
+        payload: '',
+      });
+
+      expect(logout.statusCode).toBe(204);
+      expect(logout.headers['set-cookie']).toContain('session=;');
+      if (cookie) {
+        const revokedSession = await context.app.inject({
+          method: 'GET',
+          url: '/api/auth/me',
+          headers: { cookie },
+        });
+        expect(revokedSession.statusCode).toBe(401);
+      }
+    },
+  );
+
   it('requires a new OTP after logout', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(
