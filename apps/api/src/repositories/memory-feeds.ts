@@ -97,8 +97,17 @@ export class MemoryFeedRepository
     if (!source || (ownerUserId && source.ownerUserId !== ownerUserId)) return false;
     const deleted = this.sources.delete(id);
     if (deleted) {
+      const deletedNewsIds = new Set<string>();
       for (const [newsId, item] of this.news) {
-        if (item.sourceId === id) this.news.delete(newsId);
+        if (item.sourceId === id) {
+          this.news.delete(newsId);
+          deletedNewsIds.add(newsId);
+        }
+      }
+      for (const item of this.news.values()) {
+        if (item.duplicateOf && deletedNewsIds.has(item.duplicateOf)) {
+          item.duplicateOf = null;
+        }
       }
     }
     return deleted;

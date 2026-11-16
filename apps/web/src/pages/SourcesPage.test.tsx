@@ -16,7 +16,147 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+const listedSource = {
+  id: '00000000-0000-4000-8000-000000000022',
+  name: 'Source to delete',
+  website: 'https://source.example.test',
+  rssUrl: 'https://source.example.test/feed.xml',
+  mode: 'all',
+  topics: [],
+  region: null,
+  intervalMinutes: 60,
+  active: true,
+  lastFetchedAt: null,
+  lastStatus: null,
+  createdAt: '2026-11-04T08:00:00.000Z',
+};
+
 describe('SourcesPage', () => {
+  it.each(['master', 'member'] as const)(
+    '%s can delete an authorized source after confirmation',
+    async (role) => {
+      let deleted = false;
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return jsonResponse(200, {
+            user: {
+              id: '00000000-0000-4000-8000-000000000001',
+              name: role === 'master' ? 'Admin' : 'Mina',
+              role,
+            },
+          });
+        }
+        if (path === '/api/sources' && init?.method !== 'DELETE') {
+          return jsonResponse(200, { sources: deleted ? [] : [listedSource], total: deleted ? 0 : 1 });
+        }
+        if (path === `/api/sources/${listedSource.id}` && init?.method === 'DELETE') {
+          deleted = true;
+          return jsonResponse(204, {});
+        }
+        return jsonResponse(404, { error: 'Unexpected request' });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      vi.stubGlobal('confirm', vi.fn(() => true));
+
+      render(<App />);
+      expect(await screen.findByText('Source to delete')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Source deleted.');
+      expect(screen.queryByText('Source to delete')).not.toBeInTheDocument();
+      expect(window.confirm).toHaveBeenCalledWith('Delete Source to delete?');
+      expect(
+        fetchMock.mock.calls.some(
+          ([input, init]) =>
+            String(input) === `/api/sources/${listedSource.id}` && init?.method === 'DELETE',
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it.each([
+    [401, 'Your session has expired. Sign in again.'],
+    [409, 'This source cannot be deleted while related records exist.'],
+    [500, 'Something went wrong. Please try again.'],
+  ])('keeps the source and displays the server error for status %s', async (status, message) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/auth/me') {
+        return jsonResponse(200, {
+          user: {
+            id: '00000000-0000-4000-8000-000000000001',
+            name: 'Admin',
+            role: 'master',
+          },
+        });
+      }
+      if (path === '/api/sources' && init?.method !== 'DELETE') {
+        return jsonResponse(200, { sources: [listedSource], total: 1 });
+      }
+      if (path === `/api/sources/${listedSource.id}` && init?.method === 'DELETE') {
+        return jsonResponse(status, { error: message });
+      }
+      return jsonResponse(404, { error: 'Unexpected request' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('confirm', vi.fn(() => true));
+
+    render(<App />);
+    expect(await screen.findByText('Source to delete')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByText('Source to delete')).toBeInTheDocument();
+    expect(screen.queryByText('Source deleted.')).not.toBeInTheDocument();
+  });
+
+  it('disables deletion while a request is pending', async () => {
+    let finishDelete!: (response: Response) => void;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/auth/me') {
+        return Promise.resolve(
+          jsonResponse(200, {
+            user: {
+              id: '00000000-0000-4000-8000-000000000001',
+              name: 'Admin',
+              role: 'master',
+            },
+          }),
+        );
+      }
+      if (path === '/api/sources' && init?.method !== 'DELETE') {
+        return Promise.resolve(jsonResponse(200, { sources: [listedSource], total: 1 }));
+      }
+      if (path === `/api/sources/${listedSource.id}` && init?.method === 'DELETE') {
+        return new Promise<Response>((resolve) => {
+          finishDelete = resolve;
+        });
+      }
+      return Promise.resolve(jsonResponse(404, { error: 'Unexpected request' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('confirm', vi.fn(() => true));
+
+    render(<App />);
+    expect(await screen.findByText('Source to delete')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    const pendingButton = await screen.findByRole('button', { name: 'Deleting…' });
+    expect(pendingButton).toBeDisabled();
+    fireEvent.click(pendingButton);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input, init]) =>
+          String(input) === `/api/sources/${listedSource.id}` && init?.method === 'DELETE',
+      ),
+    ).toHaveLength(1);
+
+    finishDelete(jsonResponse(204, {}));
+    expect(await screen.findByRole('status')).toHaveTextContent('Source deleted.');
+  });
+
   it('lets members add and manage their sources without showing the feed-test control', async () => {
     let createdSource: unknown;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {

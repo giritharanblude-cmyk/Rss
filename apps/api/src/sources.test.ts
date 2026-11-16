@@ -1,10 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SourceInput } from '@healthcare/shared';
 import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
 
 let context: TestContext;
 
-afterEach(async () => context.app.close());
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await context.app.close();
+});
 
 const validSource: SourceInput = {
   name: 'Health News',
@@ -55,9 +58,150 @@ describe('source management routes', () => {
     const deleted = await context.app.inject({
       method: 'DELETE',
       url: `/api/sources/${source.id}`,
-      headers: { cookie },
+      headers: { cookie, 'content-type': 'application/json' },
     });
     expect(deleted.statusCode).toBe(204);
+  });
+
+  it('rejects unauthenticated, invalid, missing, and foreign-owned deletions safely', async () => {
+    context = await createTestContext();
+    const master = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const source = await context.feeds.createSource(validSource, context.master.id);
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      member.name,
+      'member-password-1',
+    );
+    const headers = { cookie, 'content-type': 'application/json' };
+
+    const unauthenticated = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${source.id}`,
+      headers: { 'content-type': 'application/json' },
+    });
+    const invalidId = await context.app.inject({
+      method: 'DELETE',
+      url: '/api/sources/not-a-uuid',
+      headers: { cookie: master.cookie, 'content-type': 'application/json' },
+    });
+    const missing = await context.app.inject({
+      method: 'DELETE',
+      url: '/api/sources/00000000-0000-4000-8000-000000000099',
+      headers: { cookie: master.cookie, 'content-type': 'application/json' },
+    });
+    const foreignOwned = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${source.id}`,
+      headers,
+    });
+
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(invalidId.statusCode).toBe(400);
+    expect(missing.statusCode).toBe(404);
+    expect(foreignOwned.statusCode).toBe(404);
+    expect(await context.feeds.findSource(source.id)).not.toBeNull();
+  });
+
+  it('returns a safe conflict when a database constraint prevents deletion', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const source = await context.feeds.createSource(validSource, context.master.id);
+    vi.spyOn(context.feeds, 'deleteSource').mockRejectedValue({ code: '23503' });
+
+    const response = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${source.id}`,
+      headers: { cookie, 'content-type': 'application/json' },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      error: 'This source cannot be deleted while related records exist.',
+    });
+    expect(await context.feeds.findSource(source.id)).not.toBeNull();
+  });
+
+  it('preserves delivery history and unrelated news when a source is deleted', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const source = await context.feeds.createSource(validSource, context.master.id);
+    const otherSource = await context.feeds.createSource(
+      { ...validSource, name: 'Other News' },
+      context.master.id,
+    );
+    const deletedNewsId = '00000000-0000-4000-8000-000000000101';
+    const retainedNewsId = '00000000-0000-4000-8000-000000000102';
+    await context.feeds.addNewsForTest(
+      { id: deletedNewsId, sourceId: source.id, headline: 'Deleted news' },
+      context.clock.now(),
+    );
+    await context.feeds.addNewsForTest(
+      {
+        id: retainedNewsId,
+        sourceId: otherSource.id,
+        headline: 'Retained news',
+        duplicateOf: deletedNewsId,
+      },
+      context.clock.now(),
+    );
+    const recipient = await context.recipients.createRecipient(
+      {
+        name: 'Asha',
+        whatsappE164: null,
+        email: 'asha@example.test',
+        topics: ['Outbreaks and public health'],
+        channel: 'email',
+      },
+      'a'.repeat(64),
+      context.master.id,
+    );
+    await context.deliveries.enqueue(
+      {
+        recipientId: recipient.id,
+        channel: 'email',
+        kind: 'manual',
+        subjectOrRef: 'source-deletion-history',
+        newsItemIds: [deletedNewsId],
+      },
+      context.clock.now(),
+    );
+
+    const response = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${source.id}`,
+      headers: { cookie, 'content-type': 'application/json' },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(await context.feeds.findSource(source.id)).toBeNull();
+    expect(await context.feeds.listNewsForTest()).toEqual([
+      expect.objectContaining({ id: retainedNewsId, duplicateOf: null }),
+    ]);
+    expect(await context.deliveries.list({ page: 1, pageSize: 10 })).toMatchObject({
+      total: 1,
+      items: [{ newsItemIds: [deletedNewsId] }],
+    });
   });
 
   it('validates feed URLs and only allows configured intervals', async () => {
@@ -287,8 +431,15 @@ describe('source management routes', () => {
     const remove = await context.app.inject({
       method: 'DELETE',
       url: `/api/sources/${memberSource.id}`,
-      headers: { cookie },
+      headers: { cookie, 'content-type': 'application/json' },
     });
     expect(remove.statusCode).toBe(204);
+    const removeOtherOwner = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${masterSource.id}`,
+      headers: { cookie, 'content-type': 'application/json' },
+    });
+    expect(removeOtherOwner.statusCode).toBe(404);
+    expect(await context.feeds.findSource(masterSource.id)).not.toBeNull();
   });
 });

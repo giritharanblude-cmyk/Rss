@@ -43,6 +43,10 @@ One entry per decision: date, decision, reason.
 - **Frontend hosting: Cloudflare Pages.** The frontend moved to Cloudflare Pages, so the Netlify proxy configuration is no longer used. Reason: the frontend no longer uses Netlify.
 - **Cloudflare Pages API proxy:** Route `/api/*` through `functions/api/[[path]].ts` to `ORIGIN_BASE` and inject `X-Origin-Secret` from `ORIGIN_SECRET`. Reason: keep the API origin protected while serving the frontend from Cloudflare Pages.
 
+## 2026-11-16
+
+- **Member-owned source deletion:** Members may delete only sources they own; attempts to delete another member's source return not found. Reason: explicit user authorization for source deletion while preserving tenant isolation.
+
 ## Verified free-tier limits (checked 2026-11-03)
 
 - **Netlify Free:** 300 credits/month, 1 concurrent build, 1 team owner. Production deploy = 15 credits; compute = 5–10 credits/GB-hour; bandwidth = 10–20 credits/GB; web requests = 2–3 credits per 10k. Projects pause when credits run out. Implication: keep the bundle small, cache aggressively, keep API calls short, and do long work as background jobs. The ~26 s proxy cut-off is treated as the operational ceiling.
