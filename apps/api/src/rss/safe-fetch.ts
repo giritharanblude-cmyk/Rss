@@ -124,14 +124,18 @@ function hostnameOf(url: URL): string {
 }
 
 function validateUrl(url: URL): void {
+  const hostname = hostnameOf(url).toLowerCase().replace(/\.$/, '');
   if (
     (url.protocol !== 'http:' && url.protocol !== 'https:') ||
     !url.hostname ||
     url.username ||
-    url.password
+    url.password ||
+    url.port ||
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost')
   ) {
     throw new SafeFetchError(
-      'Only credential-free HTTP and HTTPS URLs are allowed.',
+      'Only credential-free HTTP and HTTPS URLs on standard ports are allowed.',
       'blocked_destination',
     );
   }
@@ -169,6 +173,19 @@ async function resolveWithSignal(
   });
 }
 
+async function resolveHostname(hostname: string): Promise<ResolvedAddress[]> {
+  const addresses = await dnsLookup(hostname, { all: true, verbatim: true });
+  return addresses.map(({ address, family }): ResolvedAddress => {
+    if (family !== 4 && family !== 6) {
+      throw new SafeFetchError(
+        'The destination hostname resolved to an invalid address.',
+        'blocked_destination',
+      );
+    }
+    return { address, family: family === 4 ? 4 : 6 };
+  });
+}
+
 async function resolveAndValidate(
   url: URL,
   resolve: (hostname: string) => Promise<ResolvedAddress[]>,
@@ -194,6 +211,30 @@ async function resolveAndValidate(
     }
   }
   return addresses[0]!;
+}
+
+function isDnsResolutionError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    ['EAI_AGAIN', 'EAI_FAIL', 'EAI_NODATA', 'ENOTFOUND', 'ESERVFAIL'].includes(error.code)
+  );
+}
+
+export async function validateSafeUrl(
+  input: string | URL,
+  resolve: (hostname: string) => Promise<ResolvedAddress[]> = resolveHostname,
+): Promise<void> {
+  try {
+    await resolveAndValidate(new URL(input), resolve);
+  } catch (error) {
+    if (error instanceof SafeFetchError) throw error;
+    if (isDnsResolutionError(error)) {
+      throw new SafeFetchError('The destination hostname could not be resolved.', 'blocked_destination');
+    }
+    throw error;
+  }
 }
 
 function pinnedLookup(address: ResolvedAddress): NonNullable<RequestOptions['lookup']> {
@@ -365,20 +406,7 @@ function responseFromRaw(url: URL, response: RawFetchResponse): SafeFetchRespons
 }
 
 export function createSafeFetcher(options: SafeFetcherOptions = {}): SafeFetcher {
-  const resolve =
-    options.resolve ??
-    (async (hostname) => {
-      const addresses = await dnsLookup(hostname, { all: true, verbatim: true });
-      return addresses.map(({ address, family }): ResolvedAddress => {
-        if (family !== 4 && family !== 6) {
-          throw new SafeFetchError(
-            'The destination hostname resolved to an invalid address.',
-            'blocked_destination',
-          );
-        }
-        return { address, family: family === 4 ? 4 : 6 };
-      });
-    });
+  const resolve = options.resolve ?? resolveHostname;
   const request = options.request ?? requestPinned;
   const limits = {
     connectTimeoutMs: options.connectTimeoutMs ?? connectTimeoutMs,

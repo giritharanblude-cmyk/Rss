@@ -7,8 +7,8 @@ let context: TestContext;
 afterEach(async () => context.app.close());
 
 const sourceInput = {
-  website: 'https://news.example.test',
-  rssUrl: 'https://news.example.test/feed.xml',
+  website: 'https://1.1.1.1',
+  rssUrl: 'https://1.1.1.1/feed.xml',
   mode: 'all',
   topics: [],
   region: null,
