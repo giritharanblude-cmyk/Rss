@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import type { SourceInput } from '@healthcare/shared';
 import type { NewsRepository, SourceRecord, SourceRepository } from '../repositories/feeds';
+import { safeFetch, type SafeFetcher } from './safe-fetch';
 import {
   headlineSimilarity,
   normalizeFeedItem,
@@ -8,7 +9,6 @@ import {
   matchesSourceTopics,
 } from './normalize';
 
-type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 type Logger = (message: string, detail?: unknown) => void;
 
 const parser = new Parser({
@@ -61,16 +61,16 @@ async function retry<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 export class FeedService {
-  private readonly fetcher: FetchLike;
+  private readonly fetcher: SafeFetcher;
   private readonly now: () => Date;
   private readonly log: Logger;
 
   constructor(
     private readonly sources: SourceRepository,
     private readonly news: NewsRepository,
-    options: { fetcher?: FetchLike; now?: () => Date; log?: Logger } = {},
+    options: { fetcher?: SafeFetcher; now?: () => Date; log?: Logger } = {},
   ) {
-    this.fetcher = options.fetcher ?? fetch;
+    this.fetcher = options.fetcher ?? safeFetch;
     this.now = options.now ?? (() => new Date());
     this.log = options.log ?? ((message, detail) => console.error(message, detail));
   }
