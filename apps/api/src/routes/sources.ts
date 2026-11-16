@@ -25,13 +25,16 @@ export type SourceRouteOptions = {
 };
 
 function isConstraintViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    error.code.startsWith('23')
-  );
+  const seen = new Set<object>();
+  let cause = error;
+  while (typeof cause === 'object' && cause !== null && !seen.has(cause)) {
+    seen.add(cause);
+    if ('code' in cause && typeof cause.code === 'string' && cause.code.startsWith('23')) {
+      return true;
+    }
+    cause = 'cause' in cause ? cause.cause : null;
+  }
+  return false;
 }
 
 function toSourceResponse(source: SourceRecord) {

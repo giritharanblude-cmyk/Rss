@@ -46,6 +46,25 @@ test('dashboard and News Feed work at mobile and desktop widths', async ({ page 
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') {
       await route.fulfill({ json: { user } });
+    } else if (url.pathname === '/api/settings/connections') {
+      await route.fulfill({
+        json: {
+          connections: [
+            {
+              service: 'whatsapp',
+              state: 'disconnected',
+              checkedAt: newsItem.fetchedAt,
+              detail: null,
+            },
+            {
+              service: 'email',
+              state: 'working',
+              checkedAt: newsItem.fetchedAt,
+              detail: null,
+            },
+          ],
+        },
+      });
     } else if (url.pathname === '/api/dashboard/live') {
       dashboardPolls += 1;
       await route.fulfill({
@@ -80,7 +99,7 @@ test('dashboard and News Feed work at mobile and desktop widths', async ({ page 
   });
   await expect(
     page.getByRole('navigation', { name: 'Modules' }).locator('.module-link'),
-  ).toHaveCount(6);
+  ).toHaveCount(7);
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true);

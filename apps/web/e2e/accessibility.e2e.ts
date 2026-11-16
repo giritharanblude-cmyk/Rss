@@ -39,6 +39,25 @@ test.beforeEach(async ({ page }) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/me') {
       await route.fulfill({ json: { user } });
+    } else if (url.pathname === '/api/settings/connections') {
+      await route.fulfill({
+        json: {
+          connections: [
+            {
+              service: 'whatsapp',
+              state: 'connected',
+              checkedAt: newsItem.fetchedAt,
+              detail: null,
+            },
+            {
+              service: 'email',
+              state: 'disconnected',
+              checkedAt: newsItem.fetchedAt,
+              detail: null,
+            },
+          ],
+        },
+      });
     } else if (url.pathname === '/api/dashboard/live') {
       await route.fulfill({
         json: {
@@ -78,9 +97,9 @@ test('keyboard navigation, labels, and non-colour status cues work', async ({ pa
   await expect(page.getByText('Not working', { exact: true })).toBeVisible();
 
   // The module navigation is reachable backwards from the main region and
-  // activates with the keyboard. Reverse order: Settings, Delivery Log,
-  // Alerts, Recipients, Sources, News Feed.
-  for (let press = 0; press < 6; press += 1) {
+  // activates with the keyboard. Reverse order: Profile, Settings, Delivery
+  // Log, Alerts, Recipients, Sources, News Feed.
+  for (let press = 0; press < 7; press += 1) {
     await page.keyboard.press('Shift+Tab');
   }
   const newsLink = page.getByRole('link', { name: 'News Feed', exact: true });
