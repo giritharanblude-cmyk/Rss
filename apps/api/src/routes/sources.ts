@@ -9,10 +9,13 @@ import {
 } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { FeedTestQueue } from '../rss/background';
+import { SafeFetchError, validateSafeUrl } from '../rss/safe-fetch';
 import type { SourceRepository, SourceRecord } from '../repositories/feeds';
 import { ForbiddenError, HttpError } from '../errors';
 import { parseBody, readUser } from './auth';
 import { paginate } from './pagination';
+
+const unsafeSourceUrlMessage = 'This feed address is not allowed.';
 
 export type SourceRouteOptions = {
   auth: AuthService;
@@ -27,6 +30,20 @@ function toSourceResponse(source: SourceRecord) {
     lastFetchedAt: source.lastFetchedAt?.toISOString() ?? null,
     createdAt: source.createdAt.toISOString(),
   });
+}
+
+async function validateSourceUrls(urls: { website?: string; rssUrl?: string }): Promise<void> {
+  for (const url of [urls.website, urls.rssUrl]) {
+    if (url === undefined) continue;
+    try {
+      await validateSafeUrl(url);
+    } catch (error) {
+      if (error instanceof SafeFetchError) {
+        throw new HttpError(400, unsafeSourceUrlMessage);
+      }
+      throw error;
+    }
+  }
 }
 
 async function requireMaster(
@@ -57,6 +74,7 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
   app.post('/api/sources', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     const body = parseBody(sourceInputSchema, request.body);
+    await validateSourceUrls(body);
     const source = await options.sources.createSource(body, user.id);
     return reply.code(201).send({ source: toSourceResponse(source) });
   });
@@ -66,6 +84,7 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
     const params = uuidParamsSchema.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'Check the source id and try again.');
     const updates = parseBody(sourceUpdateSchema, request.body);
+    await validateSourceUrls(updates);
     const source = await options.sources.updateSource(
       params.data.id,
       updates,

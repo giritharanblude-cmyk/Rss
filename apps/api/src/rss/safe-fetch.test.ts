@@ -9,6 +9,7 @@ import {
   type PinnedRequester,
   type RawFetchResponse,
   type ResolvedAddress,
+  validateSafeUrl,
 } from './safe-fetch';
 
 const publicIPv4: ResolvedAddress = { address: '1.1.1.1', family: 4 };
@@ -104,6 +105,18 @@ describe('safe RSS fetching', () => {
 
     await expect(fetcher('https://feed.example.test/rss')).rejects.toBeInstanceOf(SafeFetchError);
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it('validates all DNS answers when checking a source URL', async () => {
+    const resolve = vi.fn(async () => [
+      publicIPv4,
+      { address: '10.0.0.2', family: 4 as const },
+    ]);
+
+    await expect(validateSafeUrl('https://feed.example.test/rss', resolve)).rejects.toMatchObject({
+      code: 'blocked_destination',
+    });
+    expect(resolve).toHaveBeenCalledOnce();
   });
 
   it('pins the validated DNS answer and preserves the original HTTP/TLS host identity', async () => {

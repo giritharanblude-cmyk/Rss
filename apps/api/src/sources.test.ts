@@ -8,8 +8,8 @@ afterEach(async () => context.app.close());
 
 const validSource: SourceInput = {
   name: 'Health News',
-  website: 'https://news.example.test',
-  rssUrl: 'https://news.example.test/feed.xml',
+  website: 'https://1.1.1.1',
+  rssUrl: 'https://1.1.1.1/feed.xml',
   mode: 'all',
   topics: [],
   region: null,
@@ -84,6 +84,83 @@ describe('source management routes', () => {
 
     expect(badUrl.statusCode).toBe(400);
     expect(badInterval.statusCode).toBe(400);
+    expect(await context.feeds.listSources()).toHaveLength(0);
+  });
+
+  it.each(['website', 'rssUrl'] as const)(
+    'rejects loopback URLs for %s on create and update without storing them',
+    async (field) => {
+      context = await createTestContext();
+      const { cookie } = await loginAndVerify(
+        context.app,
+        context.email,
+        'Admin',
+        'master-password-1',
+      );
+      const headers = { cookie };
+      const blockedUrl = 'http://127.0.0.1/feed';
+
+      const rejectedCreate = await context.app.inject({
+        method: 'POST',
+        url: '/api/sources',
+        headers,
+        payload: { ...validSource, [field]: blockedUrl },
+      });
+      expect(rejectedCreate.statusCode).toBe(400);
+      expect(rejectedCreate.json()).toEqual({ error: 'This feed address is not allowed.' });
+      expect(await context.feeds.listSources()).toHaveLength(0);
+
+      const created = await context.app.inject({
+        method: 'POST',
+        url: '/api/sources',
+        headers,
+        payload: validSource,
+      });
+      expect(created.statusCode).toBe(201);
+      const sourceId = (created.json() as { source: { id: string } }).source.id;
+      const rejectedUpdate = await context.app.inject({
+        method: 'PATCH',
+        url: `/api/sources/${sourceId}`,
+        headers,
+        payload: { [field]: blockedUrl },
+      });
+
+      expect(rejectedUpdate.statusCode).toBe(400);
+      expect(rejectedUpdate.json()).toEqual({ error: 'This feed address is not allowed.' });
+      expect(await context.feeds.findSource(sourceId)).toMatchObject({
+        website: validSource.website,
+        rssUrl: validSource.rssUrl,
+      });
+    },
+  );
+
+  it('rejects cloud metadata URLs, non-HTTP schemes, and non-standard ports', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    const headers = { cookie };
+    const invalidUrls = [
+      'http://localhost/feed',
+      'http://169.254.169.254/latest/meta-data/',
+      'file:///etc/passwd',
+      'https://1.1.1.1:8080/feed',
+    ];
+
+    for (const rssUrl of invalidUrls) {
+      const response = await context.app.inject({
+        method: 'POST',
+        url: '/api/sources',
+        headers,
+        payload: { ...validSource, rssUrl },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toHaveProperty('error');
+    }
+
     expect(await context.feeds.listSources()).toHaveLength(0);
   });
 
