@@ -24,6 +24,16 @@ export type SourceRouteOptions = {
   tests: FeedTestQueue;
 };
 
+function isConstraintViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code.startsWith('23')
+  );
+}
+
 function toSourceResponse(source: SourceRecord) {
   return sourceSchema.parse({
     ...source,
@@ -94,19 +104,42 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
     return reply.send({ source: toSourceResponse(source) });
   });
 
-  app.delete('/api/sources/:id', async (request, reply) => {
-    const user = await readUser(request, options.auth, options.jwtSecret);
-    const params = uuidParamsSchema.safeParse(request.params);
-    if (!params.success) throw new HttpError(400, 'Check the source id and try again.');
-    if (
-      !(await options.sources.deleteSource(
-        params.data.id,
-        user.role === 'master' ? undefined : user.id,
-      ))
-    ) {
-      throw new HttpError(404, 'That source was not found.');
-    }
-    return reply.code(204).send();
+  void app.register(async (deleteRoutes) => {
+    const parseJson = deleteRoutes.getDefaultJsonParser('error', 'ignore');
+    deleteRoutes.removeContentTypeParser('application/json');
+    deleteRoutes.addContentTypeParser<string>(
+      'application/json',
+      { parseAs: 'string' },
+      (request, body, done) => {
+        if (body.length === 0) {
+          done(null, undefined);
+          return;
+        }
+        parseJson(request, body, done);
+      },
+    );
+
+    deleteRoutes.delete('/api/sources/:id', async (request, reply) => {
+      const user = await readUser(request, options.auth, options.jwtSecret);
+      const params = uuidParamsSchema.safeParse(request.params);
+      if (!params.success) throw new HttpError(400, 'Check the source id and try again.');
+
+      let deleted: boolean;
+      try {
+        deleted = await options.sources.deleteSource(
+          params.data.id,
+          user.role === 'master' ? undefined : user.id,
+        );
+      } catch (error) {
+        if (isConstraintViolation(error)) {
+          throw new HttpError(409, 'This source cannot be deleted while related records exist.');
+        }
+        throw error;
+      }
+
+      if (!deleted) throw new HttpError(404, 'That source was not found.');
+      return reply.code(204).send();
+    });
   });
 
   app.post('/api/sources/test', async (request, reply) => {

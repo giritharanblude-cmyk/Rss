@@ -392,9 +392,10 @@ export function SourcesPage() {
                 <button
                   type="button"
                   className="button-danger"
+                  disabled={remove.isPending}
                   onClick={() => void deleteSource(source)}
                 >
-                  Delete
+                  {remove.isPending ? 'Deleting…' : 'Delete'}
                 </button>
               </div>
             </article>
