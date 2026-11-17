@@ -59,9 +59,7 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
     const user = await readUser(request, options.auth, options.jwtSecret);
     const query = listPaginationQuerySchema.safeParse(request.query);
     if (!query.success) throw new HttpError(400, 'Check the source page and page size.');
-    const sources = await options.sources.listSources(
-      user.role === 'master' ? undefined : user.id,
-    );
+    const sources = await options.sources.listSources(user.id);
     const page = paginate(sources, query.data.page, query.data.pageSize);
     return reply.send({
       sources: page.items.map(toSourceResponse),
@@ -88,7 +86,7 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
     const source = await options.sources.updateSource(
       params.data.id,
       updates,
-      user.role === 'master' ? undefined : user.id,
+      user.id,
     );
     if (!source) throw new HttpError(404, 'That source was not found.');
     return reply.send({ source: toSourceResponse(source) });
@@ -101,7 +99,7 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
     if (
       !(await options.sources.deleteSource(
         params.data.id,
-        user.role === 'master' ? undefined : user.id,
+        user.id,
       ))
     ) {
       throw new HttpError(404, 'That source was not found.');
