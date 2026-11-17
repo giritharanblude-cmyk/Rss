@@ -130,30 +130,14 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
     },
   );
 
-  void app.register(async (logoutRoutes) => {
-    const parseJson = logoutRoutes.getDefaultJsonParser('error', 'ignore');
-    logoutRoutes.removeContentTypeParser('application/json');
-    logoutRoutes.addContentTypeParser<string>(
-      'application/json',
-      { parseAs: 'string' },
-      (request, body, done) => {
-        if (body.length === 0) {
-          done(null, undefined);
-          return;
-        }
-        parseJson(request, body, done);
-      },
-    );
-
-    logoutRoutes.post('/api/auth/logout', async (request, reply) => {
-      const token = request.cookies[SESSION_COOKIE];
-      const session = token ? await verifySession(token, jwtSecret) : null;
-      if (session) {
-        await auth.logout(session);
-      }
-      reply.clearCookie(SESSION_COOKIE, { path: '/' });
-      return reply.code(204).send();
-    });
+  app.post('/api/auth/logout', async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    const session = token ? await verifySession(token, jwtSecret) : null;
+    if (session) {
+      await auth.logout(session);
+    }
+    reply.clearCookie(SESSION_COOKIE, { path: '/' });
+    return reply.code(204).send();
   });
 
   app.get('/api/auth/me', async (request, reply) => {

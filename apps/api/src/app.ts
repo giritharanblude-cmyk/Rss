@@ -85,6 +85,19 @@ export type AppDeps = {
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: loggerOptions });
+  const parseJson = app.getDefaultJsonParser('error', 'ignore');
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser<string>(
+    'application/json',
+    { parseAs: 'string' },
+    (request, body, done) => {
+      if (body.length === 0) {
+        done(null, undefined);
+        return;
+      }
+      parseJson(request, body, done);
+    },
+  );
 
   const sessionTtlSeconds = Math.max(
     deps.sessionTtlSeconds ?? 8 * 60 * 60,

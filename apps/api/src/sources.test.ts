@@ -55,7 +55,8 @@ describe('source management routes', () => {
     const deleted = await context.app.inject({
       method: 'DELETE',
       url: `/api/sources/${source.id}`,
-      headers: { cookie },
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: '',
     });
     expect(deleted.statusCode).toBe(204);
   });
@@ -255,6 +256,12 @@ describe('source management routes', () => {
       headers: { cookie },
       payload: { active: false },
     });
+    const deleteOtherOwner = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${masterSource.id}`,
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: '',
+    });
     const updateOwn = await context.app.inject({
       method: 'PATCH',
       url: `/api/sources/${memberSource.id}`,
@@ -267,6 +274,7 @@ describe('source management routes', () => {
     expect(storedMemberSource).toMatchObject({ ownerUserId: member.id });
     expect(list.json()).toMatchObject({ sources: [{ name: 'Member News' }], total: 1 });
     expect(updateOtherOwner.statusCode).toBe(404);
+    expect(deleteOtherOwner.statusCode).toBe(404);
     expect(updateOwn.statusCode).toBe(200);
     const masterList = await context.app.inject({
       method: 'GET',
@@ -287,7 +295,8 @@ describe('source management routes', () => {
     const remove = await context.app.inject({
       method: 'DELETE',
       url: `/api/sources/${memberSource.id}`,
-      headers: { cookie },
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: '',
     });
     expect(remove.statusCode).toBe(204);
   });
