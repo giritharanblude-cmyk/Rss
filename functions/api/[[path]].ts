@@ -31,5 +31,19 @@ export async function onRequest({ request, env }: PagesFunctionContext): Promise
     init.duplex = 'half';
   }
 
-  return fetch(new Request(upstreamUrl, init));
+  const response = await fetch(new Request(upstreamUrl, init));
+  const responseHeaders = new Headers(response.headers);
+  const setCookies = response.headers.getSetCookie();
+  if (setCookies.length > 0) {
+    responseHeaders.delete('Set-Cookie');
+    for (const cookie of setCookies) {
+      responseHeaders.append('Set-Cookie', cookie.replace(/;\s*Domain=[^;]*/gi, ''));
+    }
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+  });
 }
