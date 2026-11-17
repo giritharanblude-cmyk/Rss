@@ -22,6 +22,7 @@ export type FeedFetchResult = {
   itemCount: number;
   insertedCount: number;
   duplicateCount: number;
+  skippedCount: number;
 };
 
 function itemDate(item: { publishedAt: Date | null }, fallback: Date): Date {
@@ -102,10 +103,11 @@ export class FeedService {
         etag: response.headers.get('etag') ?? source.etag,
         lastModified: response.headers.get('last-modified') ?? source.lastModified,
       });
-      if (!parsed) return { itemCount: 0, insertedCount: 0, duplicateCount: 0 };
+      if (!parsed) return { itemCount: 0, insertedCount: 0, duplicateCount: 0, skippedCount: 0 };
 
       let insertedCount = 0;
       let duplicateCount = 0;
+      let skippedCount = 0;
       for (const rawItem of parsed.items) {
         const item = normalizeFeedItem({
           title: rawItem.title,
@@ -123,6 +125,15 @@ export class FeedService {
           linkNormalized,
           new Date(now.getTime() - DEDUPE_WINDOW_MS),
         );
+        if (
+          candidates.some(
+            (candidate) =>
+              candidate.sourceId === source.id && candidate.linkNormalized === linkNormalized,
+          )
+        ) {
+          skippedCount += 1;
+          continue;
+        }
         const matches = candidates.filter((candidate) =>
           isDuplicate(candidate, { ...item, linkNormalized }, now),
         );
@@ -160,7 +171,7 @@ export class FeedService {
         }
       }
 
-      return { itemCount: parsed.items.length, insertedCount, duplicateCount };
+      return { itemCount: parsed.items.length, insertedCount, duplicateCount, skippedCount };
     } catch (error) {
       const message =
         error instanceof Error && error.name === 'TimeoutError'
