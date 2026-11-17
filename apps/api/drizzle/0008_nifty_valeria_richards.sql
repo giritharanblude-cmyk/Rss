@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "first_login_completed" boolean DEFAULT true NOT NULL;

@@ -97,7 +97,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRouteOptio
         request.authenticatedSession = result.session;
         return reply.send({
           status: 'session_active',
-          message: 'Your active session is still valid.',
+          message: 'Signed in successfully.',
         });
       }
       return reply

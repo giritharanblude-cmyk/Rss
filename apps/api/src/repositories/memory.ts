@@ -89,6 +89,7 @@ export class MemoryUserRepository implements UserRepository {
       phone: null,
       role: user.role,
       passwordHash: user.passwordHash,
+      firstLoginCompleted: false,
       sessionVersion: 0,
       disabled: false,
       loginFailures: 0,
@@ -97,6 +98,15 @@ export class MemoryUserRepository implements UserRepository {
     };
     this.users.set(record.id, record);
     return cloneUser(record);
+  }
+
+  async markFirstLoginCompleted(id: string): Promise<boolean> {
+    const user = this.users.get(id);
+    if (!user) {
+      return false;
+    }
+    user.firstLoginCompleted = true;
+    return true;
   }
 
   async createSession(session: NewUserSession): Promise<void> {

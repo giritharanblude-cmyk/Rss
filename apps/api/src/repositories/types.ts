@@ -7,6 +7,7 @@ export type UserRecord = {
   phone: string | null;
   role: UserRole;
   passwordHash: string;
+  firstLoginCompleted: boolean;
   sessionVersion: number;
   disabled: boolean;
   loginFailures: number;
@@ -34,6 +35,7 @@ export type UserRepository = {
   listMembers(): Promise<UserRecord[]>;
   countMasters(): Promise<number>;
   create(user: NewUser): Promise<UserRecord>;
+  markFirstLoginCompleted(id: string): Promise<boolean>;
   createSession(session: NewUserSession): Promise<void>;
   touchSession(id: string, userId: string, idleAfter: Date, lastActiveAt: Date): Promise<boolean>;
   deleteSession(id: string): Promise<void>;

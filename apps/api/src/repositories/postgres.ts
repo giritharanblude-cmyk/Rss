@@ -41,6 +41,7 @@ function toUser(row: UserRow, encryptionKey: string): UserRecord {
     phone,
     role: row.role,
     passwordHash: row.passwordHash,
+    firstLoginCompleted: row.firstLoginCompleted,
     sessionVersion: row.sessionVersion,
     disabled: row.disabled,
     loginFailures: row.loginFailures,
@@ -141,6 +142,7 @@ export class PostgresUserRepository implements UserRepository {
           phone: null,
           phoneLookupHash: null,
           passwordHash: user.passwordHash,
+          firstLoginCompleted: false,
           role: user.role,
         })
         .returning();
@@ -166,6 +168,15 @@ export class PostgresUserRepository implements UserRepository {
       throw new Error('User was not created');
     }
     return toUser(row, this.encryptionKey);
+  }
+
+  async markFirstLoginCompleted(id: string): Promise<boolean> {
+    const rows = await this.db
+      .update(users)
+      .set({ firstLoginCompleted: true })
+      .where(eq(users.id, id))
+      .returning({ id: users.id });
+    return rows.length === 1;
   }
 
   async createSession(session: NewUserSession): Promise<void> {
