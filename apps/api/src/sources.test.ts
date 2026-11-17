@@ -203,12 +203,19 @@ describe('source management routes', () => {
       member.name,
       'member-password-1',
     );
-    const forbidden = await context.app.inject({
+    const createForbidden = await context.app.inject({
+      method: 'POST',
+      url: '/api/sources/test',
+      headers: { cookie: memberCookie },
+      payload: { rssUrl: validSource.rssUrl },
+    });
+    const statusForbidden = await context.app.inject({
       method: 'GET',
       url: `/api/sources/test/${job.id}`,
       headers: { cookie: memberCookie },
     });
-    expect(forbidden.statusCode).toBe(403);
+    expect(createForbidden.statusCode).toBe(403);
+    expect(statusForbidden.statusCode).toBe(403);
   });
 
   it('lets members manage only their own sources', async () => {
@@ -299,5 +306,21 @@ describe('source management routes', () => {
       payload: '',
     });
     expect(remove.statusCode).toBe(204);
+
+    const anotherMemberSource = await context.app.inject({
+      method: 'POST',
+      url: '/api/sources',
+      headers: { cookie },
+      payload: { ...validSource, name: 'Another Member News' },
+    });
+    const anotherMemberSourceId = (anotherMemberSource.json() as { source: { id: string } }).source
+      .id;
+    const masterDelete = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/sources/${anotherMemberSourceId}`,
+      headers: { cookie: masterCookie.cookie, 'content-type': 'application/json' },
+      payload: '',
+    });
+    expect(masterDelete.statusCode).toBe(204);
   });
 });
