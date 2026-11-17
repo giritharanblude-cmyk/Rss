@@ -6,6 +6,26 @@ let context: TestContext;
 afterEach(async () => context.app.close());
 
 describe('API request validation', () => {
+  it('accepts empty JSON as no body while preserving malformed and required body validation', async () => {
+    context = await createTestContext();
+    const malformed = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { 'content-type': 'application/json' },
+      payload: '{',
+    });
+    const missing = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { 'content-type': 'application/json' },
+      payload: '',
+    });
+
+    expect(malformed.statusCode).toBe(400);
+    expect(missing.statusCode).toBe(400);
+    expect(context.email.sent).toHaveLength(0);
+  });
+
   it('rejects invalid request bodies, queries, and path parameters', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(
