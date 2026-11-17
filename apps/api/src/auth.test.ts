@@ -79,6 +79,10 @@ describe('sign in with name, password and emailed code', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ status: 'session_active' });
+    const refreshedCookie = String(response.headers['set-cookie']);
+    expect(refreshedCookie).toContain('HttpOnly');
+    expect(refreshedCookie).toContain('SameSite=Lax');
+    expect(refreshedCookie).toContain('Max-Age=');
     expect(context.email.sent).toHaveLength(sentCount);
     const refreshedProfile = await context.app.inject({
       method: 'GET',
