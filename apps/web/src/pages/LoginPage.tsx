@@ -79,7 +79,9 @@ export function LoginPage() {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="login-title">
         <h1 id="login-title">Healthcare News Reader</h1>
-        <p className="auth-subtitle">Sign in with your name or email, password and email code.</p>
+        <p className="auth-subtitle">
+          Sign in with your name or email and password. First sign-in requires an emailed code.
+        </p>
 
         {error ? (
           <p className="banner banner-error" role="alert">

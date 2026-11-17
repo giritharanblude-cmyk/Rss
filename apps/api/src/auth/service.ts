@@ -58,6 +58,20 @@ export class AuthService {
     throw new UnauthorizedError('Name or password is incorrect.');
   }
 
+  private async createSession(user: UserRecord): Promise<SessionPayload> {
+    const session = {
+      userId: user.id,
+      sessionId: randomUUID(),
+      sessionVersion: user.sessionVersion,
+    };
+    await this.options.users.createSession({
+      id: session.sessionId,
+      userId: user.id,
+      lastActiveAt: this.now(),
+    });
+    return session;
+  }
+
   async login(
     name: string,
     password: string,
@@ -85,6 +99,10 @@ export class AuthService {
       }
     }
 
+    if (user.firstLoginCompleted) {
+      return { status: 'session_active', session: await this.createSession(user) };
+    }
+
     await this.options.otp.request(
       { userId: user.id, name: user.name, email: user.email },
       'login',
@@ -109,18 +127,16 @@ export class AuthService {
     await this.checkLock(user);
     await this.options.otp.verify({ userId: user.id, name: user.name }, 'login', code);
 
-    const sessionId = randomUUID();
-    await this.options.users.createSession({
-      id: sessionId,
-      userId: user.id,
-      lastActiveAt: this.now(),
-    });
+    if (!(await this.options.users.markFirstLoginCompleted(user.id))) {
+      throw new UnauthorizedError();
+    }
+    const session = await this.createSession(user);
     const token = signSession(
-      user.id,
+      session.userId,
       this.options.jwtSecret,
       this.options.sessionTtlSeconds,
-      user.sessionVersion,
-      sessionId,
+      session.sessionVersion,
+      session.sessionId,
     );
     return { user, token };
   }

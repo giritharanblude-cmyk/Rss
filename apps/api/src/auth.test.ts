@@ -16,8 +16,11 @@ afterEach(async () => {
 });
 
 describe('sign in with name, password and emailed code', () => {
-  it('completes the login flow and sets a scoped session cookie', async () => {
+  it('requires OTP for the first sign-in and sets a scoped session cookie', async () => {
     context = await createTestContext();
+    expect(await context.users.findById(context.master.id)).toMatchObject({
+      firstLoginCompleted: false,
+    });
     const privateProfile = await context.app.inject({
       method: 'GET',
       url: '/api/auth/me',
@@ -42,6 +45,9 @@ describe('sign in with name, password and emailed code', () => {
     expect(verify.statusCode).toBe(200);
     expect(verify.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
     expect(verify.json().user).not.toHaveProperty('email');
+    expect(await context.users.findById(context.master.id)).toMatchObject({
+      firstLoginCompleted: true,
+    });
     const setCookie = String(verify.headers['set-cookie']);
     expect(sessionCookieFrom(verify)).toContain('session=');
     expect(setCookie).toContain('HttpOnly');
@@ -109,7 +115,7 @@ describe('sign in with name, password and emailed code', () => {
     expect(verify.json()).toMatchObject({ user: { name: 'Admin', role: 'master' } });
   });
 
-  it('sends member login OTPs only to the member email, including resends', async () => {
+  it('requires OTP for a member first sign-in and skips it on the next sign-in', async () => {
     context = await createTestContext();
     const member = await seedMember(context.users, {
       name: 'Mina',
@@ -137,9 +143,26 @@ describe('sign in with name, password and emailed code', () => {
     expect(resend.statusCode).toBe(202);
     expect(context.email.sent.at(-1)?.to).toBe(member.email);
     expect(context.email.sent.at(-1)?.to).not.toBe(context.master.email);
+
+    const verify = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: member.name, code: latestOtpCode(context.email) },
+    });
+    expect(verify.statusCode).toBe(200);
+    const emailCount = context.email.sent.length;
+
+    const secondLogin = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: member.name, password: 'member-password-1' },
+    });
+    expect(secondLogin.statusCode).toBe(200);
+    expect(secondLogin.json()).toMatchObject({ status: 'session_active' });
+    expect(context.email.sent).toHaveLength(emailCount);
   });
 
-  it('sends master login OTPs to the master email', async () => {
+  it('requires OTP for a master first sign-in and skips it on the next sign-in', async () => {
     context = await createTestContext();
 
     const login = await context.app.inject({
@@ -150,6 +173,23 @@ describe('sign in with name, password and emailed code', () => {
 
     expect(login.statusCode).toBe(202);
     expect(context.email.sent.at(-1)?.to).toBe(context.master.email);
+
+    const verify = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: context.master.name, code: latestOtpCode(context.email) },
+    });
+    expect(verify.statusCode).toBe(200);
+    const emailCount = context.email.sent.length;
+
+    const secondLogin = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: context.master.name, password: 'master-password-1' },
+    });
+    expect(secondLogin.statusCode).toBe(200);
+    expect(secondLogin.json()).toMatchObject({ status: 'session_active' });
+    expect(context.email.sent).toHaveLength(emailCount);
   });
 
   it('refuses login when the account has no email address', async () => {
@@ -289,7 +329,7 @@ describe('sign in with name, password and emailed code', () => {
     expect(response.statusCode).toBe(401);
   });
 
-  it('requires a new OTP login after the session expires from inactivity', async () => {
+  it('skips OTP after the session expires from inactivity', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(
       context.app,
@@ -312,22 +352,9 @@ describe('sign in with name, password and emailed code', () => {
       headers: { cookie },
       payload: { name: 'Admin', password: 'master-password-1' },
     });
-    expect(login.statusCode).toBe(202);
-    expect(login.json()).toMatchObject({ status: 'otp_sent' });
-    expect(context.email.sent).toHaveLength(2);
-
-    const verify = await context.app.inject({
-      method: 'POST',
-      url: '/api/auth/verify-otp',
-      payload: { name: 'Admin', code: latestOtpCode(context.email) },
-    });
-    expect(verify.statusCode).toBe(200);
-    const activeSession = await context.app.inject({
-      method: 'GET',
-      url: '/api/auth/me',
-      headers: { cookie: sessionCookieFrom(verify) },
-    });
-    expect(activeSession.statusCode).toBe(200);
+    expect(login.statusCode).toBe(200);
+    expect(login.json()).toMatchObject({ status: 'session_active' });
+    expect(context.email.sent).toHaveLength(1);
   });
 
   it('sets the session cookie Secure in production and clears it on logout', async () => {
@@ -429,7 +456,7 @@ describe('sign in with name, password and emailed code', () => {
     },
   );
 
-  it('requires a new OTP after logout', async () => {
+  it('skips OTP after logout', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(
       context.app,
@@ -451,9 +478,9 @@ describe('sign in with name, password and emailed code', () => {
       headers: { cookie: sessionCookieFrom(logout) },
       payload: { name: 'Admin', password: 'master-password-1' },
     });
-    expect(login.statusCode).toBe(202);
-    expect(login.json()).toMatchObject({ status: 'otp_sent' });
-    expect(context.email.sent).toHaveLength(2);
+    expect(login.statusCode).toBe(200);
+    expect(login.json()).toMatchObject({ status: 'session_active' });
+    expect(context.email.sent).toHaveLength(1);
   });
 
   it('stores the password and the code as Argon2id hashes', async () => {
@@ -805,7 +832,8 @@ describe('password change', () => {
       url: '/api/auth/login',
       payload: { name: 'Admin', password: 'new-password-99' },
     });
-    expect(newPassword.statusCode).toBe(202);
+    expect(newPassword.statusCode).toBe(200);
+    expect(newPassword.json()).toMatchObject({ status: 'session_active' });
   });
 
   it('rejects an incorrect password-change code', async () => {

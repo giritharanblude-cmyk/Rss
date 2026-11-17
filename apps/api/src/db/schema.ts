@@ -41,6 +41,7 @@ export const users = pgTable(
     emailLookupHash: text('email_lookup_hash').notNull(),
     phoneLookupHash: text('phone_lookup_hash'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    firstLoginCompleted: boolean('first_login_completed').notNull().default(true),
     sessionVersion: integer('session_version').notNull().default(0),
     disabled: boolean('disabled').notNull().default(false),
     loginFailures: integer('login_failures').notNull().default(0),

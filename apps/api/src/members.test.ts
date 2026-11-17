@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMasterIfNone } from './auth/seed';
 import { DuplicateMasterError, EmailUnavailableError } from './errors';
 import { MemoryUserRepository } from './repositories/memory';
-import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
+import {
+  createTestContext,
+  loginAndVerify,
+  seedMember,
+  sessionCookieFrom,
+  type TestContext,
+} from './test/helpers';
 
 let context: TestContext;
 
@@ -68,12 +74,13 @@ describe('member management', () => {
     expect(staleSession.statusCode).toBe(401);
 
     context.clock.advance(61_000);
-    const { cookie: newMemberCookie } = await loginAndVerify(
-      context.app,
-      context.email,
-      'Ravi',
-      'member-password-2',
-    );
+    const newMemberLogin = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Ravi', password: 'member-password-2' },
+    });
+    expect(newMemberLogin.statusCode).toBe(200);
+    const newMemberCookie = sessionCookieFrom(newMemberLogin);
     const activeSession = await context.app.inject({
       method: 'GET',
       url: '/api/auth/me',
