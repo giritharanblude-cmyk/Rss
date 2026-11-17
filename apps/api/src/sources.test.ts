@@ -218,7 +218,7 @@ describe('source management routes', () => {
     expect(statusForbidden.statusCode).toBe(403);
   });
 
-  it('lets members manage only their own sources', async () => {
+  it('lets each role manage only its own sources', async () => {
     context = await createTestContext();
     const masterCookie = await loginAndVerify(
       context.app,
@@ -295,10 +295,10 @@ describe('source management routes', () => {
       payload: { intervalMinutes: 360 },
     });
     expect(masterList.json()).toMatchObject({
-      sources: [{ name: 'Health News' }, { name: 'Member News' }],
-      total: 2,
+      sources: [{ name: 'Health News' }],
+      total: 1,
     });
-    expect(masterUpdate.statusCode).toBe(200);
+    expect(masterUpdate.statusCode).toBe(404);
     const remove = await context.app.inject({
       method: 'DELETE',
       url: `/api/sources/${memberSource.id}`,
@@ -321,6 +321,7 @@ describe('source management routes', () => {
       headers: { cookie: masterCookie.cookie, 'content-type': 'application/json' },
       payload: '',
     });
-    expect(masterDelete.statusCode).toBe(204);
+    expect(masterDelete.statusCode).toBe(404);
+    expect(await context.feeds.findSource(anotherMemberSourceId)).not.toBeNull();
   });
 });
