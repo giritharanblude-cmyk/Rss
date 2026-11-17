@@ -29,6 +29,53 @@ describe('hot repository query filtering', () => {
     expect(queryText).toContain('"last_fetched_at" +');
   });
 
+  it('scopes source listing, updates, and deletes to the owner in PostgreSQL', async () => {
+    const queryTexts: string[] = [];
+    const toQuery = (condition: Parameters<typeof dialect.sqlToQuery>[0]) => {
+      queryTexts.push(dialect.sqlToQuery(condition).sql);
+    };
+    const database = {
+      select: () => ({
+        from: () => ({
+          where: (condition: Parameters<typeof dialect.sqlToQuery>[0]) => ({
+            orderBy: async () => {
+              toQuery(condition);
+              return [];
+            },
+          }),
+        }),
+      }),
+      update: () => ({
+        set: () => ({
+          where: (condition: Parameters<typeof dialect.sqlToQuery>[0]) => ({
+            returning: async () => {
+              toQuery(condition);
+              return [];
+            },
+          }),
+        }),
+      }),
+      delete: () => ({
+        where: (condition: Parameters<typeof dialect.sqlToQuery>[0]) => ({
+          returning: async () => {
+            toQuery(condition);
+            return [];
+          },
+        }),
+      }),
+    };
+    const repository = new PostgresFeedRepository(database as unknown as Database);
+
+    await repository.listSources('member-id');
+    await repository.updateSource('source-id', { active: false }, 'member-id');
+    await repository.deleteSource('source-id', 'member-id');
+
+    expect(queryTexts).toHaveLength(3);
+    for (const queryText of queryTexts) {
+      expect(queryText).toContain('"owner_user_id" = $');
+    }
+  });
+
   it('filters eligible recipients by consent and topic in PostgreSQL', async () => {
     let queryText = '';
     const database = {

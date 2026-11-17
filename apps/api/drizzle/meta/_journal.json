@@ -29,6 +29,20 @@
       "when": 1793785023310,
       "tag": "0003_ambitious_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794900734920,
+      "tag": "0004_bouncy_otto_octavius",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794900782527,
+      "tag": "0005_warm_lifeguard",
+      "breakpoints": true
     }
   ]
 }

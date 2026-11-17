@@ -1,0 +1,1 @@
+CREATE INDEX "sources_owner_user_id_idx" ON "sources" USING btree ("owner_user_id");

@@ -42,8 +42,11 @@ export class MemoryFeedRepository
   private recipientsCount = 0;
   private readonly connections = { whatsapp: false, email: false };
 
-  async listSources(): Promise<SourceRecord[]> {
-    return [...this.sources.values()].sort((a, b) => a.name.localeCompare(b.name)).map(cloneSource);
+  async listSources(ownerUserId?: string): Promise<SourceRecord[]> {
+    return [...this.sources.values()]
+      .filter((source) => ownerUserId === undefined || source.ownerUserId === ownerUserId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(cloneSource);
   }
 
   async findSource(id: string): Promise<SourceRecord | null> {
@@ -51,10 +54,11 @@ export class MemoryFeedRepository
     return source ? cloneSource(source) : null;
   }
 
-  async createSource(input: SourceInput): Promise<SourceRecord> {
+  async createSource(input: SourceInput, ownerUserId?: string): Promise<SourceRecord> {
     const source: SourceRecord = {
       ...input,
       id: randomUUID(),
+      ownerUserId: ownerUserId ?? null,
       lastFetchedAt: null,
       lastStatus: null,
       etag: null,
@@ -65,14 +69,20 @@ export class MemoryFeedRepository
     return cloneSource(source);
   }
 
-  async updateSource(id: string, updates: Partial<SourceInput>): Promise<SourceRecord | null> {
+  async updateSource(
+    id: string,
+    updates: Partial<SourceInput>,
+    ownerUserId?: string,
+  ): Promise<SourceRecord | null> {
     const source = this.sources.get(id);
-    if (!source) return null;
+    if (!source || (ownerUserId !== undefined && source.ownerUserId !== ownerUserId)) return null;
     Object.assign(source, updates);
     return cloneSource(source);
   }
 
-  async deleteSource(id: string): Promise<boolean> {
+  async deleteSource(id: string, ownerUserId?: string): Promise<boolean> {
+    const source = this.sources.get(id);
+    if (!source || (ownerUserId !== undefined && source.ownerUserId !== ownerUserId)) return false;
     const deleted = this.sources.delete(id);
     if (deleted) {
       for (const [newsId, item] of this.news) {

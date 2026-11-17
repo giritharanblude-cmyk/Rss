@@ -68,22 +68,27 @@ export const otpCodes = pgTable(
   (table) => [index('otp_codes_user_purpose_idx').on(table.userId, table.purpose)],
 );
 
-export const sources = pgTable('sources', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  website: text('website').notNull(),
-  rssUrl: text('rss_url').notNull(),
-  mode: sourceMode('mode').notNull().default('all'),
-  topics: text('topics').array().notNull().default([]),
-  region: text('region'),
-  intervalMinutes: integer('interval_minutes').notNull().default(60),
-  active: boolean('active').notNull().default(true),
-  lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
-  lastStatus: text('last_status'),
-  etag: text('etag'),
-  lastModified: text('last_modified'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const sources = pgTable(
+  'sources',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    website: text('website').notNull(),
+    rssUrl: text('rss_url').notNull(),
+    mode: sourceMode('mode').notNull().default('all'),
+    topics: text('topics').array().notNull().default([]),
+    region: text('region'),
+    intervalMinutes: integer('interval_minutes').notNull().default(60),
+    active: boolean('active').notNull().default(true),
+    lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
+    lastStatus: text('last_status'),
+    etag: text('etag'),
+    lastModified: text('last_modified'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('sources_owner_user_id_idx').on(table.ownerUserId)],
+);
 
 export const newsItems = pgTable(
   'news_items',

@@ -1,0 +1,3 @@
+ALTER TABLE "sources" ADD COLUMN "owner_user_id" uuid;--> statement-breakpoint
+ALTER TABLE "sources" ADD CONSTRAINT "sources_owner_user_id_users_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+UPDATE "sources" SET "owner_user_id" = (SELECT "id" FROM "users" WHERE "role" = 'master' LIMIT 1) WHERE "owner_user_id" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "role" = 'master');
