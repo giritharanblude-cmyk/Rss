@@ -350,6 +350,9 @@ export function SourcesPage() {
               <div className="source-card-header">
                 <div>
                   <h2>{source.name}</h2>
+                  <a href={source.rssUrl} target="_blank" rel="noopener noreferrer">
+                    {source.rssUrl}
+                  </a>
                   <a href={source.website} target="_blank" rel="noopener noreferrer">
                     {source.website}
                   </a>
@@ -359,10 +362,6 @@ export function SourcesPage() {
                 </span>
               </div>
               <p>
-                <a href={source.rssUrl} target="_blank" rel="noopener noreferrer">
-                  RSS feed
-                </a>{' '}
-                ·{' '}
                 {source.mode === 'all'
                   ? 'All Updates'
                   : `Specific Topics: ${source.topics.join(', ') || 'none set'}`}
