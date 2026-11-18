@@ -141,6 +141,7 @@ describe('RSS and Atom fetching', () => {
     expect(result.feeds).toHaveLength(1);
     expect(result.feeds[0]).toMatchObject({
       url: 'https://site.example.test/valid.xml',
+      format: 'rss2',
       itemCount: 2,
     });
     expect(result.feeds[0]?.sampleHeadlines).toHaveLength(2);
@@ -155,6 +156,73 @@ describe('RSS and Atom fetching', () => {
         }),
       ]),
     );
+  });
+
+  it('reads Link headers and probes the eight common same-origin paths only when declarations are absent', async () => {
+    const repo = new MemoryFeedRepository();
+    const headerProbeCalls: string[] = [];
+    const headerService = new FeedService(repo, repo, {
+      fetcher: async (_url) =>
+        response(
+          rssFixture,
+          200,
+          {
+            link: '<https://site.example.test/rss.xml>; rel="alternate"; type="application/rss+xml"',
+          },
+        ),
+      validateUrl: async () => undefined,
+    });
+
+    const headerResult = await headerService.discoverFeeds('https://site.example.test/');
+    expect(headerResult.feeds).toHaveLength(1);
+    expect(headerResult.feeds[0]?.format).toBe('rss2');
+
+    const fallbackService = new FeedService(repo, repo, {
+      fetcher: async (url) => {
+        const address = url.toString();
+        if (address === 'https://site.example.test/') {
+          return response('<!doctype html><html><head></head><body>No feed declared</body></html>');
+        }
+        headerProbeCalls.push(address);
+        if (address === 'https://site.example.test/rss.xml') {
+          return response(rssFixture);
+        }
+        return response('missing', 404);
+      },
+      validateUrl: async () => undefined,
+    });
+
+    const fallbackResult = await fallbackService.discoverFeeds('https://site.example.test/');
+    expect(headerProbeCalls).toHaveLength(8);
+    expect(fallbackResult.feeds).toHaveLength(1);
+    expect(fallbackResult.feeds[0]?.format).toBe('rss2');
+  });
+
+  it('rejects HTML, sitemap XML, invalid XML and empty RSS feeds', async () => {
+    const repo = new MemoryFeedRepository();
+    const service = new FeedService(repo, repo, {
+      fetcher: async (url) => {
+        if (url.toString() === 'https://site.example.test/') {
+          return response(`<!doctype html><html><head>
+            <link rel="alternate" type="application/rss+xml" href="/html.xml">
+            <link rel="alternate" type="application/rss+xml" href="/sitemap.xml">
+            <link rel="alternate" type="application/rss+xml" href="/invalid.xml">
+            <link rel="alternate" type="application/rss+xml" href="/empty.xml">
+          </head></html>`);
+        }
+        if (url.toString().endsWith('/html.xml')) return response('<html><body>Not a feed</body></html>');
+        if (url.toString().endsWith('/sitemap.xml')) {
+          return response('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+        }
+        if (url.toString().endsWith('/invalid.xml')) return response('<rss><channel>');
+        return response('<?xml version="1.0"?><rss version="2.0"><channel><title>Empty</title><link>https://site.example.test</link><description>Empty</description></channel></rss>');
+      },
+      validateUrl: async () => undefined,
+    });
+
+    const result = await service.discoverFeeds('https://site.example.test/');
+    expect(result.feeds).toHaveLength(0);
+    expect(result.skipped).toHaveLength(4);
   });
 
   it('parses RSS and Atom feeds and stores no article body', async () => {

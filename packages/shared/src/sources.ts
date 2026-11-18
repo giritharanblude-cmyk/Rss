@@ -64,6 +64,7 @@ export type FeedDiscoveryInput = z.infer<typeof feedDiscoveryInputSchema>;
 export const discoveredFeedSchema = z.object({
   url: z.string().url(),
   title: z.string().nullable(),
+  format: z.enum(['rss2', 'rdf', 'atom']),
   itemCount: z.number().int().nonnegative(),
   sampleHeadlines: z.array(z.string()).max(3),
 });
