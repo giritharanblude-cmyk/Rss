@@ -17,6 +17,72 @@ const parser = new Parser({
   },
 });
 const DEDUPE_WINDOW_MS = 72 * 60 * 60 * 1000;
+const NOT_A_FEED_MESSAGE = 'This address is not a news feed.';
+
+type RawFeedItem = {
+  title?: string;
+  contentSnippet?: string;
+  content?: string;
+  'content:encoded'?: string;
+  summary?: string;
+  description?: string;
+  link?: string;
+  isoDate?: string;
+  pubDate?: string;
+};
+
+async function parseFetchedFeed(text: string): Promise<{ items: RawFeedItem[] }> {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{')) {
+    let json: unknown;
+    try {
+      json = JSON.parse(trimmed);
+    } catch (error) {
+      throw new Error(NOT_A_FEED_MESSAGE, { cause: error });
+    }
+    if (
+      typeof json !== 'object' ||
+      json === null ||
+      !('version' in json) ||
+      typeof json.version !== 'string' ||
+      !/^https:\/\/jsonfeed\.org\/version\/1(\.1)?$/.test(json.version) ||
+      !('items' in json) ||
+      !Array.isArray(json.items)
+    ) {
+      throw new Error(NOT_A_FEED_MESSAGE);
+    }
+    return {
+      items: json.items.flatMap((item: unknown) => {
+        if (typeof item !== 'object' || item === null) return [];
+        const entry = item as Record<string, unknown>;
+        return [{
+          title: typeof entry.title === 'string' ? entry.title : undefined,
+          content: typeof entry.content_html === 'string' ? entry.content_html : undefined,
+          contentSnippet:
+            typeof entry.content_text === 'string' ? entry.content_text : undefined,
+          summary: typeof entry.summary === 'string' ? entry.summary : undefined,
+          link: typeof entry.url === 'string' ? entry.url : undefined,
+          isoDate:
+            typeof entry.date_published === 'string' ? entry.date_published : undefined,
+        }];
+      }),
+    };
+  }
+
+  if (!/<(?:rss|rdf:RDF|feed)(?:\s|>)/i.test(trimmed)) {
+    throw new Error(NOT_A_FEED_MESSAGE);
+  }
+  try {
+    const parsed = await parser.parseString(trimmed);
+    if (!Array.isArray(parsed.items)) {
+      throw new Error(NOT_A_FEED_MESSAGE);
+    }
+    return { items: parsed.items as RawFeedItem[] };
+  } catch (error) {
+    if (error instanceof Error && error.message === NOT_A_FEED_MESSAGE) throw error;
+    throw new Error(NOT_A_FEED_MESSAGE, { cause: error });
+  }
+}
 
 export type FeedFetchResult = {
   itemCount: number;
@@ -93,8 +159,8 @@ export class FeedService {
         if (!response.ok) {
           throw new Error(`Feed returned HTTP ${response.status}`);
         }
-        const xml = await response.text();
-        return { parsed: await parser.parseString(xml), response };
+        const text = await response.text();
+        return { parsed: await parseFetchedFeed(text), response };
       });
 
       if (!parsed) {
@@ -208,7 +274,7 @@ export class FeedService {
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}`);
-      const parsed = await parser.parseString(await response.text());
+      const parsed = await parseFetchedFeed(await response.text());
       const sampleHeadlines = parsed.items
         .map((item) => normalizeFeedItem({ title: item.title, link: item.link }))
         .filter((item) => item !== null)
