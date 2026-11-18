@@ -18,6 +18,7 @@ const source = {
   active: true,
   lastFetchedAt: null,
   lastStatus: null,
+  lastErrorMessage: null,
   createdAt: '2026-11-03T08:00:00.000Z',
 };
 

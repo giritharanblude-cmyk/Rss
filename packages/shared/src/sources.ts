@@ -42,6 +42,7 @@ export const sourceSchema = sourceInputSchema.extend({
   id: z.string().uuid(),
   lastFetchedAt: z.string().datetime().nullable(),
   lastStatus: z.string().nullable(),
+  lastErrorMessage: z.string().nullable().default(null),
   createdAt: z.string().datetime(),
 });
 export type Source = z.infer<typeof sourceSchema>;

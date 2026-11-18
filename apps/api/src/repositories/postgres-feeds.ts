@@ -29,6 +29,7 @@ function toSource(row: SourceRow): SourceRecord {
     active: row.active,
     lastFetchedAt: row.lastFetchedAt,
     lastStatus: row.lastStatus,
+    lastErrorMessage: row.lastErrorMessage,
     etag: row.etag,
     lastModified: row.lastModified,
     createdAt: row.createdAt,
@@ -116,13 +117,22 @@ export class PostgresFeedRepository
 
   async updateFetchState(
     id: string,
-    values: { fetchedAt: Date; status: string; etag?: string | null; lastModified?: string | null },
+    values: {
+      fetchedAt: Date;
+      status: string;
+      lastErrorMessage?: string | null;
+      etag?: string | null;
+      lastModified?: string | null;
+    },
   ): Promise<void> {
     await this.db
       .update(sources)
       .set({
         lastFetchedAt: values.fetchedAt,
         lastStatus: values.status,
+        ...(values.lastErrorMessage !== undefined
+          ? { lastErrorMessage: values.lastErrorMessage }
+          : {}),
         ...(values.etag !== undefined ? { etag: values.etag } : {}),
         ...(values.lastModified !== undefined ? { lastModified: values.lastModified } : {}),
       })

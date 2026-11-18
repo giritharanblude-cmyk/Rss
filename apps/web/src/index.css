@@ -737,6 +737,30 @@ button:disabled {
   color: #1b6b36;
 }
 
+.source-status {
+  color: #52606d;
+  font-weight: 700;
+}
+
+.source-status-working {
+  color: #1b6b36;
+}
+
+.source-status-none {
+  color: #52606d;
+}
+
+.source-status-error {
+  color: #c92a2a;
+}
+
+.source-status-error-message {
+  display: block;
+  margin-top: 0.25rem;
+  color: #c92a2a;
+  font-weight: 400;
+}
+
 .button-danger {
   background: #fff;
   border-color: #c92a2a;

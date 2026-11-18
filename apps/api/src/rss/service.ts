@@ -97,13 +97,16 @@ export class FeedService {
         return { parsed: await parser.parseString(xml), response };
       });
 
-      await this.sources.updateFetchState(source.id, {
-        fetchedAt: now,
-        status: response.status === 304 ? 'not_modified' : 'ok',
-        etag: response.headers.get('etag') ?? source.etag,
-        lastModified: response.headers.get('last-modified') ?? source.lastModified,
-      });
-      if (!parsed) return { itemCount: 0, insertedCount: 0, duplicateCount: 0, skippedCount: 0 };
+      if (!parsed) {
+        await this.sources.updateFetchState(source.id, {
+          fetchedAt: now,
+          status: 'no_new_items',
+          lastErrorMessage: null,
+          etag: response.headers.get('etag') ?? source.etag,
+          lastModified: response.headers.get('last-modified') ?? source.lastModified,
+        });
+        return { itemCount: 0, insertedCount: 0, duplicateCount: 0, skippedCount: 0 };
+      }
 
       let insertedCount = 0;
       let duplicateCount = 0;
@@ -171,6 +174,13 @@ export class FeedService {
         }
       }
 
+      await this.sources.updateFetchState(source.id, {
+        fetchedAt: now,
+        status: insertedCount > 0 ? 'ok' : 'no_new_items',
+        lastErrorMessage: null,
+        etag: response.headers.get('etag') ?? source.etag,
+        lastModified: response.headers.get('last-modified') ?? source.lastModified,
+      });
       return { itemCount: parsed.items.length, insertedCount, duplicateCount, skippedCount };
     } catch (error) {
       const message =
@@ -182,6 +192,10 @@ export class FeedService {
       await this.sources.updateFetchState(source.id, {
         fetchedAt: now,
         status: message,
+        lastErrorMessage:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Feed request failed',
       });
       this.log(`Feed fetch failed for source ${source.id}`, error);
       throw error;

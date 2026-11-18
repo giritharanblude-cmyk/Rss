@@ -32,6 +32,20 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
 }
 
+function sourceStatus(source: Source): { label: string; tone: 'working' | 'none' | 'error' } {
+  if (source.lastStatus === 'ok') return { label: 'Working', tone: 'working' };
+  if (source.lastStatus === 'no_new_items' || source.lastStatus === 'not_modified') {
+    return { label: 'No new items', tone: 'none' };
+  }
+  if (
+    source.lastStatus !== null &&
+    source.lastStatus !== 'not_modified'
+  ) {
+    return { label: 'Error', tone: 'error' };
+  }
+  return { label: 'Not fetched yet', tone: 'none' };
+}
+
 function SourceForm({
   initial,
   onSave,
@@ -361,7 +375,17 @@ export function SourcesPage() {
                     ? '1 hour'
                     : '6 hours'}
               </p>
-              <p>Last status: {source.lastStatus ?? 'Not fetched yet'}</p>
+              {(() => {
+                const status = sourceStatus(source);
+                return (
+                  <p className={`source-status source-status-${status.tone}`}>
+                    {status.label}
+                    {status.tone === 'error' && source.lastErrorMessage ? (
+                      <span className="source-status-error-message">{source.lastErrorMessage}</span>
+                    ) : null}
+                  </p>
+                );
+              })()}
               <div className="source-actions">
                 {canTestFeed ? (
                   <button
