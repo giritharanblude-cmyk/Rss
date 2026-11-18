@@ -102,6 +102,7 @@ export const sources = pgTable('sources', {
   active: boolean('active').notNull().default(true),
   lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
   lastStatus: text('last_status'),
+  lastErrorMessage: text('last_error_message'),
   etag: text('etag'),
   lastModified: text('last_modified'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

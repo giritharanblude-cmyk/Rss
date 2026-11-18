@@ -73,6 +73,7 @@ export class MemoryFeedRepository
       ownerUserId,
       lastFetchedAt: null,
       lastStatus: null,
+      lastErrorMessage: null,
       etag: null,
       lastModified: null,
       createdAt: new Date(),
@@ -106,12 +107,21 @@ export class MemoryFeedRepository
 
   async updateFetchState(
     id: string,
-    values: { fetchedAt: Date; status: string; etag?: string | null; lastModified?: string | null },
+    values: {
+      fetchedAt: Date;
+      status: string;
+      lastErrorMessage?: string | null;
+      etag?: string | null;
+      lastModified?: string | null;
+    },
   ): Promise<void> {
     const source = this.sources.get(id);
     if (!source) return;
     source.lastFetchedAt = values.fetchedAt;
     source.lastStatus = values.status;
+    if (values.lastErrorMessage !== undefined) {
+      source.lastErrorMessage = values.lastErrorMessage;
+    }
     if (values.etag !== undefined) source.etag = values.etag;
     if (values.lastModified !== undefined) source.lastModified = values.lastModified;
   }

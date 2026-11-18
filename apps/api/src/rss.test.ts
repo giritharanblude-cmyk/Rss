@@ -331,7 +331,43 @@ describe('RSS and Atom fetching', () => {
     expect(requestHeaders?.get('if-none-match')).toBe('"feed-v1"');
     expect(requestHeaders?.get('if-modified-since')).toBe('Mon, 02 Nov 2026 10:00:00 GMT');
     expect(result.itemCount).toBe(0);
-    expect(updated?.lastStatus).toBe('not_modified');
+    expect(updated?.lastStatus).toBe('no_new_items');
+  });
+
+  it('sets ok for new items and no_new_items for only duplicates', async () => {
+    const repo = new MemoryFeedRepository();
+    const source = await repo.createSource(sourceInput());
+    const service = new FeedService(repo, repo, {
+      now: () => now,
+      fetcher: async () => response(feedXml('A new advisory', 'https://news.example.test/new')),
+    });
+
+    await service.fetchSource(source);
+    expect((await repo.findSource(source.id))?.lastStatus).toBe('ok');
+
+    await service.fetchSource((await repo.findSource(source.id))!);
+    expect((await repo.findSource(source.id))?.lastStatus).toBe('no_new_items');
+  });
+
+  it('stores a fetch failure message and clears it after a later success', async () => {
+    const repo = new MemoryFeedRepository();
+    const source = await repo.createSource(sourceInput());
+    let failing = true;
+    const service = new FeedService(repo, repo, {
+      now: () => now,
+      fetcher: async () => {
+        if (failing) return response('unavailable', 404);
+        return response(feedXml('Recovered advisory', 'https://news.example.test/recovered'));
+      },
+      log: () => undefined,
+    });
+
+    await expect(service.fetchSource(source)).rejects.toThrow('Feed returned HTTP 404');
+    expect((await repo.findSource(source.id))?.lastErrorMessage).toBe('Feed returned HTTP 404');
+
+    failing = false;
+    await service.fetchSource((await repo.findSource(source.id))!);
+    expect((await repo.findSource(source.id))?.lastErrorMessage).toBeNull();
   });
 
   it('retries transient errors and isolates failed feeds from healthy feeds', async () => {

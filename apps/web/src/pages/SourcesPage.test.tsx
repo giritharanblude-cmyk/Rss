@@ -17,6 +17,83 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SourcesPage', () => {
+  it('shows honest status labels and fetch error text', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/auth/me') {
+        return jsonResponse(200, {
+          user: {
+            id: '00000000-0000-4000-8000-000000000001',
+            name: 'Mina',
+            role: 'member',
+          },
+        });
+      }
+      if (String(input) === '/api/sources') {
+        return jsonResponse(200, {
+          sources: [
+            {
+              id: '00000000-0000-4000-8000-000000000010',
+              name: 'Working source',
+              website: 'https://working.example.test',
+              rssUrl: 'https://working.example.test/feed.xml',
+              mode: 'all',
+              topics: [],
+              region: null,
+              intervalMinutes: 60,
+              active: true,
+              lastFetchedAt: '2026-11-04T08:00:00.000Z',
+              lastStatus: 'ok',
+              lastErrorMessage: null,
+              createdAt: '2026-11-04T08:00:00.000Z',
+            },
+            {
+              id: '00000000-0000-4000-8000-000000000011',
+              name: 'Duplicate source',
+              website: 'https://duplicate.example.test',
+              rssUrl: 'https://duplicate.example.test/feed.xml',
+              mode: 'all',
+              topics: [],
+              region: null,
+              intervalMinutes: 60,
+              active: true,
+              lastFetchedAt: '2026-11-04T08:00:00.000Z',
+              lastStatus: 'no_new_items',
+              lastErrorMessage: null,
+              createdAt: '2026-11-04T08:00:00.000Z',
+            },
+            {
+              id: '00000000-0000-4000-8000-000000000012',
+              name: 'Broken source',
+              website: 'https://broken.example.test',
+              rssUrl: 'https://broken.example.test/feed.xml',
+              mode: 'all',
+              topics: [],
+              region: null,
+              intervalMinutes: 60,
+              active: true,
+              lastFetchedAt: '2026-11-04T08:00:00.000Z',
+              lastStatus: 'feed_error',
+              lastErrorMessage: 'The XML could not be parsed.',
+              createdAt: '2026-11-04T08:00:00.000Z',
+            },
+          ],
+          page: 1,
+          pageSize: 25,
+          total: 3,
+        });
+      }
+      return jsonResponse(204, {});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByText('Working')).toBeInTheDocument();
+    expect(screen.getByText('No new items')).toBeInTheDocument();
+    expect(screen.getByText('Error')).toBeInTheDocument();
+    expect(screen.getByText('The XML could not be parsed.')).toBeInTheDocument();
+  });
+
   it('lets members add and manage their sources without showing the feed-test control', async () => {
     let createdSource: unknown;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -45,6 +122,7 @@ describe('SourcesPage', () => {
             active: true,
             lastFetchedAt: null,
             lastStatus: null,
+            lastErrorMessage: null,
             createdAt: '2026-11-04T08:00:00.000Z',
           },
         });
@@ -64,6 +142,7 @@ describe('SourcesPage', () => {
               active: true,
               lastFetchedAt: null,
               lastStatus: null,
+              lastErrorMessage: null,
               createdAt: '2026-11-04T08:00:00.000Z',
             },
           ],
@@ -127,6 +206,7 @@ describe('SourcesPage', () => {
               active: true,
               lastFetchedAt: null,
               lastStatus: null,
+              lastErrorMessage: null,
               createdAt: '2026-11-04T08:00:00.000Z',
             },
           ],

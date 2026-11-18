@@ -6,6 +6,7 @@ export type SourceRecord = SourceInput & {
   ownerUserId: string;
   lastFetchedAt: Date | null;
   lastStatus: string | null;
+  lastErrorMessage: string | null;
   etag: string | null;
   lastModified: string | null;
   createdAt: Date;
@@ -43,7 +44,13 @@ export type SourceRepository = {
   deleteSource(id: string, ownerUserId?: string): Promise<boolean>;
   updateFetchState(
     id: string,
-    values: { fetchedAt: Date; status: string; etag?: string | null; lastModified?: string | null },
+    values: {
+      fetchedAt: Date;
+      status: string;
+      lastErrorMessage?: string | null;
+      etag?: string | null;
+      lastModified?: string | null;
+    },
   ): Promise<void>;
   listDueSources(now: Date): Promise<SourceRecord[]>;
 };
