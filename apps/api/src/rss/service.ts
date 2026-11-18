@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 import type { SourceInput } from '@healthcare/shared';
 import type { NewsRepository, SourceRecord, SourceRepository } from '../repositories/feeds';
-import { safeFetch, type SafeFetcher } from './safe-fetch';
+import { safeFetch, validateSafeUrl, type SafeFetcher } from './safe-fetch';
 import {
   headlineSimilarity,
   normalizeFeedItem,
@@ -31,7 +31,7 @@ type RawFeedItem = {
   pubDate?: string;
 };
 
-async function parseFetchedFeed(text: string): Promise<{ items: RawFeedItem[] }> {
+async function parseFetchedFeed(text: string): Promise<{ title: string | null; items: RawFeedItem[] }> {
   const trimmed = text.trim();
   if (trimmed.startsWith('{')) {
     let json: unknown;
@@ -52,6 +52,10 @@ async function parseFetchedFeed(text: string): Promise<{ items: RawFeedItem[] }>
       throw new Error(NOT_A_FEED_MESSAGE);
     }
     return {
+      title:
+        'title' in json && typeof json.title === 'string'
+          ? json.title
+          : null,
       items: json.items.flatMap((item: unknown) => {
         if (typeof item !== 'object' || item === null) return [];
         const entry = item as Record<string, unknown>;
@@ -77,7 +81,13 @@ async function parseFetchedFeed(text: string): Promise<{ items: RawFeedItem[] }>
     if (!Array.isArray(parsed.items)) {
       throw new Error(NOT_A_FEED_MESSAGE);
     }
-    return { items: parsed.items as RawFeedItem[] };
+    return {
+      title:
+        typeof (parsed as unknown as { title?: unknown }).title === 'string'
+          ? (parsed as unknown as { title: string }).title
+          : null,
+      items: parsed.items as RawFeedItem[],
+    };
   } catch (error) {
     if (error instanceof Error && error.message === NOT_A_FEED_MESSAGE) throw error;
     throw new Error(NOT_A_FEED_MESSAGE, { cause: error });
@@ -127,19 +137,76 @@ async function retry<T>(operation: () => Promise<T>): Promise<T> {
   throw lastError instanceof Error ? lastError : new Error('Feed request failed');
 }
 
+export type DiscoveredFeed = {
+  url: string;
+  title: string | null;
+  itemCount: number;
+  sampleHeadlines: string[];
+};
+
+export type SkippedFeed = {
+  url: string;
+  reason: string;
+};
+
+export class FeedDiscoveryError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'FeedDiscoveryError';
+  }
+}
+
+function findFeedLinks(html: string, baseUrl: string): string[] {
+  const head = /<head\b[^>]*>([\s\S]*?)(?:<\/head\s*>|<body\b|$)/i.exec(html)?.[1];
+  if (!head) return [];
+
+  const links = new Set<string>();
+  const markup = head.replace(/<!--[\s\S]*?-->/g, '');
+  for (const [tag] of markup.matchAll(/<link\b[^>]*>/gi)) {
+    const attributes = new Map<string, string>();
+    for (const match of tag.matchAll(
+      /([^\s=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g,
+    )) {
+      const name = match[1]?.toLowerCase();
+      if (name) attributes.set(name, match[2] ?? match[3] ?? match[4] ?? '');
+    }
+
+    const rel = (attributes.get('rel') ?? '').toLowerCase().split(/\s+/);
+    const type = (attributes.get('type') ?? '').split(';', 1)[0]?.trim().toLowerCase();
+    const href = attributes.get('href');
+    if (!rel.includes('alternate') || !href) continue;
+    if (type !== 'application/rss+xml' && type !== 'application/atom+xml') continue;
+
+    try {
+      const url = new URL(href, baseUrl);
+      if (url.protocol === 'http:' || url.protocol === 'https:') links.add(url.href);
+    } catch {
+      continue;
+    }
+  }
+  return [...links].slice(0, 5);
+}
+
 export class FeedService {
   private readonly fetcher: SafeFetcher;
   private readonly now: () => Date;
   private readonly log: Logger;
+  private readonly validateUrl: (input: string | URL) => Promise<void>;
 
   constructor(
     private readonly sources: SourceRepository,
     private readonly news: NewsRepository,
-    options: { fetcher?: SafeFetcher; now?: () => Date; log?: Logger } = {},
+    options: {
+      fetcher?: SafeFetcher;
+      now?: () => Date;
+      log?: Logger;
+      validateUrl?: (input: string | URL) => Promise<void>;
+    } = {},
   ) {
     this.fetcher = options.fetcher ?? safeFetch;
     this.now = options.now ?? (() => new Date());
     this.log = options.log ?? ((message, detail) => console.error(message, detail));
+    this.validateUrl = options.validateUrl ?? validateSafeUrl;
   }
 
   async fetchSource(source: SourceRecord): Promise<FeedFetchResult> {
@@ -282,6 +349,63 @@ export class FeedService {
         .map((item) => item.headline);
       return { itemCount: parsed.items.length, sampleHeadlines };
     });
+  }
+
+  async discoverFeeds(
+    siteUrl: string,
+  ): Promise<{ feeds: DiscoveredFeed[]; skipped: SkippedFeed[] }> {
+    await this.validateUrl(siteUrl);
+    const response = await this.fetcher(siteUrl, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      throw new FeedDiscoveryError(`The website returned HTTP ${response.status}.`);
+    }
+
+    const html = await response.text();
+    const candidates = findFeedLinks(html, response.url || siteUrl);
+    const feeds: DiscoveredFeed[] = [];
+    const skipped: SkippedFeed[] = [];
+
+    for (const url of candidates) {
+      try {
+        await this.validateUrl(url);
+        const feedResponse = await this.fetcher(url, {
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!feedResponse.ok) {
+          skipped.push({ url, reason: `HTTP ${feedResponse.status}` });
+          continue;
+        }
+        const parsed = await parseFetchedFeed(await feedResponse.text());
+        const sampleHeadlines = parsed.items
+          .map((item) => normalizeFeedItem({ title: item.title, link: item.link }))
+          .filter((item) => item !== null)
+          .slice(0, 3)
+          .map((item) => item.headline);
+        feeds.push({
+          url,
+          title: parsed.title,
+          itemCount: parsed.items.length,
+          sampleHeadlines,
+        });
+      } catch (error) {
+        skipped.push({
+          url,
+          reason:
+            error instanceof Error
+              ? error.message
+              : 'Could not read this feed.',
+        });
+      }
+    }
+
+    return { feeds, skipped };
+  }
+
+  async discoverFeedLinks(siteUrl: string): Promise<string[]> {
+    const result = await this.discoverFeeds(siteUrl);
+    return result.feeds.map((feed) => feed.url);
   }
 }
 

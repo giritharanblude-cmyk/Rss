@@ -7,8 +7,11 @@ import {
   sourceInputSchema,
   type Source,
   type SourceInput,
+  type DiscoveredFeed,
+  type SkippedFeed,
 } from '@healthcare/shared';
 import { api, ApiError } from '../api/client';
+import { discoverFeeds } from '../api/feed-discovery';
 import { AppHeader } from '../components/AppHeader';
 import { LoadingState } from '../components/LoadingState';
 import { Toast } from '../components/Toast';
@@ -59,6 +62,27 @@ function SourceForm({
   const [topicText, setTopicText] = useState(initial.topics.join(', '));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [feedCandidates, setFeedCandidates] = useState<DiscoveredFeed[]>([]);
+  const [skippedFeeds, setSkippedFeeds] = useState<SkippedFeed[]>([]);
+
+  async function discover() {
+    setBusy(true);
+    setError(null);
+    setFeedCandidates([]);
+    setSkippedFeeds([]);
+    try {
+      const result = await discoverFeeds(values.website);
+      setFeedCandidates(result.feeds);
+      setSkippedFeeds(result.skipped);
+      if (result.feeds.length === 0) {
+        setError('No usable news feed was listed on this page. Enter the feed address below.');
+      }
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -112,6 +136,36 @@ function SourceForm({
         onChange={(event) => setValues({ ...values, website: event.target.value })}
         required
       />
+      <button type="button" className="button-secondary" disabled={busy} onClick={() => void discover()}>
+        {busy ? 'Checking page…' : 'Find feeds'}
+      </button>
+      {feedCandidates.length > 0 ? (
+        <fieldset>
+          <legend>Choose a news feed</legend>
+          {feedCandidates.map((candidate) => (
+            <label key={candidate.url}>
+              <input
+                type="radio"
+                name="discovered-feed"
+                checked={values.rssUrl === candidate.url}
+                onChange={() => setValues({ ...values, rssUrl: candidate.url })}
+              />
+              <span>
+                {candidate.title || candidate.url}
+                {candidate.sampleHeadlines.length > 0
+                  ? ` — ${candidate.sampleHeadlines.join(' · ')}`
+                  : ` — ${candidate.itemCount} items`}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
+      {skippedFeeds.length > 0 ? (
+        <p>
+          Some listed feeds could not be read:{' '}
+          {skippedFeeds.map((candidate) => candidate.reason).join('; ')}
+        </p>
+      ) : null}
       <label htmlFor="source-rss">RSS link</label>
       <input
         id="source-rss"

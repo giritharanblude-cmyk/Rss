@@ -58,3 +58,24 @@ export const feedTestResponseSchema = z.object({
   sampleHeadlines: z.array(z.string()).optional(),
 });
 export type FeedTestResponse = z.infer<typeof feedTestResponseSchema>;
+
+export const feedDiscoveryInputSchema = z.object({ siteUrl: httpUrl });
+export type FeedDiscoveryInput = z.infer<typeof feedDiscoveryInputSchema>;
+export const discoveredFeedSchema = z.object({
+  url: z.string().url(),
+  title: z.string().nullable(),
+  itemCount: z.number().int().nonnegative(),
+  sampleHeadlines: z.array(z.string()).max(3),
+});
+export type DiscoveredFeed = z.infer<typeof discoveredFeedSchema>;
+export const skippedFeedSchema = z.object({
+  url: z.string().url(),
+  reason: z.string(),
+});
+export type SkippedFeed = z.infer<typeof skippedFeedSchema>;
+export const feedDiscoveryResponseSchema = z.object({
+  feeds: z.array(discoveredFeedSchema),
+  skipped: z.array(skippedFeedSchema),
+  feedUrls: z.array(z.string().url()).optional(),
+});
+export type FeedDiscoveryResponse = z.infer<typeof feedDiscoveryResponseSchema>;

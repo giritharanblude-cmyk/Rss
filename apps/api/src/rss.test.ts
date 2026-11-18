@@ -117,6 +117,46 @@ describe('feed normalization and categorization', () => {
 });
 
 describe('RSS and Atom fetching', () => {
+  it('discovers at most five valid RSS or Atom links and skips failed candidates', async () => {
+    const repo = new MemoryFeedRepository();
+    const service = new FeedService(repo, repo, {
+      fetcher: async (url) => {
+        if (url.toString() === 'https://site.example.test/') {
+          return response(`<!doctype html><html><head>
+            <link rel="alternate" type="application/rss+xml" href="/valid.xml">
+            <link rel="alternate" type="application/atom+xml" href="/missing.xml">
+            <link rel="alternate" type="application/rss+xml" href="/broken.xml">
+            <link rel="stylesheet" type="application/rss+xml" href="/ignored.xml">
+          </head></html>`);
+        }
+        if (url.toString().endsWith('/missing.xml')) return response('missing', 404);
+        if (url.toString().endsWith('/broken.xml')) return response('<!doctype html><html>not feed</html>');
+        return response(rssFixture);
+      },
+      validateUrl: async () => undefined,
+    });
+
+    const result = await service.discoverFeeds('https://site.example.test/');
+
+    expect(result.feeds).toHaveLength(1);
+    expect(result.feeds[0]).toMatchObject({
+      url: 'https://site.example.test/valid.xml',
+      itemCount: 2,
+    });
+    expect(result.feeds[0]?.sampleHeadlines).toHaveLength(2);
+    expect(result.skipped).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          url: 'https://site.example.test/missing.xml',
+          reason: 'HTTP 404',
+        }),
+        expect.objectContaining({
+          url: 'https://site.example.test/broken.xml',
+        }),
+      ]),
+    );
+  });
+
   it('parses RSS and Atom feeds and stores no article body', async () => {
     const repo = new MemoryFeedRepository();
     const source = await repo.createSource(sourceInput());

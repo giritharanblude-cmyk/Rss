@@ -17,6 +17,60 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SourcesPage', () => {
+  it('discovers and lets a member choose a feed from a website address', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/auth/me') {
+        return jsonResponse(200, {
+          user: {
+            id: '00000000-0000-4000-8000-000000000001',
+            name: 'Mina',
+            role: 'member',
+          },
+        });
+      }
+      if (String(input) === '/api/sources/discover' && init?.method === 'POST') {
+        return jsonResponse(200, {
+          feeds: [
+            {
+              url: 'https://who.example.test/news.xml',
+              title: 'WHO News',
+              itemCount: 2,
+              sampleHeadlines: ['New health alert', 'New vaccine guidance'],
+            },
+          ],
+          skipped: [
+            {
+              url: 'https://who.example.test/broken.xml',
+              reason: 'This address is not a news feed.',
+            },
+          ],
+        });
+      }
+      if (String(input) === '/api/sources') {
+        return jsonResponse(200, {
+          sources: [],
+          page: 1,
+          pageSize: 25,
+          total: 0,
+        });
+      }
+      return jsonResponse(204, {});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add source' }));
+    fireEvent.change(screen.getByLabelText(/^website$/i), {
+      target: { value: 'https://who.example.test/' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Find feeds' }));
+
+    expect(await screen.findByText(/WHO News/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /WHO News/ }));
+    expect(screen.getByLabelText(/rss link/i)).toHaveValue('https://who.example.test/news.xml');
+  });
+
   it('shows each source RSS link as a clickable card link', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === '/api/auth/me') {
