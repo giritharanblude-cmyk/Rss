@@ -159,6 +159,7 @@ export class FeedDiscoveryError extends Error {
 
 type Parse5Node = {
   nodeName?: string;
+  value?: string;
   attrs?: Array<{ name: string; value: string }>;
   childNodes?: Parse5Node[];
 };
@@ -217,6 +218,56 @@ async function findHtmlFeedLinks(html: string, baseUrl: string): Promise<string[
 
   visit(document);
   return [...links];
+}
+
+function textContent(node: Parse5Node): string {
+  if (node.nodeName === '#text') {
+    return node.value ?? '';
+  }
+  return (node.childNodes ?? []).map(textContent).join(' ');
+}
+
+async function findBodyFeedLinks(
+  html: string,
+  baseUrl: string,
+  origin: string,
+): Promise<string[]> {
+  const { parse } = await import('parse5');
+  const document = parse(html) as Parse5Node;
+  const links: string[] = [];
+  const seen = new Set<string>();
+  const signalWords = /\b(?:rss|atom|feed|feeds|subscribe|xml)\b/i;
+
+  function visit(node: Parse5Node): void {
+    if (node.nodeName === 'a') {
+      const attrs = new Map((node.attrs ?? []).map((attr) => [attr.name.toLowerCase(), attr.value]));
+      const href = attrs.get('href');
+      if (href) {
+        try {
+          const url = new URL(href, baseUrl);
+          if (
+            (url.protocol === 'http:' || url.protocol === 'https:') &&
+            url.origin === origin
+          ) {
+            const path = url.pathname.toLowerCase();
+            const pathSignal =
+              /\/(?:feed\/?|rss(?:\.xml)?|feed\.xml|atom\.xml|index\.xml)$/.test(path);
+            const textSignal = signalWords.test(textContent(node).replace(/\s+/g, ' ').trim());
+            if ((pathSignal || textSignal) && !seen.has(url.href)) {
+              seen.add(url.href);
+              links.push(url.href);
+            }
+          }
+        } catch {
+          // Ignore invalid and cross-origin links.
+        }
+      }
+    }
+    for (const child of node.childNodes ?? []) visit(child);
+  }
+
+  visit(document);
+  return links.slice(0, 3);
 }
 
 async function validateFetchedFeed(text: string): Promise<{
@@ -473,6 +524,14 @@ export class FeedService {
         '/?feed=rss2',
       ];
       candidateUrls = probePaths.map((path) => new URL(path, originalOrigin).href);
+    }
+
+    const phaseOneCandidates = new Set(candidateUrls);
+    const bodyCandidates = await findBodyFeedLinks(html, finalUrl, originalOrigin);
+    for (const url of bodyCandidates) {
+      if (!phaseOneCandidates.has(url) && !candidateUrls.includes(url)) {
+        candidateUrls.push(url);
+      }
     }
 
     const feeds: DiscoveredFeed[] = [];

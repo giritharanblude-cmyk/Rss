@@ -225,6 +225,76 @@ describe('RSS and Atom fetching', () => {
     expect(result.skipped).toHaveLength(4);
   });
 
+  it('discovers qualifying body and footer anchors, resolves relatives, and ignores duplicates and cross-origin links', async () => {
+    const repo = new MemoryFeedRepository();
+    const websiteCalls: string[] = [];
+    const candidateCalls: string[] = [];
+    const service = new FeedService(repo, repo, {
+      fetcher: async (url) => {
+        const address = url.toString();
+        if (address === 'https://site.example.test/') {
+          websiteCalls.push(address);
+          return response(`<!doctype html><html><body>
+            <a href="/rss.xml">RSS</a>
+            <footer><a href="/footer-feed">RSS Feed</a></footer>
+            <a href="/subscribe">Subscribe to updates</a>
+            <a href="/feed.xml">Footer RSS</a>
+            <a href="https://outside.example.test/rss.xml">External RSS</a>
+            <a href="/bare.xml">Downloads</a>
+            <a href="/duplicate">News feed</a>
+          </body></html>`);
+        }
+        candidateCalls.push(address);
+        if (address === 'https://site.example.test/rss.xml') return response(rssFixture);
+        if (address === 'https://site.example.test/subscribe') {
+          return response('<!doctype html><html><body>Not a feed</body></html>');
+        }
+        if (address.endsWith('/footer-feed')) return response(rssFixture);
+        return response('missing', 404);
+      },
+      validateUrl: async () => undefined,
+    });
+
+    const result = await service.discoverFeeds('https://site.example.test/');
+
+    expect(websiteCalls).toEqual(['https://site.example.test/']);
+    expect(candidateCalls).toContain('https://site.example.test/rss.xml');
+    expect(candidateCalls).toContain('https://site.example.test/subscribe');
+    expect(candidateCalls).toContain('https://site.example.test/footer-feed');
+    expect(candidateCalls).not.toContain('https://outside.example.test/rss.xml');
+    expect(candidateCalls).not.toContain('https://site.example.test/bare.xml');
+    expect(result.feeds.some((feed) => feed.url.endsWith('/rss.xml'))).toBe(true);
+  });
+
+  it('caps body candidates at three and keeps a duplicate of a Phase 1 candidate from being fetched twice', async () => {
+    const repo = new MemoryFeedRepository();
+    const candidateCalls: string[] = [];
+    const service = new FeedService(repo, repo, {
+      fetcher: async (url) => {
+        const address = url.toString();
+        if (address === 'https://site.example.test/') {
+          return response(`<!doctype html><html><body>
+            <a href="/rss.xml">RSS</a>
+            <a href="/feed/one">RSS</a>
+            <a href="/feed/two">Subscribe</a>
+            <a href="/feed/three">Atom</a>
+            <a href="/feed/four">XML Feed</a>
+          </body></html>`, 200, {
+            link: '<https://site.example.test/rss.xml>; rel="alternate"; type="application/rss+xml"',
+          });
+        }
+        candidateCalls.push(address);
+        return response('missing', 404);
+      },
+      validateUrl: async () => undefined,
+    });
+
+    await service.discoverFeeds('https://site.example.test/');
+
+    expect(candidateCalls.filter((address) => address === 'https://site.example.test/rss.xml')).toHaveLength(1);
+    expect(candidateCalls.filter((address) => address.includes('/feed/')).length).toBeLessThanOrEqual(3);
+  });
+
   it('parses RSS and Atom feeds and stores no article body', async () => {
     const repo = new MemoryFeedRepository();
     const source = await repo.createSource(sourceInput());
