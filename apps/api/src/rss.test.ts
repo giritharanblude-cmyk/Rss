@@ -186,11 +186,85 @@ describe('RSS and Atom fetching', () => {
     const items = await repo.listNewsForTest();
 
     expect(result.duplicateCount).toBe(1);
+    expect(result.skippedCount).toBe(0);
     expect(items).toHaveLength(2);
     expect(items.find((item) => item.sourceId === first.id)?.duplicateOf).toBe(
       items.find((item) => item.sourceId === second.id)?.id,
     );
     expect(items.find((item) => item.sourceId === second.id)?.duplicateOf).toBeNull();
+  });
+
+  it('skips a previously stored normalized link for the same source and reports the count', async () => {
+    const repo = new MemoryFeedRepository();
+    const source = await repo.createSource(sourceInput());
+    let fetchCount = 0;
+    const service = new FeedService(repo, repo, {
+      now: () => now,
+      fetcher: async () => {
+        fetchCount += 1;
+        return response(
+          feedXml(
+            fetchCount === 1 ? 'A vaccine advisory for the region' : 'A completely different story',
+            fetchCount === 1
+              ? 'https://news.example.test/story/?utm_source=mail'
+              : 'https://news.example.test/story',
+          ),
+        );
+      },
+    });
+
+    const first = await service.fetchSource(source);
+    const second = await service.fetchSource(source);
+    const items = await repo.listNewsForTest();
+
+    expect(first.insertedCount).toBe(1);
+    expect(first.skippedCount).toBe(0);
+    expect(second).toMatchObject({
+      itemCount: 1,
+      insertedCount: 0,
+      duplicateCount: 0,
+      skippedCount: 1,
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]?.sourceId).toBe(source.id);
+  });
+
+  it('stores a new same-source item when another item in that fetch is skipped', async () => {
+    const repo = new MemoryFeedRepository();
+    const source = await repo.createSource(sourceInput());
+    let feed = feedXml('A vaccine advisory for the region', 'https://news.example.test/story');
+    const service = new FeedService(repo, repo, {
+      now: () => now,
+      fetcher: async () => response(feed),
+    });
+
+    await service.fetchSource(source);
+    feed = `<?xml version="1.0"?>
+      <rss version="2.0">
+        <channel>
+          <title>Test</title><link>https://feed.example.test</link><description>Test feed</description>
+          <item>
+            <title>A vaccine advisory for the region</title>
+            <link>https://news.example.test/story</link>
+            <pubDate>Tue, 03 Nov 2026 10:00:00 GMT</pubDate>
+            <description>Short test summary.</description>
+          </item>
+          <item>
+            <title>Hospital funding announcement</title>
+            <link>https://news.example.test/funding</link>
+            <pubDate>Tue, 03 Nov 2026 11:00:00 GMT</pubDate>
+            <description>Another short summary.</description>
+          </item>
+        </channel>
+      </rss>`;
+
+    const result = await service.fetchSource(source);
+    const items = await repo.listNewsForTest();
+
+    expect(result.insertedCount).toBe(1);
+    expect(result.skippedCount).toBe(1);
+    expect(items).toHaveLength(2);
+    expect(items.some((item) => item.link === 'https://news.example.test/funding')).toBe(true);
   });
 
   it('deduplicates highly similar headlines but retains a similar non-duplicate story', async () => {
