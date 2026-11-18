@@ -140,6 +140,7 @@ async function retry<T>(operation: () => Promise<T>): Promise<T> {
 export type DiscoveredFeed = {
   url: string;
   title: string | null;
+  format: 'rss2' | 'rdf' | 'atom';
   itemCount: number;
   sampleHeadlines: string[];
 };
@@ -156,35 +157,119 @@ export class FeedDiscoveryError extends Error {
   }
 }
 
-function findFeedLinks(html: string, baseUrl: string): string[] {
-  const head = /<head\b[^>]*>([\s\S]*?)(?:<\/head\s*>|<body\b|$)/i.exec(html)?.[1];
-  if (!head) return [];
+type Parse5Node = {
+  nodeName?: string;
+  attrs?: Array<{ name: string; value: string }>;
+  childNodes?: Parse5Node[];
+};
 
+const FEED_TYPES = new Set([
+  'application/rss+xml',
+  'application/rdf+xml',
+  'application/atom+xml',
+]);
+
+function findLinkHeaderCandidates(header: string | null, baseUrl: string): string[] {
+  if (!header) return [];
   const links = new Set<string>();
-  const markup = head.replace(/<!--[\s\S]*?-->/g, '');
-  for (const [tag] of markup.matchAll(/<link\b[^>]*>/gi)) {
-    const attributes = new Map<string, string>();
-    for (const match of tag.matchAll(
-      /([^\s=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g,
-    )) {
-      const name = match[1]?.toLowerCase();
-      if (name) attributes.set(name, match[2] ?? match[3] ?? match[4] ?? '');
-    }
-
-    const rel = (attributes.get('rel') ?? '').toLowerCase().split(/\s+/);
-    const type = (attributes.get('type') ?? '').split(';', 1)[0]?.trim().toLowerCase();
-    const href = attributes.get('href');
-    if (!rel.includes('alternate') || !href) continue;
-    if (type !== 'application/rss+xml' && type !== 'application/atom+xml') continue;
-
+  for (const entry of header.split(/,(?=\s*<)/)) {
+    const match = /^<([^>]+)>/.exec(entry.trim());
+    if (!match) continue;
+    const parameters = entry
+      .slice(match[0].length)
+      .split(';')
+      .map((part) => part.trim());
+    const rel = parameters.find((part) => /^rel=/i.test(part))?.replace(/^rel=/i, '').replace(/^["']|["']$/g, '');
+    const type = parameters.find((part) => /^type=/i.test(part))?.replace(/^type=/i, '').replace(/^["']|["']$/g, '').split(';', 1)[0]?.trim().toLowerCase();
+    if (!rel?.toLowerCase().split(/\s+/).includes('alternate') || !type || !FEED_TYPES.has(type)) continue;
     try {
-      const url = new URL(href, baseUrl);
+      const url = new URL(match[1]!, baseUrl);
       if (url.protocol === 'http:' || url.protocol === 'https:') links.add(url.href);
     } catch {
       continue;
     }
   }
-  return [...links].slice(0, 5);
+  return [...links];
+}
+
+async function findHtmlFeedLinks(html: string, baseUrl: string): Promise<string[]> {
+  const { parse } = await import('parse5');
+  const document = parse(html) as Parse5Node;
+  const links = new Set<string>();
+
+  function visit(node: Parse5Node): void {
+    if (node.nodeName === 'link') {
+      const attrs = new Map((node.attrs ?? []).map((attr) => [attr.name.toLowerCase(), attr.value]));
+      const rel = (attrs.get('rel') ?? '').toLowerCase().split(/\s+/);
+      const type = (attrs.get('type') ?? '').split(';', 1)[0]?.trim().toLowerCase();
+      const href = attrs.get('href');
+      if (rel.includes('alternate') && href && FEED_TYPES.has(type ?? '')) {
+        try {
+          const url = new URL(href, baseUrl);
+          if (url.protocol === 'http:' || url.protocol === 'https:') links.add(url.href);
+        } catch {
+          // Ignore malformed declarations.
+        }
+      }
+    }
+    for (const child of node.childNodes ?? []) visit(child);
+  }
+
+  visit(document);
+  return [...links];
+}
+
+async function validateFetchedFeed(text: string): Promise<{
+  title: string | null;
+  format: 'rss2' | 'rdf' | 'atom';
+  items: RawFeedItem[];
+}> {
+  const trimmed = text.trim();
+  if (!trimmed || /^<(?:!doctype\s+)?html\b/i.test(trimmed)) {
+    throw new Error(NOT_A_FEED_MESSAGE);
+  }
+  if (/<(?:sitemap(?:index)?|urlset)\b/i.test(trimmed)) {
+    throw new Error(NOT_A_FEED_MESSAGE);
+  }
+
+  const rss2 = /<rss\b[^>]*\bversion\s*=\s*(["'])2\.0\1/i.test(trimmed);
+  const rdf = /<rdf:RDF\b/i.test(trimmed);
+  const atom = /<(?:atom:)?feed\b/i.test(trimmed);
+  if (!rss2 && !rdf && !atom) {
+    throw new Error(NOT_A_FEED_MESSAGE);
+  }
+
+  let parsed: Awaited<ReturnType<typeof parser.parseString>>;
+  try {
+    parsed = await parser.parseString(trimmed);
+  } catch (error) {
+    throw new Error(NOT_A_FEED_MESSAGE, { cause: error });
+  }
+
+  const validItems = parsed.items.flatMap((item) => {
+    const normalized = normalizeFeedItem({
+      title: item.title,
+      contentSnippet: item.contentSnippet,
+      content: item['content:encoded'] ?? item.content,
+      summary: item.summary,
+      link: item.link,
+      isoDate: item.isoDate,
+      pubDate: item.pubDate,
+    });
+    return normalized ? [item as RawFeedItem] : [];
+  });
+  if (validItems.length === 0) {
+    throw new Error(NOT_A_FEED_MESSAGE);
+  }
+
+  return {
+    title:
+      typeof (parsed as unknown as { title?: unknown }).title === 'string'
+        ? (parsed as unknown as { title: string }).title
+        : null,
+    format: rss2 ? 'rss2' : rdf ? 'rdf' : 'atom',
+    items: validItems,
+  };
 }
 
 export class FeedService {
@@ -363,44 +448,84 @@ export class FeedService {
     }
 
     const html = await response.text();
-    const candidates = findFeedLinks(html, response.url || siteUrl);
+    const finalUrl = response.url || siteUrl;
+    const originalOrigin = new URL(siteUrl).origin;
+    const candidates = new Set<string>();
+    for (const url of findLinkHeaderCandidates(response.headers.get('link'), finalUrl)) {
+      candidates.add(url);
+    }
+    for (const url of await findHtmlFeedLinks(html, finalUrl)) {
+      candidates.add(url);
+    }
+
+    let candidateUrls = [...candidates].slice(0, 5);
+    let probingFallback = false;
+    if (candidateUrls.length === 0) {
+      probingFallback = true;
+      const probePaths = [
+        '/feed/',
+        '/feed',
+        '/rss',
+        '/rss.xml',
+        '/feed.xml',
+        '/atom.xml',
+        '/index.xml',
+        '/?feed=rss2',
+      ];
+      candidateUrls = probePaths.map((path) => new URL(path, originalOrigin).href);
+    }
+
     const feeds: DiscoveredFeed[] = [];
     const skipped: SkippedFeed[] = [];
+    let nextIndex = 0;
 
-    for (const url of candidates) {
-      try {
-        await this.validateUrl(url);
-        const feedResponse = await this.fetcher(url, {
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!feedResponse.ok) {
-          skipped.push({ url, reason: `HTTP ${feedResponse.status}` });
-          continue;
+    const worker = async (): Promise<void> => {
+      while (nextIndex < candidateUrls.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        const url = candidateUrls[index]!;
+        try {
+          await this.validateUrl(url);
+          const feedResponse = await this.fetcher(url, {
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (probingFallback && new URL(feedResponse.url || url).origin !== originalOrigin) {
+            skipped.push({ url, reason: 'Feed redirected outside the website origin.' });
+            continue;
+          }
+          if (!feedResponse.ok) {
+            skipped.push({ url, reason: `HTTP ${feedResponse.status}` });
+            continue;
+          }
+          const parsed = await validateFetchedFeed(await feedResponse.text());
+          const sampleHeadlines = parsed.items
+            .map((item) => normalizeFeedItem({ title: item.title, link: item.link }))
+            .filter((item) => item !== null)
+            .slice(0, 3)
+            .map((item) => item.headline);
+          feeds.push({
+            url,
+            title: parsed.title,
+            format: parsed.format,
+            itemCount: parsed.items.length,
+            sampleHeadlines,
+          });
+        } catch (error) {
+          skipped.push({
+            url,
+            reason: error instanceof Error ? error.message : 'Could not read this feed.',
+          });
         }
-        const parsed = await parseFetchedFeed(await feedResponse.text());
-        const sampleHeadlines = parsed.items
-          .map((item) => normalizeFeedItem({ title: item.title, link: item.link }))
-          .filter((item) => item !== null)
-          .slice(0, 3)
-          .map((item) => item.headline);
-        feeds.push({
-          url,
-          title: parsed.title,
-          itemCount: parsed.items.length,
-          sampleHeadlines,
-        });
-      } catch (error) {
-        skipped.push({
-          url,
-          reason:
-            error instanceof Error
-              ? error.message
-              : 'Could not read this feed.',
-        });
       }
     }
 
-    return { feeds, skipped };
+    await Promise.all(
+      Array.from({ length: candidateUrls.length > 0 ? Math.min(4, candidateUrls.length) : 0 }, () =>
+        worker(),
+      ),
+    );
+
+    return { feeds: feeds.slice(0, 5), skipped };
   }
 
   async discoverFeedLinks(siteUrl: string): Promise<string[]> {
