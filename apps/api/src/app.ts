@@ -187,6 +187,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       jwtSecret: deps.jwtSecret,
       sources: deps.sources,
       tests: feedTests,
+      discovery: feedService,
     });
 
     registerDashboardRoutes(routes, {

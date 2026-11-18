@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  feedDiscoveryInputSchema,
   feedTestInputSchema,
   listPaginationQuerySchema,
   sourceInputSchema,
@@ -9,6 +10,7 @@ import {
 } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { FeedTestQueue } from '../rss/background';
+import { FeedDiscoveryError, type FeedService } from '../rss/service';
 import { SafeFetchError, validateSafeUrl } from '../rss/safe-fetch';
 import type { SourceRepository, SourceRecord } from '../repositories/feeds';
 import { ForbiddenError, HttpError } from '../errors';
@@ -22,6 +24,7 @@ export type SourceRouteOptions = {
   jwtSecret: string;
   sources: SourceRepository;
   tests: FeedTestQueue;
+  discovery: FeedService;
 };
 
 function toSourceResponse(source: SourceRecord) {
@@ -105,6 +108,26 @@ export function registerSourceRoutes(app: FastifyInstance, options: SourceRouteO
       throw new HttpError(404, 'That source was not found.');
     }
     return reply.code(204).send();
+  });
+
+  app.post('/api/sources/discover', async (request, reply) => {
+    await readUser(request, options.auth, options.jwtSecret);
+    const body = parseBody(feedDiscoveryInputSchema, request.body);
+    try {
+      const result = await options.discovery.discoverFeeds(body.siteUrl);
+      return reply.send({
+        ...result,
+        feedUrls: result.feeds.map((feed) => feed.url),
+      });
+    } catch (error) {
+      if (error instanceof SafeFetchError) {
+        throw new HttpError(400, 'This website address is not allowed.');
+      }
+      if (error instanceof FeedDiscoveryError) {
+        throw new HttpError(400, error.message);
+      }
+      throw error;
+    }
   });
 
   app.post('/api/sources/test', async (request, reply) => {
