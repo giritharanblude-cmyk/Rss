@@ -723,6 +723,10 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.source-card-header div > a {
+  display: block;
+}
+
 .source-state {
   background: #fff3c4;
   color: #7c5e10;

@@ -17,6 +17,53 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('SourcesPage', () => {
+  it('shows each source RSS link as a clickable card link', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/auth/me') {
+        return jsonResponse(200, {
+          user: {
+            id: '00000000-0000-4000-8000-000000000001',
+            name: 'Mina',
+            role: 'member',
+          },
+        });
+      }
+      if (String(input) === '/api/sources') {
+        return jsonResponse(200, {
+          sources: [
+            {
+              id: '00000000-0000-4000-8000-000000000010',
+              name: 'Feed source',
+              website: 'https://feed.example.test',
+              rssUrl: 'https://feed.example.test/rss.xml',
+              mode: 'all',
+              topics: [],
+              region: null,
+              intervalMinutes: 60,
+              active: true,
+              lastFetchedAt: null,
+              lastStatus: null,
+              lastErrorMessage: null,
+              createdAt: '2026-11-04T08:00:00.000Z',
+            },
+          ],
+          page: 1,
+          pageSize: 25,
+          total: 1,
+        });
+      }
+      return jsonResponse(204, {});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    const feedLink = await screen.findByRole('link', {
+      name: 'https://feed.example.test/rss.xml',
+    });
+    expect(feedLink).toHaveAttribute('href', 'https://feed.example.test/rss.xml');
+  });
+
   it('shows honest status labels and fetch error text', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === '/api/auth/me') {
