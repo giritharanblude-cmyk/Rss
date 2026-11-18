@@ -349,6 +349,45 @@ describe('RSS and Atom fetching', () => {
     expect((await repo.findSource(source.id))?.lastStatus).toBe('no_new_items');
   });
 
+  it('rejects web pages and keeps valid empty RSS feeds as no new items', async () => {
+    const repo = new MemoryFeedRepository();
+    const page = await repo.createSource(sourceInput({ name: 'Web page' }));
+    const empty = await repo.createSource(sourceInput({ name: 'Empty feed' }));
+    const service = new FeedService(repo, repo, {
+      now: () => now,
+      fetcher: async (url) =>
+        url.toString().includes('web-page')
+          ? response('<!doctype html><html><body>News website</body></html>')
+          : response(
+              '<?xml version="1.0"?><rss version="2.0"><channel><title>Empty</title><link>https://news.example.test</link><description>Empty</description></channel></rss>',
+            ),
+      log: () => undefined,
+    });
+
+    await expect(service.fetchSource(page)).rejects.toThrow(
+      'This address is not a news feed.',
+    );
+    expect((await repo.findSource(page.id))?.lastStatus).toBe('feed_error');
+    expect((await repo.findSource(page.id))?.lastErrorMessage).toBe(
+      'This address is not a news feed.',
+    );
+
+    await service.fetchSource(empty);
+    expect((await repo.findSource(empty.id))?.lastStatus).toBe('no_new_items');
+  });
+
+  it('marks a valid RSS feed with items as ok', async () => {
+    const repo = new MemoryFeedRepository();
+    const source = await repo.createSource(sourceInput());
+    const service = new FeedService(repo, repo, {
+      now: () => now,
+      fetcher: async () => response(feedXml('A new advisory', 'https://news.example.test/item')),
+    });
+
+    await service.fetchSource(source);
+    expect((await repo.findSource(source.id))?.lastStatus).toBe('ok');
+  });
+
   it('stores a fetch failure message and clears it after a later success', async () => {
     const repo = new MemoryFeedRepository();
     const source = await repo.createSource(sourceInput());
