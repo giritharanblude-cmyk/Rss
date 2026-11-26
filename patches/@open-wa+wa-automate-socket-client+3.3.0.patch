@@ -1,0 +1,13 @@
+diff --git a/node_modules/@open-wa/wa-automate-socket-client/dist/SocketClient.js b/node_modules/@open-wa/wa-automate-socket-client/dist/SocketClient.js
+index 066c029..fcd937c 100644
+--- a/node_modules/@open-wa/wa-automate-socket-client/dist/SocketClient.js
++++ b/node_modules/@open-wa/wa-automate-socket-client/dist/SocketClient.js
+@@ -86,7 +86,7 @@ class SocketClient {
+         this.flushListenersOnDisconnect = flushListenersOnDisconnect;
+         const _url = new URL(url);
+         const _path = _url.pathname.replace(/\/$/, "");
+-        this.socket = (0, socket_io_client_1.io)(_url.origin, {
++        this.socket = (0, socket_io_client_1.io)(`${_url.origin}/events`, {
+             autoConnect: true,
+             auth: {
+                 apiKey
