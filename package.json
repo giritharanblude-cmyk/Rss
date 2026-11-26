@@ -16,6 +16,7 @@
     }
   },
   "scripts": {
+    "postinstall": "patch-package",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -28,6 +29,7 @@
     "@eslint/js": "10.0.1",
     "eslint": "10.14.0",
     "globals": "17.14.0",
+    "patch-package": "^8.0.1",
     "prettier": "3.9.10",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1"
