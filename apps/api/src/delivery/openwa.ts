@@ -17,17 +17,33 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
   private client: Awaited<ReturnType<typeof SocketClient.connect>> | null = null;
   private readonly handlers = new Set<(message: IncomingWhatsAppMessage) => void>();
   private listening = false;
+  private lastError: string | null = null;
 
   constructor(private readonly config: OpenWaConfig) {}
 
   async connect(): Promise<void> {
     if (!this.config.socketUrl || !this.config.apiKey) {
-      throw new Error('OpenWA socket URL and API key are not configured.');
+      const error = new Error('OpenWA socket URL and API key are not configured.');
+      this.lastError = error.message;
+      throw error;
     }
-    if (!this.client) {
-      this.client = await SocketClient.connect(this.config.socketUrl, this.config.apiKey);
+
+    try {
+      if (!this.client) {
+        this.client = await SocketClient.connect(this.config.socketUrl, this.config.apiKey);
+        this.client.socket.on('connect', () => {
+          this.lastError = null;
+        });
+        this.client.socket.on('connect_error', (error: Error) => {
+          this.lastError = this.errorDetail(error);
+        });
+      }
+      await this.startListening();
+      this.lastError = null;
+    } catch (error) {
+      this.lastError = this.errorDetail(error);
+      throw error;
     }
-    await this.startListening();
   }
 
   async getStatus(): Promise<WhatsAppStatus> {
@@ -36,7 +52,7 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
       connected,
       detail: connected
         ? 'Connected to the OpenWA session; verify the linked account in OpenWA.'
-        : 'OpenWA session is not connected.',
+        : this.lastError ?? 'OpenWA session is not connected.',
     };
   }
 
@@ -67,5 +83,12 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
       if (!message) return;
       for (const handler of this.handlers) handler(message);
     });
+  }
+
+  private errorDetail(error: unknown): string {
+    const message = error instanceof Error ? error.message : 'OpenWA socket connection failed.';
+    return [this.config.apiKey, this.config.socketUrl]
+      .filter((value): value is string => Boolean(value))
+      .reduce((detail, sensitive) => detail.split(sensitive).join('[redacted]'), message);
   }
 }
