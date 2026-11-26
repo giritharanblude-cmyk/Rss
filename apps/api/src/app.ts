@@ -230,6 +230,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const missingSmtpVariables = (
       ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM_EMAIL'] as const
     ).filter((variable) => !process.env[variable]);
+    const openwaStatus = await deps.whatsapp.getStatus();
     const payload = {
       status: 'ok' as const,
       service: 'healthcare-rss-api',
@@ -246,7 +247,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
                 status: 'unknown' as const,
                 detail: `Missing required SMTP configuration: ${missingSmtpVariables.join(', ')}.`,
               },
-        openwa: { status: 'unknown' as const, detail: 'WhatsApp socket not connected.' },
+        openwa: {
+          status: openwaStatus.connected ? ('ok' as const) : ('unknown' as const),
+          detail: openwaStatus.connected
+              ? 'WhatsApp socket connected'
+              : openwaStatus.detail || 'WhatsApp socket not connected.',
+        },
         scheduler: { status: 'ok' as const, detail: 'Background jobs online.' },
       },
     };
