@@ -125,15 +125,18 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
   private handleSessionStatus(message: unknown): void {
     if (!message || typeof message !== 'object') return;
     const frame = message as Record<string, unknown>;
-    if (frame.type !== 'event' || !frame.payload || typeof frame.payload !== 'object') return;
+    const payload =
+      frame.type === 'event' && frame.payload && typeof frame.payload === 'object'
+        ? (frame.payload as Record<string, unknown>)
+        : frame;
 
-    const payload = frame.payload as Record<string, unknown>;
     if (payload.event !== 'session.status' || payload.sessionId !== this.sessionId) return;
     if (!payload.data || typeof payload.data !== 'object') return;
 
     const data = payload.data as Record<string, unknown>;
-    this.sessionConnected = data.status === 'ready';
+    this.sessionConnected = data.status === 'ready' || data.status === 'connected';
     this.lastError = null;
+    console.info(`OpenWA session status received; connected=${this.sessionConnected}`);
   }
 
   private errorDetail(error: unknown): string {
