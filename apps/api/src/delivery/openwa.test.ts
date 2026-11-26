@@ -33,6 +33,14 @@ function sessionStatus(session: string, status: string) {
   };
 }
 
+function unwrappedSessionStatus(session: string, status: string) {
+  return {
+    event: 'session.status',
+    sessionId: session,
+    data: { status },
+  };
+}
+
 let context: TestContext | undefined;
 
 afterEach(async () => {
@@ -100,6 +108,68 @@ describe('OpenWA session subscription', () => {
     const response = await context.app.inject({ method: 'GET', url: '/api/health' });
 
     expect(response.json().components.openwa.status).toBe('ok');
+  });
+
+  it('accepts an unwrapped connected status', async () => {
+    const { socket } = mockOpenWaClient();
+    const adapter = new OpenWaSocketAdapter({
+      socketUrl: 'http://openwa.test',
+      apiKey: 'test-key',
+      sessionId,
+    });
+    await adapter.connect();
+
+    socket.emit('message', unwrappedSessionStatus(sessionId, 'connected'));
+
+    expect((await adapter.getStatus()).connected).toBe(true);
+  });
+
+  it('ignores status for a different session', async () => {
+    const { socket } = mockOpenWaClient();
+    const adapter = new OpenWaSocketAdapter({
+      socketUrl: 'http://openwa.test',
+      apiKey: 'test-key',
+      sessionId,
+    });
+    await adapter.connect();
+    socket.emit('message', sessionStatus(sessionId, 'ready'));
+
+    socket.emit('message', sessionStatus('another-session', 'failed'));
+
+    expect((await adapter.getStatus()).connected).toBe(true);
+  });
+
+  it.each(['disconnected', 'failed'])('marks a %s status as disconnected', async (status) => {
+    const { socket } = mockOpenWaClient();
+    const adapter = new OpenWaSocketAdapter({
+      socketUrl: 'http://openwa.test',
+      apiKey: 'test-key',
+      sessionId,
+    });
+    await adapter.connect();
+    socket.emit('message', sessionStatus(sessionId, 'ready'));
+
+    socket.emit('message', sessionStatus(sessionId, status));
+
+    expect((await adapter.getStatus()).connected).toBe(false);
+  });
+
+  it('logs a matching status without session or key values', async () => {
+    const { socket } = mockOpenWaClient();
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const adapter = new OpenWaSocketAdapter({
+      socketUrl: 'http://openwa.test',
+      apiKey: 'test-key',
+      sessionId,
+    });
+    await adapter.connect();
+
+    socket.emit('message', sessionStatus(sessionId, 'ready'));
+
+    const line = log.mock.calls.flat().join(' ');
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(line.includes(sessionId)).toBe(false);
+    expect(line.includes('test-key')).toBe(false);
   });
 
   it('keeps the session ID out of health output and logged connection errors', async () => {
