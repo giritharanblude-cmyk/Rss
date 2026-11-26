@@ -29,6 +29,7 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().min(1).optional(),
   OPENWA_SOCKET_URL: z.string().url().optional(),
   OPENWA_API_KEY: z.string().min(1).optional(),
+  OPENWA_SESSION_ID: z.string().optional(),
   MAIL_FROM_NAME: z.string().default('Healthcare News Desk'),
   MAIL_FROM_EMAIL: z.string().email().optional(),
   MASTER_NAME: z.string().min(1).optional(),

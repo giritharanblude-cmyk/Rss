@@ -53,6 +53,7 @@ async function main(): Promise<void> {
   const whatsapp = new OpenWaSocketAdapter({
     socketUrl: config.OPENWA_SOCKET_URL,
     apiKey: config.OPENWA_API_KEY,
+    sessionId: config.OPENWA_SESSION_ID,
   });
   const alertPreviews = new AlertPreviewService(
     recipients,

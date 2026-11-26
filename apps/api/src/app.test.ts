@@ -61,7 +61,8 @@ describe('GET /api/health', () => {
   it('does not expose the OpenWA API key in health output', async () => {
     const apiKey = 'health-test-api-key';
     const socketUrl = 'http://openwa.test:2785';
-    const whatsapp = new OpenWaSocketAdapter({ socketUrl, apiKey });
+    const sessionId = 'health-test-session';
+    const whatsapp = new OpenWaSocketAdapter({ socketUrl, apiKey, sessionId });
     vi.spyOn(SocketClient, 'connect').mockRejectedValue(
       new Error(`Socket connection failed for ${apiKey} at ${socketUrl}`),
     );
@@ -74,6 +75,7 @@ describe('GET /api/health', () => {
 
     expect(response.body).not.toContain(apiKey);
     expect(response.body).not.toContain(socketUrl);
+    expect(response.body).not.toContain(sessionId);
     expect(response.json()).toMatchObject({
       components: {
         openwa: { status: 'unknown', detail: 'Socket connection failed for [redacted] at [redacted]' },
