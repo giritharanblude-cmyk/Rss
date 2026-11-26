@@ -10,7 +10,7 @@ declare module 'fastify' {
 }
 
 const sensitiveKeyPattern =
-  /^(?:password|newPassword|currentPassword|passwordHash|code|otp|otpCode|token|unsubscribeToken|secret|originSecret|jwt|jwtSecret|apiKey|openwaApiKey|smtpPassword|fromEmail|authorization|cookie|set-cookie|recipientContact|whatsappE164|email|phone)$/i;
+  /^(?:password|newPassword|currentPassword|passwordHash|code|otp|otpCode|token|unsubscribeToken|secret|originSecret|jwt|jwtSecret|apiKey|openwaApiKey|sessionId|smtpPassword|fromEmail|authorization|cookie|set-cookie|recipientContact|whatsappE164|email|phone)$/i;
 
 const redactedValue = '[REDACTED]';
 
@@ -35,6 +35,7 @@ export const loggerRedactPaths = [
   'originSecret',
   'jwtSecret',
   'apiKey',
+  'sessionId',
   'smtpPassword',
   'fromEmail',
   'recipientContact',
@@ -48,6 +49,7 @@ export const loggerRedactPaths = [
   '*.token',
   '*.secret',
   '*.apiKey',
+  '*.sessionId',
   '*.smtpPassword',
   '*.fromEmail',
   '*.recipientContact',

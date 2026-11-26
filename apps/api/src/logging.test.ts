@@ -36,6 +36,15 @@ describe('logging redaction', () => {
     });
   });
 
+  it('redacts session IDs from structured log payloads', () => {
+    const sessionId = 'test-session-id';
+    const scrubbed = JSON.stringify(scrubLogPayload({ sessionId, nested: { sessionId } }));
+
+    expect(loggerRedactPaths).toContain('sessionId');
+    expect(loggerRedactPaths).toContain('*.sessionId');
+    expect(scrubbed.includes(sessionId)).toBe(false);
+  });
+
   it('redacts contact and JWT fragments from free-text logs', () => {
     expect(redactLogText('token=eyJhbGciOiJIUzI1NiJ9.abc.def')).toContain('[REDACTED-JWT]');
     expect(redactLogText('contact:v1.a.b.c')).toContain('contact:[REDACTED]');
