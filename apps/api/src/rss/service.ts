@@ -251,7 +251,7 @@ async function findBodyFeedLinks(
           ) {
             const path = url.pathname.toLowerCase();
             const pathSignal =
-              /\/(?:feed\/?|rss(?:\.xml)?|feed\.xml|atom\.xml|index\.xml)$/.test(path);
+              /\/(?:feed\/?|rss(?:\.xml|\.cms)?|feed\.xml|atom\.xml|index\.xml)$/.test(path);
             const textSignal = signalWords.test(textContent(node).replace(/\s+/g, ' ').trim());
             if ((pathSignal || textSignal) && !seen.has(url.href)) {
               seen.add(url.href);

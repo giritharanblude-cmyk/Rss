@@ -266,6 +266,33 @@ describe('RSS and Atom fetching', () => {
     expect(result.feeds.some((feed) => feed.url.endsWith('/rss.xml'))).toBe(true);
   });
 
+  it('fetches and validates a same-origin body link ending in /rss.cms', async () => {
+    const repo = new MemoryFeedRepository();
+    const candidateCalls: string[] = [];
+    const service = new FeedService(repo, repo, {
+      fetcher: async (url) => {
+        const address = url.toString();
+        if (address === 'https://site.example.test/') {
+          return response('<!doctype html><html><body><a href="/rss.cms">Archive</a></body></html>');
+        }
+        candidateCalls.push(address);
+        return address === 'https://site.example.test/rss.cms'
+          ? response(rssFixture)
+          : response('missing', 404);
+      },
+      validateUrl: async () => undefined,
+    });
+
+    const result = await service.discoverFeeds('https://site.example.test/');
+
+    expect(candidateCalls).toContain('https://site.example.test/rss.cms');
+    expect(result.feeds).toHaveLength(1);
+    expect(result.feeds[0]).toMatchObject({
+      url: 'https://site.example.test/rss.cms',
+      format: 'rss2',
+    });
+  });
+
   it('caps body candidates at three and keeps a duplicate of a Phase 1 candidate from being fetched twice', async () => {
     const repo = new MemoryFeedRepository();
     const candidateCalls: string[] = [];
