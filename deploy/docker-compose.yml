@@ -29,6 +29,7 @@ services:
       SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?SETTINGS_ENCRYPTION_KEY must be set}
       OPENWA_SOCKET_URL: ${OPENWA_SOCKET_URL:-}
       OPENWA_API_KEY: ${OPENWA_API_KEY:-}
+      OPENWA_SESSION_ID: ${OPENWA_SESSION_ID:-}
       CHROME_PATH: /usr/bin/chromium
     volumes:
       - openwa_session:/data/openwa
