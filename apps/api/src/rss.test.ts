@@ -130,7 +130,8 @@ describe('RSS and Atom fetching', () => {
           </head></html>`);
         }
         if (url.toString().endsWith('/missing.xml')) return response('missing', 404);
-        if (url.toString().endsWith('/broken.xml')) return response('<!doctype html><html>not feed</html>');
+        if (url.toString().endsWith('/broken.xml'))
+          return response('<!doctype html><html>not feed</html>');
         return response(rssFixture);
       },
       validateUrl: async () => undefined,
@@ -163,13 +164,9 @@ describe('RSS and Atom fetching', () => {
     const headerProbeCalls: string[] = [];
     const headerService = new FeedService(repo, repo, {
       fetcher: async (_url) =>
-        response(
-          rssFixture,
-          200,
-          {
-            link: '<https://site.example.test/rss.xml>; rel="alternate"; type="application/rss+xml"',
-          },
-        ),
+        response(rssFixture, 200, {
+          link: '<https://site.example.test/rss.xml>; rel="alternate"; type="application/rss+xml"',
+        }),
       validateUrl: async () => undefined,
     });
 
@@ -210,12 +207,17 @@ describe('RSS and Atom fetching', () => {
             <link rel="alternate" type="application/rss+xml" href="/empty.xml">
           </head></html>`);
         }
-        if (url.toString().endsWith('/html.xml')) return response('<html><body>Not a feed</body></html>');
+        if (url.toString().endsWith('/html.xml'))
+          return response('<html><body>Not a feed</body></html>');
         if (url.toString().endsWith('/sitemap.xml')) {
-          return response('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+          return response(
+            '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
+          );
         }
         if (url.toString().endsWith('/invalid.xml')) return response('<rss><channel>');
-        return response('<?xml version="1.0"?><rss version="2.0"><channel><title>Empty</title><link>https://site.example.test</link><description>Empty</description></channel></rss>');
+        return response(
+          '<?xml version="1.0"?><rss version="2.0"><channel><title>Empty</title><link>https://site.example.test</link><description>Empty</description></channel></rss>',
+        );
       },
       validateUrl: async () => undefined,
     });
@@ -273,7 +275,9 @@ describe('RSS and Atom fetching', () => {
       fetcher: async (url) => {
         const address = url.toString();
         if (address === 'https://site.example.test/') {
-          return response('<!doctype html><html><body><a href="/rss.cms">Archive</a></body></html>');
+          return response(
+            '<!doctype html><html><body><a href="/rss.cms">Archive</a></body></html>',
+          );
         }
         candidateCalls.push(address);
         return address === 'https://site.example.test/rss.cms'
@@ -300,15 +304,19 @@ describe('RSS and Atom fetching', () => {
       fetcher: async (url) => {
         const address = url.toString();
         if (address === 'https://site.example.test/') {
-          return response(`<!doctype html><html><body>
+          return response(
+            `<!doctype html><html><body>
             <a href="/rss.xml">RSS</a>
             <a href="/feed/one">RSS</a>
             <a href="/feed/two">Subscribe</a>
             <a href="/feed/three">Atom</a>
             <a href="/feed/four">XML Feed</a>
-          </body></html>`, 200, {
-            link: '<https://site.example.test/rss.xml>; rel="alternate"; type="application/rss+xml"',
-          });
+          </body></html>`,
+            200,
+            {
+              link: '<https://site.example.test/rss.xml>; rel="alternate"; type="application/rss+xml"',
+            },
+          );
         }
         candidateCalls.push(address);
         return response('missing', 404);
@@ -318,8 +326,12 @@ describe('RSS and Atom fetching', () => {
 
     await service.discoverFeeds('https://site.example.test/');
 
-    expect(candidateCalls.filter((address) => address === 'https://site.example.test/rss.xml')).toHaveLength(1);
-    expect(candidateCalls.filter((address) => address.includes('/feed/')).length).toBeLessThanOrEqual(3);
+    expect(
+      candidateCalls.filter((address) => address === 'https://site.example.test/rss.xml'),
+    ).toHaveLength(1);
+    expect(
+      candidateCalls.filter((address) => address.includes('/feed/')).length,
+    ).toBeLessThanOrEqual(3);
   });
 
   it('parses RSS and Atom feeds and stores no article body', async () => {
@@ -366,6 +378,27 @@ describe('RSS and Atom fetching', () => {
     expect(topicResult.insertedCount).toBe(0);
     expect(topicResult.duplicateCount).toBe(1);
     expect(items.filter((item) => item.sourceId === topicOnly.id)).toHaveLength(1);
+  });
+
+  it('notifies the delivery hook once when a canonical news item is first saved', async () => {
+    const repo = new MemoryFeedRepository();
+    const source = await repo.createSource(sourceInput());
+    const onNewsItemsSaved = vi.fn(async () => undefined);
+    const service = new FeedService(repo, repo, {
+      now: () => now,
+      fetcher: async () =>
+        response(feedXml('Vaccine outbreak advisory', 'https://news.example.test/new')),
+      onNewsItemsSaved,
+    });
+
+    await service.fetchSource(source);
+    await service.fetchSource((await repo.findSource(source.id))!);
+
+    expect(onNewsItemsSaved).toHaveBeenCalledTimes(1);
+    expect(onNewsItemsSaved).toHaveBeenCalledWith(
+      [expect.objectContaining({ category: 'Outbreaks and public health' })],
+      source.ownerUserId,
+    );
   });
 
   it('deduplicates tracking-link variants and keeps the earliest canonical item', async () => {
@@ -569,9 +602,7 @@ describe('RSS and Atom fetching', () => {
       log: () => undefined,
     });
 
-    await expect(service.fetchSource(page)).rejects.toThrow(
-      'This address is not a news feed.',
-    );
+    await expect(service.fetchSource(page)).rejects.toThrow('This address is not a news feed.');
     expect((await repo.findSource(page.id))?.lastStatus).toBe('feed_error');
     expect((await repo.findSource(page.id))?.lastErrorMessage).toBe(
       'This address is not a news feed.',

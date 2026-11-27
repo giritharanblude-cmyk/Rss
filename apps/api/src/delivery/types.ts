@@ -24,6 +24,11 @@ export type DeliveryRecord = DeliveryInput & {
   recipientContact: string | null;
 };
 
+export type DeliveryEnqueueResult = {
+  record: DeliveryRecord;
+  created: boolean;
+};
+
 export type DeliveryNewsItem = {
   id: string;
   headline: string;
@@ -60,6 +65,7 @@ export type DeliveryFilters = {
 
 export type DeliveryRepository = {
   enqueue(input: DeliveryInput, now: Date): Promise<DeliveryRecord>;
+  enqueueIfNew(input: DeliveryInput, now: Date): Promise<DeliveryEnqueueResult>;
   list(filters: DeliveryFilters): Promise<{ items: DeliveryRecord[]; total: number }>;
   getContext(id: string): Promise<DeliveryContext | null>;
   claimNext(now: Date, lockUntil: Date): Promise<{ jobId: string; deliveryId: string } | null>;
@@ -68,7 +74,10 @@ export type DeliveryRepository = {
   fail(jobId: string, id: string, error: string): Promise<void>;
   retryFailed(id: string, now: Date, ownerUserId?: string): Promise<boolean>;
   findNewsItem(id: string, ownerUserId?: string): Promise<DeliveryNewsItem | null>;
-  listEligibleRecipients(category: NewsCategory, ownerUserId?: string): Promise<
+  listEligibleRecipients(
+    category: NewsCategory,
+    ownerUserId?: string,
+  ): Promise<
     {
       id: string;
       channel: 'email' | 'whatsapp' | 'both';

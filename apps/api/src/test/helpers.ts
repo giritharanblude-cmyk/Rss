@@ -107,6 +107,10 @@ export async function createTestContext(options: TestContextOptions = {}): Promi
     {
       now: clock.now,
       publicOrigin: 'https://news.example.test',
+      isOwnerEnabled: async (ownerUserId) => {
+        const owner = await users.findById(ownerUserId);
+        return Boolean(owner && !owner.disabled);
+      },
       throttleMs: () => 0,
     },
   );

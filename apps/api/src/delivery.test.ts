@@ -73,6 +73,102 @@ async function setupEmailDelivery() {
 }
 
 describe('delivery pipeline', () => {
+  it('queues a matching recipient without an alert rule', async () => {
+    const { recipient, item } = await setupEmailDelivery();
+
+    const queued = await context.deliveryService.queueForNewItems([item], recipient.ownerUserId);
+    const deliveries = await context.deliveries.list({ page: 1, pageSize: 10 });
+
+    expect(queued).toBe(1);
+    expect(deliveries.items).toMatchObject([
+      {
+        recipientId: recipient.id,
+        channel: 'email',
+        kind: 'instant',
+        subjectOrRef: `saved:${item.id}`,
+        newsItemIds: [item.id],
+      },
+    ]);
+  });
+
+  it('does not queue non-matching or unconsented recipients', async () => {
+    const { recipient, item } = await setupEmailDelivery();
+    await context.recipients.setConsent(
+      recipient.id,
+      'revoked',
+      context.clock.now(),
+      'Consent withdrawn',
+    );
+    const otherTopic = await context.recipients.createRecipient(
+      {
+        name: 'Other topic',
+        whatsappE164: null,
+        email: 'other-topic@example.test',
+        topics: ['Drugs and approvals'],
+        channel: 'email',
+      },
+      'b'.repeat(64),
+      recipient.ownerUserId,
+    );
+    await context.recipients.setConsent(otherTopic.id, 'granted', context.clock.now(), 'Agreed');
+    await context.recipients.createRecipient(
+      {
+        name: 'Pending consent',
+        whatsappE164: null,
+        email: 'pending@example.test',
+        topics: ['Outbreaks and public health'],
+        channel: 'email',
+      },
+      'c'.repeat(64),
+      recipient.ownerUserId,
+    );
+
+    expect(await context.deliveryService.queueForNewItems([item], recipient.ownerUserId)).toBe(0);
+    expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(0);
+  });
+
+  it('does not queue the same item again for a recipient and channel', async () => {
+    const { recipient, item } = await setupEmailDelivery();
+
+    expect(await context.deliveryService.queueForNewItems([item], recipient.ownerUserId)).toBe(1);
+    expect(await context.deliveryService.queueForNewItems([item], recipient.ownerUserId)).toBe(0);
+    expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(1);
+  });
+
+  it('caps automatic queueing at 50 deliveries per feed run', async () => {
+    const { recipient, item } = await setupEmailDelivery();
+    const secondItem = { ...item, id: '00000000-0000-4000-8000-000000000124' };
+    for (let index = 0; index < 50; index += 1) {
+      const additional = await context.recipients.createRecipient(
+        {
+          name: `Recipient ${index}`,
+          whatsappE164: null,
+          email: `recipient-${index}@example.test`,
+          topics: ['Outbreaks and public health'],
+          channel: 'email',
+        },
+        `${String(index + 1).padStart(64, '0')}`,
+        recipient.ownerUserId,
+      );
+      await context.recipients.setConsent(additional.id, 'granted', context.clock.now(), 'Agreed');
+    }
+
+    expect(
+      await context.deliveryService.queueForNewItems([item, secondItem], recipient.ownerUserId),
+    ).toBe(50);
+    const queued = await context.deliveries.list({ page: 1, pageSize: 100 });
+    expect(queued.items).toHaveLength(50);
+    expect(queued.items.every((delivery) => delivery.newsItemIds.includes(item.id))).toBe(true);
+  });
+
+  it('skips recipients owned by disabled accounts', async () => {
+    const { recipient, item } = await setupEmailDelivery();
+    await context.users.setDisabled(recipient.ownerUserId, true);
+
+    expect(await context.deliveryService.queueForNewItems([item], recipient.ownerUserId)).toBe(0);
+    expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(0);
+  });
+
   it('queues eligible Send now deliveries, retries three attempts, and supports resend', async () => {
     const { cookie, item } = await setupEmailDelivery();
     const queued = await context.app.inject({
@@ -132,7 +228,14 @@ describe('delivery pipeline', () => {
       ),
       context.email,
       context.whatsapp,
-      { now: context.clock.now, publicOrigin: 'https://news.example.test' },
+      {
+        now: context.clock.now,
+        publicOrigin: 'https://news.example.test',
+        isOwnerEnabled: async (ownerUserId) => {
+          const owner = await context.users.findById(ownerUserId);
+          return Boolean(owner && !owner.disabled);
+        },
+      },
     );
 
     await restartedWorker.runPending();

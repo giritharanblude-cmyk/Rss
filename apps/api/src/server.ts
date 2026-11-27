@@ -47,7 +47,7 @@ async function main(): Promise<void> {
   const db = createDatabase(pool);
   const feeds = new PostgresFeedRepository(db);
   const feedJobs = new PostgresFeedTestJobRepository(db);
-  const feedService = new FeedService(feeds, feeds);
+  const users = new PostgresUserRepository(db, config.SETTINGS_ENCRYPTION_KEY);
   const recipients = new PostgresRecipientRepository(db, config.SETTINGS_ENCRYPTION_KEY);
   const deliveries = new PostgresDeliveryRepository(db, config.SETTINGS_ENCRYPTION_KEY);
   const whatsapp = new OpenWaSocketAdapter({
@@ -94,6 +94,10 @@ async function main(): Promise<void> {
     {
       now: () => new Date(),
       publicOrigin: config.PUBLIC_APP_ORIGIN,
+      isOwnerEnabled: async (ownerUserId) => {
+        const owner = await users.findById(ownerUserId);
+        return Boolean(owner && !owner.disabled);
+      },
     },
   );
   const connections = new PostgresConnectionRepository(db);
@@ -104,7 +108,7 @@ async function main(): Promise<void> {
     () => new Date(),
   );
   const app = buildApp({
-    users: new PostgresUserRepository(db, config.SETTINGS_ENCRYPTION_KEY),
+    users,
     otps: new PostgresOtpRepository(db),
     sources: feeds,
     news: feeds,
@@ -129,6 +133,15 @@ async function main(): Promise<void> {
     publicOrigin: config.PUBLIC_APP_ORIGIN,
     originSecret: config.ORIGIN_SECRET,
     originSecretEnforced: config.ORIGIN_SECRET_ENFORCED,
+  });
+  const feedService = new FeedService(feeds, feeds, {
+    onNewsItemsSaved: async (items, ownerUserId) => {
+      const queuedCount = await deliveryService.queueForNewItems(items, ownerUserId);
+      app.log.info(
+        { newsItemCount: items.length, ownerUserId, queuedCount },
+        'Queued automatic deliveries for saved news items',
+      );
+    },
   });
 
   const address = await app.listen({ port: config.PORT, host: config.HOST });

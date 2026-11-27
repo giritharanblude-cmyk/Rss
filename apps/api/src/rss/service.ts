@@ -1,6 +1,11 @@
 import Parser from 'rss-parser';
 import type { SourceInput } from '@healthcare/shared';
-import type { NewsRepository, SourceRecord, SourceRepository } from '../repositories/feeds';
+import type {
+  NewsRecord,
+  NewsRepository,
+  SourceRecord,
+  SourceRepository,
+} from '../repositories/feeds';
 import { safeFetch, validateSafeUrl, type SafeFetcher } from './safe-fetch';
 import {
   headlineSimilarity,
@@ -31,7 +36,9 @@ type RawFeedItem = {
   pubDate?: string;
 };
 
-async function parseFetchedFeed(text: string): Promise<{ title: string | null; items: RawFeedItem[] }> {
+async function parseFetchedFeed(
+  text: string,
+): Promise<{ title: string | null; items: RawFeedItem[] }> {
   const trimmed = text.trim();
   if (trimmed.startsWith('{')) {
     let json: unknown;
@@ -52,23 +59,20 @@ async function parseFetchedFeed(text: string): Promise<{ title: string | null; i
       throw new Error(NOT_A_FEED_MESSAGE);
     }
     return {
-      title:
-        'title' in json && typeof json.title === 'string'
-          ? json.title
-          : null,
+      title: 'title' in json && typeof json.title === 'string' ? json.title : null,
       items: json.items.flatMap((item: unknown) => {
         if (typeof item !== 'object' || item === null) return [];
         const entry = item as Record<string, unknown>;
-        return [{
-          title: typeof entry.title === 'string' ? entry.title : undefined,
-          content: typeof entry.content_html === 'string' ? entry.content_html : undefined,
-          contentSnippet:
-            typeof entry.content_text === 'string' ? entry.content_text : undefined,
-          summary: typeof entry.summary === 'string' ? entry.summary : undefined,
-          link: typeof entry.url === 'string' ? entry.url : undefined,
-          isoDate:
-            typeof entry.date_published === 'string' ? entry.date_published : undefined,
-        }];
+        return [
+          {
+            title: typeof entry.title === 'string' ? entry.title : undefined,
+            content: typeof entry.content_html === 'string' ? entry.content_html : undefined,
+            contentSnippet: typeof entry.content_text === 'string' ? entry.content_text : undefined,
+            summary: typeof entry.summary === 'string' ? entry.summary : undefined,
+            link: typeof entry.url === 'string' ? entry.url : undefined,
+            isoDate: typeof entry.date_published === 'string' ? entry.date_published : undefined,
+          },
+        ];
       }),
     };
   }
@@ -164,11 +168,7 @@ type Parse5Node = {
   childNodes?: Parse5Node[];
 };
 
-const FEED_TYPES = new Set([
-  'application/rss+xml',
-  'application/rdf+xml',
-  'application/atom+xml',
-]);
+const FEED_TYPES = new Set(['application/rss+xml', 'application/rdf+xml', 'application/atom+xml']);
 
 function findLinkHeaderCandidates(header: string | null, baseUrl: string): string[] {
   if (!header) return [];
@@ -180,9 +180,19 @@ function findLinkHeaderCandidates(header: string | null, baseUrl: string): strin
       .slice(match[0].length)
       .split(';')
       .map((part) => part.trim());
-    const rel = parameters.find((part) => /^rel=/i.test(part))?.replace(/^rel=/i, '').replace(/^["']|["']$/g, '');
-    const type = parameters.find((part) => /^type=/i.test(part))?.replace(/^type=/i, '').replace(/^["']|["']$/g, '').split(';', 1)[0]?.trim().toLowerCase();
-    if (!rel?.toLowerCase().split(/\s+/).includes('alternate') || !type || !FEED_TYPES.has(type)) continue;
+    const rel = parameters
+      .find((part) => /^rel=/i.test(part))
+      ?.replace(/^rel=/i, '')
+      .replace(/^["']|["']$/g, '');
+    const type = parameters
+      .find((part) => /^type=/i.test(part))
+      ?.replace(/^type=/i, '')
+      .replace(/^["']|["']$/g, '')
+      .split(';', 1)[0]
+      ?.trim()
+      .toLowerCase();
+    if (!rel?.toLowerCase().split(/\s+/).includes('alternate') || !type || !FEED_TYPES.has(type))
+      continue;
     try {
       const url = new URL(match[1]!, baseUrl);
       if (url.protocol === 'http:' || url.protocol === 'https:') links.add(url.href);
@@ -200,7 +210,9 @@ async function findHtmlFeedLinks(html: string, baseUrl: string): Promise<string[
 
   function visit(node: Parse5Node): void {
     if (node.nodeName === 'link') {
-      const attrs = new Map((node.attrs ?? []).map((attr) => [attr.name.toLowerCase(), attr.value]));
+      const attrs = new Map(
+        (node.attrs ?? []).map((attr) => [attr.name.toLowerCase(), attr.value]),
+      );
       const rel = (attrs.get('rel') ?? '').toLowerCase().split(/\s+/);
       const type = (attrs.get('type') ?? '').split(';', 1)[0]?.trim().toLowerCase();
       const href = attrs.get('href');
@@ -227,11 +239,7 @@ function textContent(node: Parse5Node): string {
   return (node.childNodes ?? []).map(textContent).join(' ');
 }
 
-async function findBodyFeedLinks(
-  html: string,
-  baseUrl: string,
-  origin: string,
-): Promise<string[]> {
+async function findBodyFeedLinks(html: string, baseUrl: string, origin: string): Promise<string[]> {
   const { parse } = await import('parse5');
   const document = parse(html) as Parse5Node;
   const links: string[] = [];
@@ -240,15 +248,14 @@ async function findBodyFeedLinks(
 
   function visit(node: Parse5Node): void {
     if (node.nodeName === 'a') {
-      const attrs = new Map((node.attrs ?? []).map((attr) => [attr.name.toLowerCase(), attr.value]));
+      const attrs = new Map(
+        (node.attrs ?? []).map((attr) => [attr.name.toLowerCase(), attr.value]),
+      );
       const href = attrs.get('href');
       if (href) {
         try {
           const url = new URL(href, baseUrl);
-          if (
-            (url.protocol === 'http:' || url.protocol === 'https:') &&
-            url.origin === origin
-          ) {
+          if ((url.protocol === 'http:' || url.protocol === 'https:') && url.origin === origin) {
             const path = url.pathname.toLowerCase();
             const pathSignal =
               /\/(?:feed\/?|rss(?:\.xml|\.cms)?|feed\.xml|atom\.xml|index\.xml)$/.test(path);
@@ -328,6 +335,7 @@ export class FeedService {
   private readonly now: () => Date;
   private readonly log: Logger;
   private readonly validateUrl: (input: string | URL) => Promise<void>;
+  private readonly onNewsItemsSaved?: (items: NewsRecord[], ownerUserId: string) => Promise<void>;
 
   constructor(
     private readonly sources: SourceRepository,
@@ -337,12 +345,14 @@ export class FeedService {
       now?: () => Date;
       log?: Logger;
       validateUrl?: (input: string | URL) => Promise<void>;
+      onNewsItemsSaved?: (items: NewsRecord[], ownerUserId: string) => Promise<void>;
     } = {},
   ) {
     this.fetcher = options.fetcher ?? safeFetch;
     this.now = options.now ?? (() => new Date());
     this.log = options.log ?? ((message, detail) => console.error(message, detail));
     this.validateUrl = options.validateUrl ?? validateSafeUrl;
+    this.onNewsItemsSaved = options.onNewsItemsSaved;
   }
 
   async fetchSource(source: SourceRecord): Promise<FeedFetchResult> {
@@ -380,6 +390,7 @@ export class FeedService {
       let insertedCount = 0;
       let duplicateCount = 0;
       let skippedCount = 0;
+      const savedNewsItems: NewsRecord[] = [];
       for (const rawItem of parsed.items) {
         const item = normalizeFeedItem({
           title: rawItem.title,
@@ -423,6 +434,7 @@ export class FeedService {
           duplicateOf: null,
         });
 
+        let isDuplicateItem = false;
         if (matches.length > 0) {
           const earliest = [...matches].sort(
             (left, right) => itemDate(left, now).getTime() - itemDate(right, now).getTime(),
@@ -430,6 +442,7 @@ export class FeedService {
           const currentDate = item.publishedAt ?? now;
           if (itemDate(earliest, now).getTime() <= currentDate.getTime()) {
             await this.news.setDuplicateOf([newsItem.id], earliest.duplicateOf ?? earliest.id);
+            isDuplicateItem = true;
           } else {
             await this.news.clearDuplicateOf(matches.map((candidate) => candidate.id));
             await this.news.setDuplicateOf(
@@ -441,6 +454,11 @@ export class FeedService {
         } else {
           insertedCount += 1;
         }
+        if (!isDuplicateItem) savedNewsItems.push(newsItem);
+      }
+
+      if (savedNewsItems.length) {
+        await this.onNewsItemsSaved?.(savedNewsItems, source.ownerUserId);
       }
 
       await this.sources.updateFetchState(source.id, {
@@ -462,9 +480,7 @@ export class FeedService {
         fetchedAt: now,
         status: message,
         lastErrorMessage:
-          error instanceof Error && error.message
-            ? error.message
-            : 'Feed request failed',
+          error instanceof Error && error.message ? error.message : 'Feed request failed',
       });
       this.log(`Feed fetch failed for source ${source.id}`, error);
       throw error;
@@ -576,7 +592,7 @@ export class FeedService {
           });
         }
       }
-    }
+    };
 
     await Promise.all(
       Array.from({ length: candidateUrls.length > 0 ? Math.min(4, candidateUrls.length) : 0 }, () =>

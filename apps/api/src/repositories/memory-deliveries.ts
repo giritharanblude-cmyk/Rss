@@ -4,6 +4,7 @@ import type { RecipientRepository } from './recipients';
 import type { DashboardRepository } from './dashboard';
 import type {
   DeliveryContext,
+  DeliveryEnqueueResult,
   DeliveryFilters,
   DeliveryInput,
   DeliveryNewsItem,
@@ -29,6 +30,10 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
   ) {}
 
   async enqueue(input: DeliveryInput, now: Date): Promise<DeliveryRecord> {
+    return (await this.enqueueIfNew(input, now)).record;
+  }
+
+  async enqueueIfNew(input: DeliveryInput, now: Date): Promise<DeliveryEnqueueResult> {
     const duplicate = [...this.records.values()].find(
       (record) =>
         record.recipientId === input.recipientId &&
@@ -36,7 +41,7 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
         record.kind === input.kind &&
         record.subjectOrRef === input.subjectOrRef,
     );
-    if (duplicate) return cloneDelivery(duplicate);
+    if (duplicate) return { record: cloneDelivery(duplicate), created: false };
     const recipient = await this.recipients.findRecipient(input.recipientId);
     if (!recipient) throw new Error('Recipient does not exist');
     const record: DeliveryRecord = {
@@ -59,7 +64,7 @@ export class MemoryDeliveryRepository implements DeliveryRepository {
       status: 'pending',
       lockedUntil: null,
     });
-    return cloneDelivery(record);
+    return { record: cloneDelivery(record), created: true };
   }
 
   async list(filters: DeliveryFilters): Promise<{ items: DeliveryRecord[]; total: number }> {

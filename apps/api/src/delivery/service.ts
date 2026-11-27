@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AlertPreviewService } from '../alerts/preview';
 import type { EmailSender } from '../email/types';
 import type { RecipientRepository, AlertRuleRepository } from '../repositories/recipients';
-import type { DeliveryRepository, DeliveryRecord } from './types';
+import type { DeliveryNewsItem, DeliveryRepository, DeliveryRecord } from './types';
 import { buildEmailDigest, buildWhatsAppDigest } from './message';
 import type { WhatsAppAdapter } from './whatsapp';
 
@@ -23,10 +23,48 @@ export class DeliveryService {
     private readonly options: {
       now: () => Date;
       publicOrigin: string;
+      isOwnerEnabled: (ownerUserId: string) => Promise<boolean>;
       throttleMs?: () => number;
       log?: (message: string, error: unknown) => void;
     },
   ) {}
+
+  async queueForNewItems(
+    items: Pick<DeliveryNewsItem, 'id' | 'category'>[],
+    ownerUserId: string,
+  ): Promise<number> {
+    if (!(await this.options.isOwnerEnabled(ownerUserId))) return 0;
+    const now = this.options.now();
+    let queued = 0;
+    for (const item of items) {
+      if (queued >= 50) break;
+      const eligible = await this.deliveries.listEligibleRecipients(item.category, ownerUserId);
+      recipients: for (const recipient of eligible) {
+        const channels =
+          recipient.channel === 'both'
+            ? (['email', 'whatsapp'] as const)
+            : ([recipient.channel] as const);
+        for (const channel of channels) {
+          const contactPresent =
+            channel === 'email' ? Boolean(recipient.email) : Boolean(recipient.whatsappE164);
+          if (!contactPresent) continue;
+          if (queued >= 50) break recipients;
+          const result = await this.deliveries.enqueueIfNew(
+            {
+              recipientId: recipient.id,
+              channel,
+              kind: 'instant',
+              subjectOrRef: `saved:${item.id}`,
+              newsItemIds: [item.id],
+            },
+            now,
+          );
+          if (result.created) queued += 1;
+        }
+      }
+    }
+    return queued;
+  }
 
   async sendNow(
     newsItemId: string,
