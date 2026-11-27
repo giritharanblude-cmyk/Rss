@@ -248,7 +248,14 @@ describe('App', () => {
       within(navigation)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['News Feed', 'Sources', 'Recipients', 'Delivery Log', 'Profile']);
+    ).toEqual([
+      'News Feed',
+      'Sources',
+      'Recipients',
+      'Alerts & Schedule',
+      'Delivery Log',
+      'Profile',
+    ]);
   });
 
   it('lets members change contacts from their profile only after requesting a code', async () => {
@@ -305,14 +312,14 @@ describe('App', () => {
     });
   });
 
-  it.each(['/alerts', '/settings'])('redirects members away from %s', async (path) => {
+  it('redirects members away from settings', async () => {
     const calls: string[] = [];
     const member = {
       id: '00000000-0000-4000-8000-000000000001',
       name: 'Mina',
       role: 'member',
     };
-    window.history.pushState({}, '', path);
+    window.history.pushState({}, '', '/settings');
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request) => {
@@ -330,7 +337,6 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'News Feed' })).toBeInTheDocument();
-    expect(calls).not.toContain('/api/alert-rules');
     expect(calls).not.toContain('/api/settings/email');
     expect(calls).not.toContain('/api/settings/connections');
   });

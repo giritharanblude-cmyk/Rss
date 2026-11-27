@@ -186,6 +186,47 @@ describe('Phase 4 pages', () => {
     expect(screen.getByText(/No messages sent/)).toBeInTheDocument();
   });
 
+  it('lets a member open Alerts & Schedule and see their saved rule', async () => {
+    const member = { ...user, name: 'Mina', role: 'member' };
+    const memberRule = {
+      id: '00000000-0000-4000-8000-000000000010',
+      kind: 'digest',
+      daysOfWeek: [1, 3, 5],
+      timeLocal: '09:30',
+      timezone: 'Asia/Kolkata',
+      topics: ['Hospitals and industry'],
+      channels: ['email'],
+      active: true,
+      createdAt: '2026-11-04T08:00:00.000Z',
+    };
+    const calls: string[] = [];
+    window.history.pushState({}, '', '/alerts');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const path = String(input);
+        calls.push(path);
+        if (path === '/api/auth/me') return jsonResponse(200, { user: member });
+        if (path.startsWith('/api/alert-rules')) {
+          return jsonResponse(200, { rules: [memberRule], page: 1, pageSize: 25, total: 1 });
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Alerts & Schedule' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Alerts & Schedule' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Digest · 09:30 Asia/Kolkata' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Topics: Hospitals and industry · Channels: email'),
+    ).toBeInTheDocument();
+    expect(calls).toContain('/api/alert-rules');
+  });
+
   it('lets a recipient unsubscribe from the public token page', async () => {
     const token = 'a'.repeat(64);
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
