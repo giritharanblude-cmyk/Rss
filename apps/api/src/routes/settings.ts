@@ -7,7 +7,10 @@ import type { ManagedEmailSender } from '../email/managed';
 import type { SettingsRepository } from '../repositories/settings';
 import { encryptSettings } from '../settings/secrets';
 import { ForbiddenError, HttpError } from '../errors';
+import { redactLogText } from '../logging';
 import { readUser } from './auth';
+
+const WHATSAPP_TEST_SEND_TIMEOUT_MS = 20_000;
 
 export type SettingsRouteOptions = {
   auth: AuthService;
@@ -29,6 +32,18 @@ export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRo
           fromEmail: maskEmail(settings.fromEmail),
         }
       : null;
+  };
+
+  const whatsappTestFailureReason = (error: unknown, phone: string, email: string): string => {
+    const reason =
+      error instanceof Error && error.message.trim() ? error.message.trim() : 'Unknown OpenWA error.';
+    return redactLogText(reason)
+      .replaceAll(phone, '[REDACTED-PHONE]')
+      .replaceAll(email, '[REDACTED-EMAIL]')
+      .replace(
+        /\b(?:api[_ -]?key|openwa[_ -]?key|access[_ -]?token|secret)\s*[:=]\s*\S+/gi,
+        '[REDACTED-CREDENTIAL]',
+      );
   };
 
   app.get('/api/settings/connections', async (request, reply) => {
@@ -111,17 +126,34 @@ export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRo
     if (!whatsappConnected) {
       throw new HttpError(503, 'WhatsApp is not connected. Connect OpenWA and try again.');
     }
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const timeoutSignal = Symbol('whatsapp-test-timeout');
     try {
-      await options.whatsapp.sendText(
-        user.phone,
-        'This is a test message from Healthcare News. Your WhatsApp connection is working.',
+      await Promise.race([
+        options.whatsapp.sendText(
+          user.phone,
+          'This is a test message from Healthcare News. Your WhatsApp connection is working.',
+        ),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(timeoutSignal), WHATSAPP_TEST_SEND_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (error) {
+      const timedOut = error === timeoutSignal;
+      request.log.warn(
+        { outcome: timedOut ? 'timeout' : 'failed' },
+        'WhatsApp test send did not complete',
       );
-    } catch {
       throw new HttpError(
-        502,
-        'Test WhatsApp message could not be sent. Check the OpenWA connection and try again.',
+        timedOut ? 504 : 502,
+        timedOut
+          ? 'WhatsApp did not confirm the send within 20 seconds. Check the OpenWA session.'
+          : `Test WhatsApp message could not be sent: ${whatsappTestFailureReason(error, user.phone, user.email)}`,
       );
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
+    request.log.info({ outcome: 'confirmed' }, 'WhatsApp test send completed');
     return reply.send({ status: 'sent', message: 'Test WhatsApp message sent successfully.' });
   });
 

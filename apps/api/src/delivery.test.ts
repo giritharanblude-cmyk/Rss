@@ -641,6 +641,74 @@ describe('delivery pipeline', () => {
     expect(response.body).not.toContain(otherPhone);
   });
 
+  it('returns a timeout response when a WhatsApp test send never resolves', async () => {
+    context = await createTestContext();
+    await context.users.updateContacts(context.master.id, context.master.email, '+14155550123');
+    context.whatsapp.connected = true;
+    let sendStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      sendStarted = resolve;
+    });
+    vi.spyOn(context.whatsapp, 'sendText').mockImplementation(() => {
+      sendStarted();
+      return new Promise<void>(() => {});
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const responsePromise = context.app.inject({
+        method: 'POST',
+        url: '/api/settings/whatsapp/test',
+        headers: { cookie },
+      });
+      await started;
+      await vi.advanceTimersByTimeAsync(20_000);
+      const response = await responsePromise;
+
+      expect(response.statusCode).toBe(504);
+      expect(response.json().error).toBe(
+        'WhatsApp did not confirm the send within 20 seconds. Check the OpenWA session.',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('returns a safe reason when a WhatsApp test send fails', async () => {
+    context = await createTestContext();
+    const ownPhone = '+14155550123';
+    await context.users.updateContacts(context.master.id, context.master.email, ownPhone);
+    context.whatsapp.connected = true;
+    vi.spyOn(context.whatsapp, 'sendText').mockRejectedValue(
+      new Error(`OpenWA session failed for ${ownPhone}: apiKey=secret-value`),
+    );
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/whatsapp/test',
+      headers: { cookie },
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json().error).toBe(
+      'Test WhatsApp message could not be sent: OpenWA session failed for [REDACTED-PHONE]: [REDACTED-CREDENTIAL]',
+    );
+    expect(response.body).not.toContain(ownPhone);
+    expect(response.body).not.toContain('secret-value');
+  });
+
   it('returns clear reasons when a test channel is disconnected or its contact is missing', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(
