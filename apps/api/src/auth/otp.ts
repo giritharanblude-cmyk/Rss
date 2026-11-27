@@ -99,7 +99,7 @@ export class OtpService {
     });
   }
 
-  async verify(target: OtpTarget, purpose: OtpPurpose, code: string): Promise<void> {
+  async verify(target: OtpTarget, purpose: OtpPurpose, code: string): Promise<string> {
     const now = this.now();
     const latest = await this.options.otps.findLatest(target.userId, purpose);
 
@@ -126,6 +126,11 @@ export class OtpService {
     if (!consumed) {
       throw new OtpError();
     }
+    return latest.id;
+  }
+
+  async restoreUsed(id: string): Promise<void> {
+    await this.options.otps.restoreUsed(id);
   }
 }
 

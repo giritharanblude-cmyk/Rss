@@ -298,6 +298,13 @@ export class MemoryOtpRepository implements OtpRepository {
     }
   }
 
+  async restoreUsed(id: string): Promise<void> {
+    const otp = this.otps.find((candidate) => candidate.id === id);
+    if (otp?.usedAt) {
+      otp.usedAt = null;
+    }
+  }
+
   async invalidateActive(userId: string, purpose: OtpPurpose, when: Date): Promise<void> {
     for (const otp of this.otps) {
       if (otp.userId === userId && otp.purpose === purpose && otp.usedAt === null) {

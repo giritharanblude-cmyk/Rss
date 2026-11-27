@@ -214,13 +214,18 @@ export class AuthService {
     if (!user || user.disabled) {
       throw new UnauthorizedError();
     }
-    await this.options.otp.verify(
+    const otpId = await this.options.otp.verify(
       { userId: user.id, name: user.name, email: user.email },
       'contact_change',
       code,
     );
-    if (!(await this.options.users.updateContacts(user.id, contacts.email, contacts.phone))) {
-      throw new UnauthorizedError();
+    try {
+      if (!(await this.options.users.updateContacts(user.id, contacts.email, contacts.phone))) {
+        throw new UnauthorizedError();
+      }
+    } catch (error) {
+      await this.options.otp.restoreUsed(otpId);
+      throw error;
     }
   }
 
