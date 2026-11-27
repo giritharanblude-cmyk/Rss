@@ -435,6 +435,7 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
         and(
           eq(recipients.consentStatus, 'granted'),
           arrayContains(recipients.topics, [category]),
+          sql`${recipients.id} <> ${recipients.ownerUserId}`,
           ...(ownerUserId ? [eq(recipients.ownerUserId, ownerUserId)] : []),
         ),
       );

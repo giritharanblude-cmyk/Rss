@@ -72,6 +72,36 @@ async function setupEmailDelivery() {
   return { cookie, recipient, item };
 }
 
+async function createNewsForOwner(ownerUserId: string, id: string) {
+  const source = await context.feeds.createSource(
+    {
+      name: 'Owner News',
+      website: 'https://owner-news.example.test',
+      rssUrl: 'https://owner-news.example.test/feed.xml',
+      mode: 'all',
+      topics: [],
+      region: null,
+      intervalMinutes: 60,
+      active: true,
+    },
+    ownerUserId,
+  );
+  const item = {
+    id,
+    sourceId: source.id,
+    headline: 'Unmatched topic advisory',
+    summary: 'Guidance',
+    link: 'https://owner-news.example.test/advisory',
+    category: 'Drugs and approvals' as const,
+    publishedAt: context.clock.now(),
+    fetchedAt: context.clock.now(),
+    important: false,
+    duplicateOf: null,
+  };
+  await context.feeds.addNewsForTest(item, context.clock.now());
+  return item;
+}
+
 describe('delivery pipeline', () => {
   it('queues a matching recipient without an alert rule', async () => {
     const { recipient, item } = await setupEmailDelivery();
@@ -169,6 +199,162 @@ describe('delivery pipeline', () => {
     expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(0);
   });
 
+  it('manually queues an item with no topic match to the signed-in user email', async () => {
+    const { cookie, recipient, item } = await setupEmailDelivery();
+    const accountEmail = 'admin-account@example.test';
+    await context.users.updateContacts(context.master.id, accountEmail, null);
+    await context.recipients.updateRecipient(
+      recipient.id,
+      { ...recipient, topics: ['Drugs and approvals'] },
+      context.master.id,
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    expect(response.json()).toEqual({ queued: 1 });
+    const queued = await context.deliveries.list({ page: 1, pageSize: 10 });
+    expect(queued.items).toMatchObject([
+      {
+        recipientId: context.master.id,
+        channel: 'email',
+        kind: 'manual',
+        recipientContact: accountEmail,
+      },
+    ]);
+    expect(await context.recipients.listRecipients(undefined, context.master.id)).toHaveLength(1);
+    const accountRecipient = await context.recipients.findRecipient(
+      context.master.id,
+      context.master.id,
+    );
+    expect(accountRecipient).not.toBeNull();
+    await context.recipients.updateTopicsByToken(
+      accountRecipient!.unsubscribeToken,
+      [item.category],
+    );
+    expect(await context.deliveryService.queueForNewItems([item], context.master.id)).toBe(0);
+
+    await context.deliveryService.runPending();
+    expect(context.email.sent.at(-1)?.to).toBe(accountEmail);
+  });
+
+  it('manually queues WhatsApp to the signed-in user number', async () => {
+    const { cookie, item } = await setupEmailDelivery();
+    const accountPhone = '+14155550123';
+    await context.users.updateContacts(context.master.id, context.master.email, accountPhone);
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'whatsapp' },
+    });
+    expect(response.json()).toEqual({ queued: 1 });
+    const queued = await context.deliveries.list({ page: 1, pageSize: 10 });
+    expect(queued.items).toMatchObject([
+      {
+        recipientId: context.master.id,
+        channel: 'whatsapp',
+        kind: 'manual',
+        recipientContact: accountPhone,
+      },
+    ]);
+  });
+
+  it("does not send a member's manual delivery to the master's contact", async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      member.name,
+      'member-password-1',
+    );
+    const masterRecipient = await context.recipients.createRecipient(
+      {
+        name: 'Master contact',
+        whatsappE164: null,
+        email: context.master.email,
+        topics: ['Drugs and approvals'],
+        channel: 'email',
+      },
+      'd'.repeat(64),
+      context.master.id,
+    );
+    await context.recipients.setConsent(
+      masterRecipient.id,
+      'granted',
+      context.clock.now(),
+      'Agreed',
+      context.master.id,
+    );
+    const item = await createNewsForOwner(
+      member.id,
+      '00000000-0000-4000-8000-000000000125',
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    expect(response.json()).toEqual({ queued: 1 });
+    await context.deliveryService.runPending();
+
+    const queued = await context.deliveries.list({ ownerUserId: member.id, page: 1, pageSize: 10 });
+    expect(queued.items).toMatchObject([
+      { recipientId: member.id, recipientContact: member.email },
+    ]);
+    expect(queued.items[0]?.recipientId).not.toBe(masterRecipient.id);
+    expect(context.email.sent.at(-1)?.to).toBe(member.email);
+    expect(context.email.sent.at(-1)?.to).not.toBe(context.master.email);
+  });
+
+  it('does not duplicate repeated manual sends and reports missing contacts', async () => {
+    const { cookie, item } = await setupEmailDelivery();
+    const first = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    const second = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    expect(first.json()).toEqual({ queued: 1 });
+    expect(second.json()).toEqual({ queued: 0 });
+    expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(1);
+
+    await context.users.updateContacts(context.master.id, ' ', null);
+    const missingEmail = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    const missingPhone = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'whatsapp' },
+    });
+    expect(missingEmail.statusCode).toBe(400);
+    expect(missingEmail.json().error).toContain('email address');
+    expect(missingPhone.statusCode).toBe(400);
+    expect(missingPhone.json().error).toContain('WhatsApp number');
+  });
+
   it('queues eligible Send now deliveries, retries three attempts, and supports resend', async () => {
     const { cookie, item } = await setupEmailDelivery();
     const queued = await context.app.inject({
@@ -199,7 +385,7 @@ describe('delivery pipeline', () => {
     const delivered = await context.deliveries.list({ page: 1, pageSize: 10 });
     expect(delivered.items[0]).toMatchObject({ status: 'delivered', attempts: 1 });
     expect(context.email.sent.at(-1)).toMatchObject({
-      to: 'asha@example.test',
+      to: 'admin@example.com',
       subject: 'Healthcare News Digest – 3 Nov 2026',
     });
   });

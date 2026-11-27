@@ -17,6 +17,7 @@ import type {
   RecipientRecord,
   RecipientRepository,
 } from './recipients';
+import { accountDeliveryRecipientNote } from './recipients';
 
 type RecipientRow = typeof recipients.$inferSelect;
 type AlertRuleRow = typeof alertRules.$inferSelect;
@@ -73,7 +74,9 @@ export class PostgresRecipientRepository
       .from(recipients)
       .where(ownerUserId ? eq(recipients.ownerUserId, ownerUserId) : undefined)
       .orderBy(recipients.name);
-    const records = rows.map((row) => toRecipient(row, this.encryptionKey));
+    const records = rows
+      .map((row) => toRecipient(row, this.encryptionKey))
+      .filter((recipient) => recipient.id !== recipient.ownerUserId);
     const needle = query?.trim().toLocaleLowerCase();
     return needle
       ? records.filter(
@@ -109,6 +112,7 @@ export class PostgresRecipientRepository
     const rows = await this.db.select().from(recipients).where(isNotNull(recipients.whatsappE164));
     const match = rows.find(
       (row) =>
+        row.id !== row.ownerUserId &&
         row.whatsappE164 !== null &&
         decryptRecipientContact(row.whatsappE164, this.encryptionKey) === phone,
     );
@@ -139,6 +143,63 @@ export class PostgresRecipientRepository
     const row = rows[0];
     if (!row) throw new Error('Recipient was not created');
     return toRecipient(row, this.encryptionKey);
+  }
+
+  async ensureAccountDeliveryRecipient(
+    input: RecipientInput,
+    unsubscribeToken: string,
+    ownerUserId: string,
+    at: Date,
+  ): Promise<RecipientRecord> {
+    return this.db.transaction(async (tx) => {
+      const values = {
+        id: ownerUserId,
+        ownerUserId,
+        name: input.name,
+        whatsappE164: input.whatsappE164
+          ? encryptRecipientContact(input.whatsappE164, this.encryptionKey)
+          : null,
+        email: input.email ? encryptRecipientContact(input.email, this.encryptionKey) : null,
+        topics: [...input.topics],
+        channel: input.channel,
+        consentStatus: 'granted' as const,
+        consentAt: at,
+        consentNote: accountDeliveryRecipientNote,
+        unsubscribeToken,
+      };
+      const inserted = await tx
+        .insert(recipients)
+        .values(values)
+        .onConflictDoNothing({ target: recipients.id })
+        .returning();
+      if (inserted[0]) return toRecipient(inserted[0], this.encryptionKey);
+
+      const existing = await tx
+        .select()
+        .from(recipients)
+        .where(and(eq(recipients.id, ownerUserId), eq(recipients.ownerUserId, ownerUserId)))
+        .limit(1);
+      if (!existing[0] || existing[0].consentNote !== accountDeliveryRecipientNote) {
+        throw new Error('Account delivery destination is unavailable');
+      }
+
+      const updated = await tx
+        .update(recipients)
+        .set({
+          name: values.name,
+          whatsappE164: values.whatsappE164,
+          email: values.email,
+          topics: values.topics,
+          channel: values.channel,
+          consentStatus: values.consentStatus,
+          consentAt: values.consentAt,
+          consentNote: values.consentNote,
+        })
+        .where(and(eq(recipients.id, ownerUserId), eq(recipients.ownerUserId, ownerUserId)))
+        .returning();
+      if (!updated[0]) throw new Error('Account delivery destination was not updated');
+      return toRecipient(updated[0], this.encryptionKey);
+    });
   }
 
   async updateRecipient(

@@ -10,6 +10,7 @@ import type {
   RecipientRecord,
   RecipientRepository,
 } from './recipients';
+import { accountDeliveryRecipientNote } from './recipients';
 
 export class MemoryRecipientRepository
   implements RecipientRepository, AlertRuleRepository, AlertPreviewRepository
@@ -28,6 +29,7 @@ export class MemoryRecipientRepository
     return [...this.recipients.values()]
       .filter(
         (recipient) =>
+          recipient.id !== recipient.ownerUserId &&
           (!ownerUserId || recipient.ownerUserId === ownerUserId) &&
           (!key ||
             recipient.name.toLocaleLowerCase().includes(key) ||
@@ -52,8 +54,10 @@ export class MemoryRecipientRepository
   }
 
   async findByWhatsappE164(phone: string): Promise<RecipientRecord | null> {
-    const recipient = [...this.recipients.values()].find((value) => value.whatsappE164 === phone);
-    return recipient ? cloneRecipient(recipient) : null;
+    const recipient = [...this.recipients.values()].find(
+      (value) => value.id !== value.ownerUserId && value.whatsappE164 === phone,
+    );
+    return recipient && recipient.id !== recipient.ownerUserId ? cloneRecipient(recipient) : null;
   }
 
   async createRecipient(
@@ -71,6 +75,36 @@ export class MemoryRecipientRepository
       consentAt: null,
       consentNote: null,
       createdAt: new Date(),
+    };
+    this.recipients.set(record.id, record);
+    return cloneRecipient(record);
+  }
+
+  async ensureAccountDeliveryRecipient(
+    input: RecipientInput,
+    unsubscribeToken: string,
+    ownerUserId: string,
+    at: Date,
+  ): Promise<RecipientRecord> {
+    const existing = this.recipients.get(ownerUserId);
+    if (
+      existing &&
+      (existing.ownerUserId !== ownerUserId ||
+        existing.consentNote !== accountDeliveryRecipientNote)
+    ) {
+      throw new Error('Account delivery destination is unavailable');
+    }
+    const record: RecipientRecord = {
+      ...(existing ?? {}),
+      ...input,
+      topics: [...input.topics],
+      id: ownerUserId,
+      ownerUserId,
+      unsubscribeToken: existing?.unsubscribeToken ?? unsubscribeToken,
+      consentStatus: 'granted',
+      consentAt: new Date(at),
+      consentNote: accountDeliveryRecipientNote,
+      createdAt: existing?.createdAt ?? new Date(at),
     };
     this.recipients.set(record.id, record);
     return cloneRecipient(record);

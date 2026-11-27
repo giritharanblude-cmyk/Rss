@@ -177,10 +177,19 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
     if (!params.success || !body.success) {
       throw new HttpError(400, 'Check the news item and channel and try again.');
     }
+    if (body.data.channel === 'email' && !user.email.trim()) {
+      throw new HttpError(400, 'Add an email address to your account before sending by email.');
+    }
+    if (body.data.channel === 'whatsapp' && !user.phone?.trim()) {
+      throw new HttpError(
+        400,
+        'Add a WhatsApp number to your account before sending by WhatsApp.',
+      );
+    }
     const queued = await options.service.sendNow(
       params.data.id,
       body.data.channel,
-      user.role === 'master' ? undefined : user.id,
+      user,
     );
     return reply.code(202).send({ queued });
   });

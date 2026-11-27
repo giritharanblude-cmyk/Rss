@@ -108,7 +108,7 @@ describe('NewsFeedPage', () => {
     expect(calls.some((path) => path.endsWith('/important'))).toBe(true);
   });
 
-  it('lets a member browse the feed without send or importance controls', async () => {
+  it('lets a member send news while keeping importance controls master-only', async () => {
     const member = { ...user, name: 'Mina', role: 'member' };
     vi.stubGlobal(
       'fetch',
@@ -116,6 +116,9 @@ describe('NewsFeedPage', () => {
         const path = String(input);
         if (path === '/api/auth/me') return jsonResponse(200, { user: member });
         if (path === '/api/sources') return jsonResponse(200, { sources: [source] });
+        if (path.startsWith('/api/news/') && path.endsWith('/send')) {
+          return jsonResponse(202, { queued: 1 });
+        }
         if (path.startsWith('/api/news?')) {
           return jsonResponse(200, {
             page: 1,
@@ -147,7 +150,7 @@ describe('NewsFeedPage', () => {
       await screen.findByRole('heading', { name: 'Vaccine advisory for hospitals' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark as important' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Send now to WhatsApp' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Send now by email' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Send now by email' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Queued 1 delivery.');
   });
 });
