@@ -119,14 +119,19 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
   async sendText(number: string, text: string): Promise<void> {
     if (!this.client?.socket.connected) throw new Error('OpenWA session is not connected.');
     const jid = `${number.replace(/\D/g, '')}@c.us`;
+    const sessionId = this.sessionId;
     const apiKey = this.config.apiKey;
+    if (!sessionId) throw new Error(SESSION_ID_NOT_SET);
     if (!this.config.socketUrl || !apiKey) {
       throw new Error('OpenWA socket URL and API key are not configured.');
     }
 
     let endpoint: URL;
     try {
-      endpoint = new URL('/api/messages/sendText', new URL(this.config.socketUrl).origin);
+      endpoint = new URL(
+        `/api/sessions/${encodeURIComponent(sessionId)}/messages/send-text`,
+        new URL(this.config.socketUrl).origin,
+      );
     } catch {
       throw new Error('OpenWA socket URL is invalid.');
     }
@@ -147,7 +152,7 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
             'content-type': 'application/json',
             'x-api-key': apiKey,
           },
-          body: JSON.stringify({ to: jid, content: text }),
+          body: JSON.stringify({ chatId: jid, text }),
           signal: controller.signal,
         });
         return { response: result, responseText: await result.text() };
@@ -200,8 +205,8 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
       !body ||
       typeof body !== 'object' ||
       Array.isArray(body) ||
-      !('success' in body) ||
-      body.success !== true
+      !(('success' in body && body.success === true) ||
+        ('messageId' in body && typeof body.messageId === 'string' && body.messageId.length > 0))
     ) {
       throw new Error('OpenWA response did not confirm the send.');
     }
