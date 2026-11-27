@@ -1,5 +1,12 @@
-import type { AlertRuleInput, RecipientInput } from '@healthcare/shared';
+import type { AlertRuleInput, RecipientInput, TopicSetInput } from '@healthcare/shared';
 import type { NewsCategory } from '../rss/categories';
+
+export type TopicSetRecord = TopicSetInput & {
+  id: string;
+  ownerUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 export type RecipientRecord = RecipientInput & {
   id: string;
@@ -32,6 +39,14 @@ export type PreviewNewsRecord = {
 };
 
 export type RecipientRepository = {
+  listTopicSets(ownerUserId: string): Promise<TopicSetRecord[]>;
+  createTopicSet(input: TopicSetInput, ownerUserId: string): Promise<TopicSetRecord>;
+  updateTopicSet(
+    id: string,
+    input: TopicSetInput,
+    ownerUserId: string,
+  ): Promise<TopicSetRecord | null>;
+  deleteTopicSet(id: string, ownerUserId: string): Promise<boolean>;
   listRecipients(query?: string, ownerUserId?: string): Promise<RecipientRecord[]>;
   findRecipient(id: string, ownerUserId?: string): Promise<RecipientRecord | null>;
   findByUnsubscribeToken(token: string): Promise<RecipientRecord | null>;

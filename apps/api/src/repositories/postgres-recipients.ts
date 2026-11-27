@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import { TOPIC_CATEGORIES, type AlertRuleInput, type RecipientInput } from '@healthcare/shared';
+import {
+  TOPIC_CATEGORIES,
+  type AlertRuleInput,
+  type RecipientInput,
+  type TopicSetInput,
+} from '@healthcare/shared';
 import type { Database } from '../db/client';
-import { alertRules, deliveries, newsItems, recipients, sources } from '../db/schema';
+import { alertRules, deliveries, newsItems, recipients, sources, topicSets } from '../db/schema';
 import {
   decryptRecipientContact,
   encryptRecipientContact,
@@ -16,11 +21,24 @@ import type {
   PreviewNewsRecord,
   RecipientRecord,
   RecipientRepository,
+  TopicSetRecord,
 } from './recipients';
 import { accountDeliveryRecipientNote } from './recipients';
 
 type RecipientRow = typeof recipients.$inferSelect;
 type AlertRuleRow = typeof alertRules.$inferSelect;
+type TopicSetRow = typeof topicSets.$inferSelect;
+
+function toTopicSet(row: TopicSetRow): TopicSetRecord {
+  return {
+    id: row.id,
+    ownerUserId: row.ownerUserId,
+    name: row.name,
+    categoryKeys: TOPIC_CATEGORIES.filter((category) => row.categoryKeys.includes(category)),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 function toRecipient(row: RecipientRow, encryptionKey: string): RecipientRecord {
   return {
@@ -66,6 +84,54 @@ export class PostgresRecipientRepository
     private readonly encryptionKey: string,
   ) {
     validateSettingsEncryptionKey(encryptionKey);
+  }
+
+  async listTopicSets(ownerUserId: string): Promise<TopicSetRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(topicSets)
+      .where(eq(topicSets.ownerUserId, ownerUserId))
+      .orderBy(topicSets.name);
+    return rows.map(toTopicSet);
+  }
+
+  async createTopicSet(input: TopicSetInput, ownerUserId: string): Promise<TopicSetRecord> {
+    const rows = await this.db
+      .insert(topicSets)
+      .values({
+        ...input,
+        ownerUserId,
+        categoryKeys: [...input.categoryKeys],
+      })
+      .returning();
+    const row = rows[0];
+    if (!row) throw new Error('Topic set was not created');
+    return toTopicSet(row);
+  }
+
+  async updateTopicSet(
+    id: string,
+    input: TopicSetInput,
+    ownerUserId: string,
+  ): Promise<TopicSetRecord | null> {
+    const rows = await this.db
+      .update(topicSets)
+      .set({
+        ...input,
+        categoryKeys: [...input.categoryKeys],
+        updatedAt: new Date(),
+      })
+      .where(and(eq(topicSets.id, id), eq(topicSets.ownerUserId, ownerUserId)))
+      .returning();
+    return rows[0] ? toTopicSet(rows[0]) : null;
+  }
+
+  async deleteTopicSet(id: string, ownerUserId: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(topicSets)
+      .where(and(eq(topicSets.id, id), eq(topicSets.ownerUserId, ownerUserId)))
+      .returning({ id: topicSets.id });
+    return rows.length === 1;
   }
 
   async listRecipients(query?: string, ownerUserId?: string): Promise<RecipientRecord[]> {
