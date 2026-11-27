@@ -58,16 +58,6 @@ export class OtpService {
     }
 
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
-    const codeHash = await hashPassword(code);
-    const expiresAt = new Date(now.getTime() + this.ttlSeconds * 1000);
-
-    await this.options.otps.invalidateActive(target.userId, purpose, now);
-    const otp = await this.options.otps.create({
-      userId: target.userId,
-      purpose,
-      codeHash,
-      expiresAt,
-    });
 
     try {
       await this.options.email.send({
@@ -91,12 +81,22 @@ export class OtpService {
     } catch (error) {
       const reason = safeEmailFailureReason(error, code);
       this.options.log?.(reason);
-      await this.options.otps.markUsed(otp.id, now);
-      if (error instanceof EmailUnavailableError) {
-        throw new EmailUnavailableError(reason);
-      }
-      throw new EmailUnavailableError();
+      throw new EmailUnavailableError(
+        'The verification email could not be sent. Please try again.',
+      );
     }
+
+    const storedAt = this.now();
+    const codeHash = await hashPassword(code);
+    const expiresAt = new Date(storedAt.getTime() + this.ttlSeconds * 1000);
+
+    await this.options.otps.invalidateActive(target.userId, purpose, storedAt);
+    await this.options.otps.create({
+      userId: target.userId,
+      purpose,
+      codeHash,
+      expiresAt,
+    });
   }
 
   async verify(target: OtpTarget, purpose: OtpPurpose, code: string): Promise<void> {

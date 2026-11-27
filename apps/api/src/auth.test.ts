@@ -18,6 +18,12 @@ afterEach(async () => {
 describe('sign in with name, password and emailed code', () => {
   it('requires OTP for the first sign-in and sets a scoped session cookie', async () => {
     context = await createTestContext();
+    const logError = vi.spyOn(context.app.log, 'error');
+    const sendEmail = context.email.send.bind(context.email);
+    vi.spyOn(context.email, 'send').mockImplementation(async (message) => {
+      expect(await context.otps.findLatest(context.master.id, 'login')).toBeNull();
+      await sendEmail(message);
+    });
     expect(await context.users.findById(context.master.id)).toMatchObject({
       firstLoginCompleted: false,
     });
@@ -37,6 +43,11 @@ describe('sign in with name, password and emailed code', () => {
     expect(context.email.sent).toHaveLength(1);
 
     const code = latestOtpCode(context.email);
+    expect(JSON.stringify(login.json())).not.toContain(code);
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(code);
+    const storedOtp = await context.otps.findLatest(context.master.id, 'login');
+    expect(storedOtp).toMatchObject({ attempts: 0, usedAt: null });
+    expect(storedOtp?.codeHash).not.toBe(code);
     const verify = await context.app.inject({
       method: 'POST',
       url: '/api/auth/verify-otp',
@@ -591,7 +602,14 @@ describe('sign in with name, password and emailed code', () => {
         payload: { name: 'Admin', code: wrongCode },
       });
       expect(response.statusCode).toBe(400);
+      expect(await context.otps.findLatest(context.master.id, 'login')).toMatchObject({
+        attempts: attempt + 1,
+      });
     }
+
+    expect(await context.otps.findLatest(context.master.id, 'login')).toMatchObject({
+      attempts: 5,
+    });
 
     const response = await context.app.inject({
       method: 'POST',
@@ -644,7 +662,43 @@ describe('sign in with name, password and emailed code', () => {
     expect(latestCode.statusCode).toBe(200);
   });
 
-  it('logs a sanitized SMTP failure reason and returns a clear error', async () => {
+  it('keeps the previous code valid when sending a replacement fails', async () => {
+    context = await createTestContext();
+    await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: 'Admin', password: 'master-password-1' },
+    });
+    const previousCode = latestOtpCode(context.email);
+    const previousOtp = await context.otps.findLatest(context.master.id, 'login');
+    if (!previousOtp) throw new Error('Expected the original OTP to be stored.');
+
+    context.clock.advance(61_000);
+    vi.spyOn(context.email, 'send').mockRejectedValue(
+      new EmailUnavailableError('SMTP rejected the message'),
+    );
+    const failedSend = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/resend-otp',
+      payload: { name: 'Admin' },
+    });
+
+    expect(failedSend.statusCode).toBe(503);
+    expect(failedSend.json().error).toBe(
+      'The verification email could not be sent. Please try again.',
+    );
+    const latestOtp = await context.otps.findLatest(context.master.id, 'login');
+    expect(latestOtp).toMatchObject({ id: previousOtp.id, usedAt: null });
+
+    const verify = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/verify-otp',
+      payload: { name: 'Admin', code: previousCode },
+    });
+    expect(verify.statusCode).toBe(200);
+  });
+
+  it('logs a sanitized SMTP failure reason without exposing the code', async () => {
     context = await createTestContext();
     const logError = vi.spyOn(context.app.log, 'error');
     let otpCode = '';
@@ -662,10 +716,12 @@ describe('sign in with name, password and emailed code', () => {
     });
 
     expect(response.statusCode).toBe(503);
-    expect(response.json().error).toContain('SMTP authentication failed');
-    expect(response.json().error).not.toContain('mail-secret');
+    expect(response.json().error).toBe(
+      'The verification email could not be sent. Please try again.',
+    );
     expect(response.json().error).not.toContain(otpCode);
     expect(otpCode).toMatch(/^\d{6}$/);
+    expect(await context.otps.findLatest(context.master.id, 'login')).toBeNull();
     const logged = JSON.stringify(logError.mock.calls);
     expect(logged).toContain('SMTP authentication failed');
     expect(logged).not.toContain('mail-secret');
