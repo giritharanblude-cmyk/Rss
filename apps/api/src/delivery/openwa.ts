@@ -8,12 +8,45 @@ type OpenWaConfig = {
 };
 
 const SESSION_ID_NOT_SET = 'OpenWA session ID is not set';
+const SEND_TEXT_TIMEOUT_MS = 15_000;
+const SEND_TEXT_TIMEOUT_REASON = 'OpenWA send request timed out after 15 seconds.';
 
 function messageFrom(value: unknown): IncomingWhatsAppMessage | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
   if (typeof record.from !== 'string' || typeof record.body !== 'string') return null;
   return { from: record.from, body: record.body };
+}
+
+function responseErrorReason(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
+  const record = body as Record<string, unknown>;
+  const error = record.error;
+  const details = typeof record.details === 'string' ? record.details : undefined;
+  const status =
+    typeof record.status === 'string' ? record.status.toLowerCase() : undefined;
+  const indicatesError =
+    Boolean(error) ||
+    record.success === false ||
+    record.ok === false ||
+    status === 'error' ||
+    status === 'failed';
+
+  if (indicatesError) {
+    const message =
+      typeof error === 'string'
+        ? error
+        : typeof error === 'object' &&
+            error !== null &&
+            'message' in error &&
+            typeof error.message === 'string'
+          ? error.message
+          : typeof record.message === 'string'
+            ? record.message
+            : undefined;
+    return [message, details].filter(Boolean).join(': ') || 'OpenWA reported a send error.';
+  }
+  return undefined;
 }
 
 export class OpenWaSocketAdapter implements WhatsAppAdapter {
@@ -86,7 +119,92 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
   async sendText(number: string, text: string): Promise<void> {
     if (!this.client?.socket.connected) throw new Error('OpenWA session is not connected.');
     const jid = `${number.replace(/\D/g, '')}@c.us`;
-    await this.client.sendText(jid, text);
+    const apiKey = this.config.apiKey;
+    if (!this.config.socketUrl || !apiKey) {
+      throw new Error('OpenWA socket URL and API key are not configured.');
+    }
+
+    let endpoint: URL;
+    try {
+      endpoint = new URL('/api/messages/sendText', new URL(this.config.socketUrl).origin);
+    } catch {
+      throw new Error('OpenWA socket URL is invalid.');
+    }
+
+    const controller = new AbortController();
+    const timeoutSignal = Symbol('openwa-send-timeout');
+    let timedOut = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let response: Response | undefined;
+    let responseText = '';
+    let requestFailure: string | undefined;
+    try {
+      const request = (async () => {
+        const result = await fetch(endpoint, {
+          method: 'POST',
+          redirect: 'error',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': apiKey,
+          },
+          body: JSON.stringify({ to: jid, content: text }),
+          signal: controller.signal,
+        });
+        return { response: result, responseText: await result.text() };
+      })();
+      const result = await Promise.race([
+        request,
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+            reject(timeoutSignal);
+          }, SEND_TEXT_TIMEOUT_MS);
+        }),
+      ]);
+      response = result.response;
+      responseText = result.responseText;
+    } catch (error) {
+      requestFailure = timedOut || error === timeoutSignal
+        ? SEND_TEXT_TIMEOUT_REASON
+        : error instanceof Error && error.message
+          ? error.message
+          : 'OpenWA send request failed.';
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+    if (requestFailure) throw new Error(this.redactApiKey(requestFailure));
+    if (!response) throw new Error('OpenWA send request failed.');
+
+    let body: unknown;
+    try {
+      body = JSON.parse(responseText);
+    } catch {
+      body = undefined;
+    }
+    const rawTextReason =
+      !body && /^\s*(?:error|failed)\b/i.test(responseText) ? responseText.trim() : undefined;
+    const errorReason = responseErrorReason(body) ?? rawTextReason;
+    if (!response.ok || errorReason) {
+      const plainTextReason =
+        !response.ok && responseText.trim() && !responseText.trim().startsWith('<')
+          ? responseText.trim()
+          : undefined;
+      const reason =
+        errorReason ??
+        plainTextReason ??
+        `OpenWA send failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`;
+      throw new Error(this.redactApiKey(reason));
+    }
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body) ||
+      !('success' in body) ||
+      body.success !== true
+    ) {
+      throw new Error('OpenWA response did not confirm the send.');
+    }
   }
 
   onIncomingMessage(handler: (message: IncomingWhatsAppMessage) => void): () => void {
@@ -144,5 +262,9 @@ export class OpenWaSocketAdapter implements WhatsAppAdapter {
     return [this.config.apiKey, this.config.socketUrl, this.sessionId]
       .filter((value): value is string => Boolean(value))
       .reduce((detail, sensitive) => detail.split(sensitive).join('[redacted]'), message);
+  }
+
+  private redactApiKey(value: string): string {
+    return this.config.apiKey ? value.split(this.config.apiKey).join('[redacted]') : value;
   }
 }

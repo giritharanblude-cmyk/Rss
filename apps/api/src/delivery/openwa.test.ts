@@ -49,7 +49,21 @@ afterEach(async () => {
     context = undefined;
   }
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+const sendTestApiKey = 'openwa-test-api-key';
+
+async function connectedAdapter() {
+  mockOpenWaClient();
+  const adapter = new OpenWaSocketAdapter({
+    socketUrl: 'https://openwa.test/socket/path',
+    apiKey: sendTestApiKey,
+    sessionId,
+  });
+  await adapter.connect();
+  return adapter;
+}
 
 describe('OpenWA session subscription', () => {
   it('sends a status subscribe frame for the configured session', async () => {
@@ -194,5 +208,127 @@ describe('OpenWA session subscription', () => {
 
     expect(response.body.includes(sessionId)).toBe(false);
     expect(JSON.stringify(loggedError).includes(sessionId)).toBe(false);
+  });
+});
+
+describe('OpenWA text sending', () => {
+  it('sends a REST request and resolves only after a confirmed response', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify({ success: true, data: 'confirmed' }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const adapter = await connectedAdapter();
+
+    await expect(adapter.sendText('+14155550123', 'Test message')).resolves.toBeUndefined();
+
+    const [url, options] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe('https://openwa.test/api/messages/sendText');
+    expect(options?.method).toBe('POST');
+    expect(options?.redirect).toBe('error');
+    expect(options?.headers).toEqual({
+      'content-type': 'application/json',
+      'x-api-key': sendTestApiKey,
+    });
+    expect(JSON.parse(String(options?.body))).toEqual({
+      to: '14155550123@c.us',
+      content: 'Test message',
+    });
+    expect(String(url)).not.toContain(sendTestApiKey);
+    expect(String(options?.body)).not.toContain(sendTestApiKey);
+  });
+
+  it.each([400, 500])('returns the response reason for HTTP %i', async (status) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ error: 'OpenWA rejected the send.' }), { status }),
+      ),
+    );
+    const adapter = await connectedAdapter();
+
+    await expect(adapter.sendText('+14155550123', 'Test message')).rejects.toThrow(
+      'OpenWA rejected the send.',
+    );
+  });
+
+  it('treats an error in a successful HTTP response as a failed send', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ error: 'OpenWA did not accept the send.' }), { status: 200 }),
+      ),
+    );
+    const adapter = await connectedAdapter();
+
+    await expect(adapter.sendText('+14155550123', 'Test message')).rejects.toThrow(
+      'OpenWA did not accept the send.',
+    );
+  });
+
+  it('does not report success without an OpenWA confirmation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({}), { status: 200 }),
+      ),
+    );
+    const adapter = await connectedAdapter();
+
+    await expect(adapter.sendText('+14155550123', 'Test message')).rejects.toThrow(
+      'OpenWA response did not confirm the send.',
+    );
+  });
+
+  it('returns a timeout reason after 15 seconds', async () => {
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: RequestInfo | URL, options?: RequestInit) => {
+        signal = options?.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      }),
+    );
+    const adapter = await connectedAdapter();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    try {
+      const request = adapter.sendText('+14155550123', 'Test message');
+      const timedOut = expect(request).rejects.toThrow(
+        'OpenWA send request timed out after 15 seconds.',
+      );
+      await vi.advanceTimersByTimeAsync(15_000);
+      await timedOut;
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('redacts the API key from send errors and never logs it', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({ error: `OpenWA rejected the send with ${sendTestApiKey}` }),
+          { status: 500 },
+        ),
+      ),
+    );
+    const adapter = await connectedAdapter();
+    let reason = '';
+    try {
+      await adapter.sendText('+14155550123', 'Test message');
+    } catch (caught) {
+      reason = caught instanceof Error ? caught.message : '';
+    }
+
+    expect(reason).toBe('OpenWA rejected the send with [redacted]');
+    expect(reason).not.toContain(sendTestApiKey);
+    expect(JSON.stringify([info.mock.calls, warn.mock.calls, error.mock.calls])).not.toContain(
+      sendTestApiKey,
+    );
   });
 });
