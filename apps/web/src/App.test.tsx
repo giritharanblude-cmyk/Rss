@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
@@ -237,6 +237,8 @@ describe('App', () => {
           ? jsonResponse(200, { user: member })
           : String(input) === '/api/dashboard/live'
             ? jsonResponse(200, emptyDashboard)
+            : String(input) === '/api/settings/connections'
+              ? jsonResponse(200, disconnectedConnections)
             : jsonResponse(204, {}),
       ),
     );
@@ -254,6 +256,7 @@ describe('App', () => {
       'Recipients',
       'Alerts & Schedule',
       'Delivery Log',
+      'Settings',
       'Profile',
     ]);
   });
@@ -312,7 +315,7 @@ describe('App', () => {
     });
   });
 
-  it('redirects members away from settings', async () => {
+  it('lets members use channel tests in settings without showing admin controls', async () => {
     const calls: string[] = [];
     const member = {
       id: '00000000-0000-4000-8000-000000000001',
@@ -326,9 +329,18 @@ describe('App', () => {
         const url = String(input);
         calls.push(url);
         if (url === '/api/auth/me') return jsonResponse(200, { user: member });
-        if (url === '/api/sources') return jsonResponse(200, { sources: [] });
-        if (url.startsWith('/api/news?')) {
-          return jsonResponse(200, { page: 1, pageSize: 20, total: 0, items: [] });
+        if (url === '/api/settings/connections') return jsonResponse(200, disconnectedConnections);
+        if (url === '/api/settings/email/test') {
+          return jsonResponse(200, {
+            status: 'sent',
+            message: 'Test email sent successfully.',
+          });
+        }
+        if (url === '/api/settings/whatsapp/test') {
+          return jsonResponse(200, {
+            status: 'sent',
+            message: 'Test WhatsApp message sent successfully.',
+          });
         }
         return jsonResponse(204, {});
       }),
@@ -336,8 +348,35 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'News Feed' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+    expect(screen.getByRole('heading', { name: 'Connection status' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check now' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send test email' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send test WhatsApp' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('SMTP host')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save email settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Database storage' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add member' })).not.toBeInTheDocument();
     expect(calls).not.toContain('/api/settings/email');
-    expect(calls).not.toContain('/api/settings/connections');
+    expect(calls).toContain('/api/settings/connections');
+    expect(calls).not.toContain('/api/health');
+    expect(calls).not.toContain('/api/members');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send test email' }));
+    expect(await screen.findByText('Test email sent successfully.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Send test WhatsApp' }));
+    expect(await screen.findByText('Test WhatsApp message sent successfully.')).toBeInTheDocument();
+    const connectionChecksBeforeClick = calls.filter(
+      (url) => url === '/api/settings/connections',
+    ).length;
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+    await waitFor(() =>
+      expect(
+        calls.filter((url) => url === '/api/settings/connections').length,
+      ).toBeGreaterThan(connectionChecksBeforeClick),
+    );
   });
 });

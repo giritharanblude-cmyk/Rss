@@ -206,7 +206,13 @@ describe('Phase 5 pages', () => {
     const storageWarning = await screen.findByRole('alert');
     expect(storageWarning).toHaveTextContent('Storage has passed the 70% warning threshold.');
     expect(storageWarning).toHaveTextContent('710.0 MB');
+    expect(screen.getByLabelText('SMTP host')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Connection status' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Database storage' })).toBeInTheDocument();
     expect(screen.getAllByText(/Checked /)).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add member' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Send test email' }));
     expect(await screen.findByText('Test email sent successfully.')).toBeInTheDocument();
@@ -247,9 +253,14 @@ describe('Phase 5 pages', () => {
       password: 'not-for-ui-response',
     });
 
+    const connectionChecksBeforeClick = calls.filter(
+      ({ path }) => path === '/api/settings/connections',
+    ).length;
     fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
     await waitFor(() =>
-      expect(calls.some(({ path }) => path === '/api/settings/connections/check')).toBe(true),
+      expect(
+        calls.filter(({ path }) => path === '/api/settings/connections').length,
+      ).toBeGreaterThan(connectionChecksBeforeClick),
     );
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Ravi' } });
