@@ -160,6 +160,21 @@ export const recipients = pgTable(
   ],
 );
 
+export const topicSets = pgTable(
+  'topic_sets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    categoryKeys: text('category_keys').array().notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('topic_sets_owner_user_id_idx').on(table.ownerUserId)],
+);
+
 export const alertRules = pgTable(
   'alert_rules',
   {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AlertRuleInput, RecipientInput } from '@healthcare/shared';
+import type { AlertRuleInput, RecipientInput, TopicSetInput } from '@healthcare/shared';
 import type { NewsCategory } from '../rss/categories';
 import type { DashboardRepository } from './dashboard';
 import type {
@@ -9,6 +9,7 @@ import type {
   PreviewNewsRecord,
   RecipientRecord,
   RecipientRepository,
+  TopicSetRecord,
 } from './recipients';
 import { accountDeliveryRecipientNote } from './recipients';
 
@@ -17,12 +18,59 @@ export class MemoryRecipientRepository
 {
   private readonly recipients = new Map<string, RecipientRecord>();
   private readonly rules = new Map<string, AlertRuleRecord>();
+  private readonly topicSets = new Map<string, TopicSetRecord>();
   private readonly digestDates = new Map<string, Date>();
 
   constructor(
     private readonly dashboard: DashboardRepository,
     private readonly defaultOwnerUserId = 'test-owner',
   ) {}
+
+  async listTopicSets(ownerUserId: string): Promise<TopicSetRecord[]> {
+    return [...this.topicSets.values()]
+      .filter((topicSet) => topicSet.ownerUserId === ownerUserId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(cloneTopicSet);
+  }
+
+  async createTopicSet(input: TopicSetInput, ownerUserId: string): Promise<TopicSetRecord> {
+    const now = new Date();
+    const record: TopicSetRecord = {
+      ...input,
+      categoryKeys: [...input.categoryKeys],
+      id: randomUUID(),
+      ownerUserId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.topicSets.set(record.id, record);
+    return cloneTopicSet(record);
+  }
+
+  async updateTopicSet(
+    id: string,
+    input: TopicSetInput,
+    ownerUserId: string,
+  ): Promise<TopicSetRecord | null> {
+    const current = this.topicSets.get(id);
+    if (!current || current.ownerUserId !== ownerUserId) return null;
+    const updated: TopicSetRecord = {
+      ...input,
+      categoryKeys: [...input.categoryKeys],
+      id,
+      ownerUserId,
+      createdAt: current.createdAt,
+      updatedAt: new Date(),
+    };
+    this.topicSets.set(id, updated);
+    return cloneTopicSet(updated);
+  }
+
+  async deleteTopicSet(id: string, ownerUserId: string): Promise<boolean> {
+    const current = this.topicSets.get(id);
+    if (!current || current.ownerUserId !== ownerUserId) return false;
+    return this.topicSets.delete(id);
+  }
 
   async listRecipients(query?: string, ownerUserId?: string): Promise<RecipientRecord[]> {
     const key = query?.trim().toLocaleLowerCase();
@@ -257,5 +305,14 @@ function cloneRecipient(recipient: RecipientRecord): RecipientRecord {
     topics: [...recipient.topics],
     consentAt: recipient.consentAt ? new Date(recipient.consentAt) : null,
     createdAt: new Date(recipient.createdAt),
+  };
+}
+
+function cloneTopicSet(topicSet: TopicSetRecord): TopicSetRecord {
+  return {
+    ...topicSet,
+    categoryKeys: [...topicSet.categoryKeys],
+    createdAt: new Date(topicSet.createdAt),
+    updatedAt: new Date(topicSet.updatedAt),
   };
 }

@@ -7,6 +7,25 @@ export const TOPIC_CATEGORIES = NEWS_CATEGORIES.filter(
 );
 export type TopicCategory = (typeof TOPIC_CATEGORIES)[number];
 
+export const topicSetInputSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Enter a topic set name').max(80),
+    categoryKeys: z.array(z.enum(TOPIC_CATEGORIES)).max(TOPIC_CATEGORIES.length),
+  })
+  .refine((value) => new Set(value.categoryKeys).size === value.categoryKeys.length, {
+    message: 'Choose each category only once.',
+  });
+export type TopicSetInput = z.infer<typeof topicSetInputSchema>;
+
+export const topicSetSchema = topicSetInputSchema.extend({
+  id: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type TopicSet = z.infer<typeof topicSetSchema>;
+
+export const topicSetListResponseSchema = z.object({ topicSets: z.array(topicSetSchema) });
+
 export const recipientChannelSchema = z.enum(['whatsapp', 'email', 'both']);
 export const consentStatusSchema = z.enum(['pending', 'granted', 'revoked']);
 export const alertKindSchema = z.enum(['digest', 'instant']);

@@ -10,6 +10,9 @@ import {
   recipientListQuerySchema,
   recipientInputSchema,
   recipientSchema,
+  topicSetInputSchema,
+  topicSetListResponseSchema,
+  topicSetSchema,
   uuidParamsSchema,
   maskEmail,
   maskPhone,
@@ -22,6 +25,7 @@ import type {
   AlertRuleRepository,
   RecipientRecord,
   RecipientRepository,
+  TopicSetRecord,
 } from '../repositories/recipients';
 import { parseBody, readUser } from './auth';
 import { paginate } from './pagination';
@@ -59,6 +63,16 @@ function toRuleResponse(rule: AlertRuleRecord) {
   };
 }
 
+function toTopicSetResponse(topicSet: TopicSetRecord) {
+  return topicSetSchema.parse({
+    id: topicSet.id,
+    name: topicSet.name,
+    categoryKeys: topicSet.categoryKeys,
+    createdAt: topicSet.createdAt.toISOString(),
+    updatedAt: topicSet.updatedAt.toISOString(),
+  });
+}
+
 function readId(request: Parameters<typeof readUser>[0]): string {
   const parsed = uuidParamsSchema.safeParse(request.params);
   if (!parsed.success) throw new HttpError(400, 'Check the id and try again.');
@@ -78,6 +92,40 @@ export function registerRecipientRoutes(
   app: FastifyInstance,
   options: RecipientRouteOptions,
 ): void {
+  app.get('/api/topic-sets', async (request, reply) => {
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    const topicSets = await options.recipients.listTopicSets(user.id);
+    return reply.send(
+      topicSetListResponseSchema.parse({ topicSets: topicSets.map(toTopicSetResponse) }),
+    );
+  });
+
+  app.post('/api/topic-sets', async (request, reply) => {
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    const input = parseBody(topicSetInputSchema, request.body);
+    const topicSet = await options.recipients.createTopicSet(input, user.id);
+    return reply.code(201).send({ topicSet: toTopicSetResponse(topicSet) });
+  });
+
+  app.patch('/api/topic-sets/:id', async (request, reply) => {
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    const topicSet = await options.recipients.updateTopicSet(
+      readId(request),
+      parseBody(topicSetInputSchema, request.body),
+      user.id,
+    );
+    if (!topicSet) throw new HttpError(404, 'That topic set was not found.');
+    return reply.send({ topicSet: toTopicSetResponse(topicSet) });
+  });
+
+  app.delete('/api/topic-sets/:id', async (request, reply) => {
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    if (!(await options.recipients.deleteTopicSet(readId(request), user.id))) {
+      throw new HttpError(404, 'That topic set was not found.');
+    }
+    return reply.code(204).send();
+  });
+
   app.get('/api/recipients', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     const query = recipientListQuerySchema.safeParse(request.query);
