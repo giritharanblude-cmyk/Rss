@@ -85,7 +85,6 @@ export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRo
 
   app.post('/api/settings/email/test', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
-    if (user.role !== 'master') throw new ForbiddenError();
     if (!user.email?.trim()) {
       throw new HttpError(400, 'No email address is saved for your account.');
     }
@@ -113,7 +112,6 @@ export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRo
 
   app.post('/api/settings/whatsapp/test', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
-    if (user.role !== 'master') throw new ForbiddenError();
     if (!user.phone?.trim()) {
       throw new HttpError(400, 'No WhatsApp number is saved for your account.');
     }

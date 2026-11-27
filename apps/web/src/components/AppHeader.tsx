@@ -59,14 +59,12 @@ export function AppHeader({ user }: { user: PublicUser }) {
             {module.label}
           </NavLink>
         ))}
-        {user.role === 'master' ? (
-          <NavLink
-            to="/settings"
-            className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}
-          >
-            Settings
-          </NavLink>
-        ) : null}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}
+        >
+          Settings
+        </NavLink>
         <NavLink
           to="/profile"
           className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}

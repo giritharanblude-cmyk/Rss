@@ -57,7 +57,7 @@ export function SettingsPage() {
     queryKey: ['connection-settings'],
     queryFn: api.connectionSettings,
     retry: false,
-    enabled: me.data?.user.role === 'master',
+    enabled: Boolean(me.data?.user),
   });
   const health = useQuery({
     queryKey: ['health'],
@@ -87,7 +87,7 @@ export function SettingsPage() {
     onSuccess: (result) => setNotice(result.message),
   });
   const check = useMutation({
-    mutationFn: api.checkConnections,
+    mutationFn: api.connectionSettings,
     onSuccess: (result) => {
       queryClient.setQueryData(['connection-settings'], result);
       setNotice('Connection status refreshed.');
@@ -121,7 +121,7 @@ export function SettingsPage() {
       </main>
     );
   if (me.isError || !me.data) return <Navigate to="/login" replace />;
-  if (me.data.user.role !== 'master') return <Navigate to="/news" replace />;
+  const isMaster = me.data.user.role === 'master';
 
   function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,7 +158,7 @@ export function SettingsPage() {
             {mutationError.message}
           </p>
         ) : null}
-        {email.isError ? (
+        {isMaster && email.isError ? (
           <p className="banner banner-error" role="alert">
             Email settings could not be loaded.
           </p>
@@ -168,156 +168,142 @@ export function SettingsPage() {
             Connection status could not be loaded.
           </p>
         ) : null}
-        {health.isError ? (
+        {isMaster && health.isError ? (
           <p className="banner banner-error" role="alert">
             Database size could not be loaded.
           </p>
         ) : null}
-        <section className="settings-section">
-          <div className="section-heading">
-            <div>
-              <h2>Email delivery (SMTP)</h2>
-              <p className="form-hint">
-                {email.data?.passwordConfigured
-                  ? 'A password is configured. Re-enter it when saving changes.'
-                  : 'No SMTP password has been saved.'}
-              </p>
-              {email.data?.settings ? (
-                <p className="form-hint">
-                  Saved username: {maskEmail(email.data.settings.user)} · Sender email:{' '}
-                  {maskEmail(email.data.settings.fromEmail)}. Re-enter both when saving changes.
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <form className="settings-form" onSubmit={saveSettings}>
-            <label>
-              SMTP host
-              <input
-                required
-                maxLength={255}
-                value={settings.host}
-                onChange={(event) => setSettings({ ...settings, host: event.target.value })}
-              />
-            </label>
-            <label>
-              Port
-              <input
-                required
-                type="number"
-                min={1}
-                max={65535}
-                value={settings.port}
-                onChange={(event) => setSettings({ ...settings, port: Number(event.target.value) })}
-              />
-            </label>
-            <label>
-              Username
-              <input
-                required
-                maxLength={255}
-                value={settings.user}
-                onChange={(event) => setSettings({ ...settings, user: event.target.value })}
-              />
-            </label>
-            <label>
-              Password
-              <input
-                required
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-            <label>
-              Sender name
-              <input
-                required
-                maxLength={120}
-                value={settings.fromName}
-                onChange={(event) => setSettings({ ...settings, fromName: event.target.value })}
-              />
-            </label>
-            <label>
-              Sender email
-              <input
-                required
-                type="email"
-                value={settings.fromEmail}
-                onChange={(event) => setSettings({ ...settings, fromEmail: event.target.value })}
-              />
-            </label>
-            <label className="check-option">
-              <input
-                type="checkbox"
-                checked={settings.secure}
-                onChange={(event) => setSettings({ ...settings, secure: event.target.checked })}
-              />
-              Use implicit TLS (usually port 465)
-            </label>
-            <button type="submit" disabled={save.isPending || email.isLoading}>
-              Save email settings
-            </button>
-          </form>
-          <button
-            type="button"
-            className="button-secondary"
-            disabled={testEmail.isPending}
-            onClick={() => {
-              setNotice(null);
-              testEmail.mutate();
-            }}
-          >
-            Send test email
-          </button>
-        </section>
-        <section className="settings-section">
-          <div className="section-heading">
-            <div>
-              <h2>WhatsApp (OpenWA)</h2>
-              <p className="form-hint">
-                The socket connection is not proof that a WhatsApp account is linked. Scan the QR
-                code on the configured OpenWA service host.
-              </p>
-            </div>
-            <div className="source-actions">
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={testWhatsApp.isPending}
-                onClick={() => {
-                  setNotice(null);
-                  testWhatsApp.mutate();
-                }}
-              >
-                Send test WhatsApp
-              </button>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={connectWhatsApp.isPending}
-                onClick={() => {
-                  setNotice(null);
-                  connectWhatsApp.mutate();
-                }}
-              >
-                Connect
-              </button>
-              <button
-                type="button"
-                className="button-danger"
-                disabled={logoutWhatsApp.isPending}
-                onClick={() => {
-                  setNotice(null);
-                  logoutWhatsApp.mutate();
-                }}
-              >
-                Log out
-              </button>
-            </div>
-          </div>
-        </section>
+        {isMaster ? (
+          <>
+            <section className="settings-section">
+              <div className="section-heading">
+                <div>
+                  <h2>Email delivery (SMTP)</h2>
+                  <p className="form-hint">
+                    {email.data?.passwordConfigured
+                      ? 'A password is configured. Re-enter it when saving changes.'
+                      : 'No SMTP password has been saved.'}
+                  </p>
+                  {email.data?.settings ? (
+                    <p className="form-hint">
+                      Saved username: {maskEmail(email.data.settings.user)} · Sender email:{' '}
+                      {maskEmail(email.data.settings.fromEmail)}. Re-enter both when saving changes.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <form className="settings-form" onSubmit={saveSettings}>
+                <label>
+                  SMTP host
+                  <input
+                    required
+                    maxLength={255}
+                    value={settings.host}
+                    onChange={(event) => setSettings({ ...settings, host: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Port
+                  <input
+                    required
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={settings.port}
+                    onChange={(event) =>
+                      setSettings({ ...settings, port: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label>
+                  Username
+                  <input
+                    required
+                    maxLength={255}
+                    value={settings.user}
+                    onChange={(event) => setSettings({ ...settings, user: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    required
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Sender name
+                  <input
+                    required
+                    maxLength={120}
+                    value={settings.fromName}
+                    onChange={(event) => setSettings({ ...settings, fromName: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Sender email
+                  <input
+                    required
+                    type="email"
+                    value={settings.fromEmail}
+                    onChange={(event) =>
+                      setSettings({ ...settings, fromEmail: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="check-option">
+                  <input
+                    type="checkbox"
+                    checked={settings.secure}
+                    onChange={(event) => setSettings({ ...settings, secure: event.target.checked })}
+                  />
+                  Use implicit TLS (usually port 465)
+                </label>
+                <button type="submit" disabled={save.isPending || email.isLoading}>
+                  Save email settings
+                </button>
+              </form>
+            </section>
+            <section className="settings-section">
+              <div className="section-heading">
+                <div>
+                  <h2>WhatsApp (OpenWA)</h2>
+                  <p className="form-hint">
+                    The socket connection is not proof that a WhatsApp account is linked. Scan the
+                    QR code on the configured OpenWA service host.
+                  </p>
+                </div>
+                <div className="source-actions">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={connectWhatsApp.isPending}
+                    onClick={() => {
+                      setNotice(null);
+                      connectWhatsApp.mutate();
+                    }}
+                  >
+                    Connect
+                  </button>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    disabled={logoutWhatsApp.isPending}
+                    onClick={() => {
+                      setNotice(null);
+                      logoutWhatsApp.mutate();
+                    }}
+                  >
+                    Log out
+                  </button>
+                </div>
+              </div>
+            </section>
+          </>
+        ) : null}
         <section className="settings-section">
           <div className="section-heading">
             <h2>Connection status</h2>
@@ -355,22 +341,53 @@ export function SettingsPage() {
           </div>
         </section>
         <section className="settings-section">
-          <h2>Database storage</h2>
-          {health.isLoading ? (
-            <p role="status">Loading database size…</p>
-          ) : health.data && storagePercent !== null ? (
-            <p
-              className={`banner ${storagePercent > 70 ? 'banner-error' : 'banner-notice'}`}
-              role={storagePercent > 70 ? 'alert' : 'status'}
+          <h2>Test delivery channels</h2>
+          <div className="source-actions">
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={testEmail.isPending}
+              onClick={() => {
+                setNotice(null);
+                testEmail.mutate();
+              }}
             >
-              Database uses {formatBytes(health.data.databaseSizeBytes)} of the{' '}
-              {formatBytes(DATABASE_STORAGE_LIMIT_BYTES)} free-tier limit (
-              {storagePercent.toFixed(1)}%).
-              {storagePercent > 70 ? ' Storage has passed the 70% warning threshold.' : ''}
-            </p>
-          ) : null}
+              Send test email
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={testWhatsApp.isPending}
+              onClick={() => {
+                setNotice(null);
+                testWhatsApp.mutate();
+              }}
+            >
+              Send test WhatsApp
+            </button>
+          </div>
         </section>
-        <MemberManagementPanel />
+        {isMaster ? (
+          <>
+            <section className="settings-section">
+              <h2>Database storage</h2>
+              {health.isLoading ? (
+                <p role="status">Loading database size…</p>
+              ) : health.data && storagePercent !== null ? (
+                <p
+                  className={`banner ${storagePercent > 70 ? 'banner-error' : 'banner-notice'}`}
+                  role={storagePercent > 70 ? 'alert' : 'status'}
+                >
+                  Database uses {formatBytes(health.data.databaseSizeBytes)} of the{' '}
+                  {formatBytes(DATABASE_STORAGE_LIMIT_BYTES)} free-tier limit (
+                  {storagePercent.toFixed(1)}%).
+                  {storagePercent > 70 ? ' Storage has passed the 70% warning threshold.' : ''}
+                </p>
+              ) : null}
+            </section>
+            <MemberManagementPanel />
+          </>
+        ) : null}
       </main>
     </div>
   );

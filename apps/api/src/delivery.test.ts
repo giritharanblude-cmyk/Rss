@@ -827,6 +827,42 @@ describe('delivery pipeline', () => {
     expect(response.body).not.toContain(otherPhone);
   });
 
+  it('allows members to send channel tests only to their own contacts', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const ownPhone = '+14155550123';
+    await context.users.updateContacts(member.id, member.email, ownPhone);
+    context.whatsapp.connected = true;
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      member.name,
+      'member-password-1',
+    );
+
+    const emailTest = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/email/test',
+      headers: { cookie },
+    });
+    const whatsappTest = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/whatsapp/test',
+      headers: { cookie },
+    });
+
+    expect(emailTest.statusCode).toBe(200);
+    expect(context.email.sent.at(-1)?.to).toBe(member.email);
+    expect(whatsappTest.statusCode).toBe(200);
+    expect(context.whatsapp.sent).toMatchObject([{ number: ownPhone }]);
+    expect(emailTest.body).not.toContain(member.email);
+    expect(whatsappTest.body).not.toContain(ownPhone);
+  });
+
   it('returns a timeout response when a WhatsApp test send never resolves', async () => {
     context = await createTestContext();
     await context.users.updateContacts(context.master.id, context.master.email, '+14155550123');
