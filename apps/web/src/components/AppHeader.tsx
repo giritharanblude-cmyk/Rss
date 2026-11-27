@@ -50,17 +50,15 @@ export function AppHeader({ user }: { user: PublicUser }) {
         </p>
       ) : null}
       <nav className="module-nav" aria-label="Modules">
-        {modules
-          .filter((module) => user.role === 'master' || module.href !== '/alerts')
-          .map((module) => (
-            <NavLink
-              key={module.href}
-              to={module.href}
-              className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}
-            >
-              {module.label}
-            </NavLink>
-          ))}
+        {modules.map((module) => (
+          <NavLink
+            key={module.href}
+            to={module.href}
+            className={({ isActive }) => (isActive ? 'module-link module-active' : 'module-link')}
+          >
+            {module.label}
+          </NavLink>
+        ))}
         {user.role === 'master' ? (
           <NavLink
             to="/settings"

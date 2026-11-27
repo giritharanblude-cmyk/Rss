@@ -39,7 +39,7 @@ export function AlertsPage() {
     queryKey: ['alert-rules', page],
     queryFn: () => api.alertRules({ page, pageSize }),
     retry: false,
-    enabled: me.data?.user.role === 'master',
+    enabled: Boolean(me.data),
   });
   const [values, setValues] = useState<AlertRuleInput>(defaultRule);
   const [editing, setEditing] = useState<string | null>(null);
@@ -97,7 +97,6 @@ export function AlertsPage() {
       </main>
     );
   if (me.isError || !me.data) return <Navigate to="/login" replace />;
-  if (me.data.user.role !== 'master') return <Navigate to="/news" replace />;
   if (rules.isError || !rules.data)
     return (
       <main className="app-main">
