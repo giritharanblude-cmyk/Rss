@@ -214,7 +214,7 @@ describe('OpenWA session subscription', () => {
 describe('OpenWA text sending', () => {
   it('sends a REST request and resolves only after a confirmed response', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-      new Response(JSON.stringify({ success: true, data: 'confirmed' }), { status: 200 }),
+      new Response(JSON.stringify({ messageId: 'confirmed' }), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
     const adapter = await connectedAdapter();
@@ -222,17 +222,19 @@ describe('OpenWA text sending', () => {
     await expect(adapter.sendText('+14155550123', 'Test message')).resolves.toBeUndefined();
 
     const [url, options] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toBe('https://openwa.test/api/messages/sendText');
+    expect(String(url)).toBe(
+      'https://openwa.test/api/sessions/configured-session/messages/send-text',
+    );
     expect(options?.method).toBe('POST');
     expect(options?.redirect).toBe('error');
     expect(options?.headers).toEqual({
       'content-type': 'application/json',
       'x-api-key': sendTestApiKey,
     });
-    expect(JSON.parse(String(options?.body))).toEqual({
-      to: '14155550123@c.us',
-      content: 'Test message',
-    });
+    const body = JSON.parse(String(options?.body)) as Record<string, unknown>;
+    expect(body).toEqual({ chatId: '14155550123@c.us', text: 'Test message' });
+    expect(body).not.toHaveProperty('to');
+    expect(body).not.toHaveProperty('content');
     expect(String(url)).not.toContain(sendTestApiKey);
     expect(String(options?.body)).not.toContain(sendTestApiKey);
   });
