@@ -62,7 +62,10 @@ export class PostgresDashboardRepository implements DashboardRepository {
       'YYYY-MM-DD'
     )`;
     const ownerSource = ownerUserId ? eq(sources.ownerUserId, ownerUserId) : undefined;
-    const ownerRecipient = ownerUserId ? eq(recipients.ownerUserId, ownerUserId) : undefined;
+    const ownerRecipient = and(
+      sql`${recipients.id} <> ${recipients.ownerUserId}`,
+      ...(ownerUserId ? [eq(recipients.ownerUserId, ownerUserId)] : []),
+    );
     const ownerDelivery = ownerUserId ? eq(deliveries.ownerUserId, ownerUserId) : undefined;
     const [
       itemCount,

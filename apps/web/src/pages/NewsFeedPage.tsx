@@ -154,7 +154,6 @@ export function NewsFeedPage() {
               isSaving={importance.isPending && importance.variables?.id === item.id}
               onToggle={() => importance.mutate({ id: item.id, important: !item.important })}
               canManage={canManage}
-              canSend={canManage}
               sendPending={sendNow.isPending && sendNow.variables?.id === item.id}
               onSend={(channel) => sendNow.mutate({ id: item.id, channel })}
             />
@@ -206,7 +205,6 @@ function NewsCard({
   isSaving,
   onToggle,
   canManage,
-  canSend,
   sendPending,
   onSend,
 }: {
@@ -214,7 +212,6 @@ function NewsCard({
   isSaving: boolean;
   onToggle: () => void;
   canManage: boolean;
-  canSend: boolean;
   sendPending: boolean;
   onSend: (channel: 'email' | 'whatsapp') => void;
 }) {
@@ -237,26 +234,22 @@ function NewsCard({
             {item.important ? 'Remove importance' : 'Mark as important'}
           </button>
         ) : null}
-        {canSend ? (
-          <>
-            <button
-              type="button"
-              className="button-secondary"
-              disabled={sendPending}
-              onClick={() => onSend('whatsapp')}
-            >
-              Send now to WhatsApp
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              disabled={sendPending}
-              onClick={() => onSend('email')}
-            >
-              Send now by email
-            </button>
-          </>
-        ) : null}
+        <button
+          type="button"
+          className="button-secondary"
+          disabled={sendPending}
+          onClick={() => onSend('whatsapp')}
+        >
+          Send now to WhatsApp
+        </button>
+        <button
+          type="button"
+          className="button-secondary"
+          disabled={sendPending}
+          onClick={() => onSend('email')}
+        >
+          Send now by email
+        </button>
       </div>
     </article>
   );

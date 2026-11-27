@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { AlertPreviewService } from '../alerts/preview';
 import type { EmailSender } from '../email/types';
 import type { RecipientRepository, AlertRuleRepository } from '../repositories/recipients';
+import type { UserRecord } from '../repositories/types';
 import type { DeliveryNewsItem, DeliveryRepository, DeliveryRecord } from './types';
 import { buildEmailDigest, buildWhatsAppDigest } from './message';
 import type { WhatsAppAdapter } from './whatsapp';
@@ -69,30 +70,34 @@ export class DeliveryService {
   async sendNow(
     newsItemId: string,
     channel: 'email' | 'whatsapp',
-    ownerUserId?: string,
+    user: Pick<UserRecord, 'id' | 'name' | 'email' | 'phone'>,
   ): Promise<number> {
-    const item = await this.deliveries.findNewsItem(newsItemId, ownerUserId);
+    const item = await this.deliveries.findNewsItem(newsItemId, user.id);
     if (!item) return 0;
-    const eligible = await this.deliveries.listEligibleRecipients(item.category, ownerUserId);
-    let queued = 0;
-    for (const recipient of eligible) {
-      const channelAllowed = recipient.channel === 'both' || recipient.channel === channel;
-      const contactPresent =
-        channel === 'email' ? Boolean(recipient.email) : Boolean(recipient.whatsappE164);
-      if (!channelAllowed || !contactPresent) continue;
-      await this.deliveries.enqueue(
-        {
-          recipientId: recipient.id,
-          channel,
-          kind: 'manual',
-          subjectOrRef: `manual:${randomUUID()}`,
-          newsItemIds: [item.id],
-        },
-        this.options.now(),
-      );
-      queued += 1;
-    }
-    return queued;
+    const now = this.options.now();
+    const recipient = await this.recipients.ensureAccountDeliveryRecipient(
+      {
+        name: user.name,
+        whatsappE164: user.phone?.trim() || null,
+        email: user.email.trim() || null,
+        topics: [],
+        channel: 'both',
+      },
+      randomBytes(32).toString('hex'),
+      user.id,
+      now,
+    );
+    const result = await this.deliveries.enqueueIfNew(
+      {
+        recipientId: recipient.id,
+        channel,
+        kind: 'manual',
+        subjectOrRef: `manual:${item.id}`,
+        newsItemIds: [item.id],
+      },
+      now,
+    );
+    return result.created ? 1 : 0;
   }
 
   async enqueuePreview(

@@ -106,6 +106,7 @@ export function registerRecipientRoutes(
   app.patch('/api/recipients/:id', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     const id = readId(request);
+    if (id === user.id) throw new HttpError(404, 'That recipient was not found.');
     const input = parseBody(recipientInputSchema, request.body);
     const recipient = await options.recipients.updateRecipient(id, input, user.id);
     if (!recipient) throw new HttpError(404, 'That recipient was not found.');
@@ -115,6 +116,7 @@ export function registerRecipientRoutes(
   app.patch('/api/recipients/:id/consent', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     const id = readId(request);
+    if (id === user.id) throw new HttpError(404, 'That recipient was not found.');
     const body = parseBody(consentUpdateSchema, request.body);
     const recipient = await options.recipients.setConsent(
       id,
@@ -129,7 +131,8 @@ export function registerRecipientRoutes(
 
   app.delete('/api/recipients/:id', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
-    if (!(await options.recipients.deleteRecipient(readId(request), user.id))) {
+    const id = readId(request);
+    if (id === user.id || !(await options.recipients.deleteRecipient(id, user.id))) {
       throw new HttpError(404, 'That recipient was not found.');
     }
     return reply.code(204).send();
@@ -199,7 +202,7 @@ export function registerRecipientRoutes(
     const token = readPublicToken(request);
     const recipient = await options.recipients.findByUnsubscribeToken(token);
     if (!recipient) throw new HttpError(404, 'This unsubscribe link is invalid or has expired.');
-    if (recipient.consentStatus !== 'revoked') {
+    if (recipient.id !== recipient.ownerUserId && recipient.consentStatus !== 'revoked') {
       await options.recipients.setConsent(
         recipient.id,
         'revoked',

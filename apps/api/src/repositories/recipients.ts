@@ -11,6 +11,8 @@ export type RecipientRecord = RecipientInput & {
   createdAt: Date;
 };
 
+export const accountDeliveryRecipientNote = 'Manual delivery to account owner';
+
 export type AlertRuleRecord = AlertRuleInput & {
   id: string;
   ownerUserId: string;
@@ -38,6 +40,12 @@ export type RecipientRepository = {
     input: RecipientInput,
     unsubscribeToken: string,
     ownerUserId: string,
+  ): Promise<RecipientRecord>;
+  ensureAccountDeliveryRecipient(
+    input: RecipientInput,
+    unsubscribeToken: string,
+    ownerUserId: string,
+    at: Date,
   ): Promise<RecipientRecord>;
   updateRecipient(
     id: string,
