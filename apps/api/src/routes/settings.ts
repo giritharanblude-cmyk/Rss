@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { emailTestBodySchema, maskEmail, smtpSettingsSchema } from '@healthcare/shared';
+import { maskEmail, smtpSettingsSchema } from '@healthcare/shared';
 import type { AuthService } from '../auth/service';
 import type { ConnectionMonitor } from '../delivery/connections';
 import type { WhatsAppAdapter } from '../delivery/whatsapp';
@@ -71,15 +71,58 @@ export function registerSettingsRoutes(app: FastifyInstance, options: SettingsRo
   app.post('/api/settings/email/test', async (request, reply) => {
     const user = await readUser(request, options.auth, options.jwtSecret);
     if (user.role !== 'master') throw new ForbiddenError();
-    const parsed = emailTestBodySchema.safeParse(request.body);
-    if (!parsed.success) throw new HttpError(400, 'Enter a valid test email address.');
-    await options.email.send({
-      to: parsed.data.to,
-      subject: 'Healthcare News email connection test',
-      text: 'Your Healthcare News email connection is working.',
-      html: '<p>Your Healthcare News email connection is working.</p>',
-    });
-    return reply.send({ status: 'sent' });
+    if (!user.email?.trim()) {
+      throw new HttpError(400, 'No email address is saved for your account.');
+    }
+    let emailConnected: boolean;
+    try {
+      emailConnected = (await options.email.verify()).ok;
+    } catch {
+      emailConnected = false;
+    }
+    if (!emailConnected) {
+      throw new HttpError(503, 'Email is not connected. Check SMTP settings and try again.');
+    }
+    try {
+      await options.email.send({
+        to: user.email,
+        subject: 'Healthcare News email connection test',
+        text: 'Your Healthcare News email connection is working.',
+        html: '<p>Your Healthcare News email connection is working.</p>',
+      });
+    } catch {
+      throw new HttpError(502, 'Test email could not be sent. Check SMTP settings and try again.');
+    }
+    return reply.send({ status: 'sent', message: 'Test email sent successfully.' });
+  });
+
+  app.post('/api/settings/whatsapp/test', async (request, reply) => {
+    const user = await readUser(request, options.auth, options.jwtSecret);
+    if (user.role !== 'master') throw new ForbiddenError();
+    if (!user.phone?.trim()) {
+      throw new HttpError(400, 'No WhatsApp number is saved for your account.');
+    }
+    let whatsappConnected: boolean;
+    try {
+      whatsappConnected = (await options.whatsapp.getStatus()).connected;
+    } catch {
+      whatsappConnected = false;
+    }
+    if (!whatsappConnected) {
+      throw new HttpError(503, 'WhatsApp is not connected. Connect OpenWA and try again.');
+    }
+    try {
+      await options.whatsapp.sendText(
+        user.phone,
+        'This is a test message from Healthcare News. Your WhatsApp connection is working.',
+      );
+    } catch {
+      throw new HttpError(
+        502,
+        'Test WhatsApp message could not be sent. Check the OpenWA connection and try again.',
+      );
+    }
+    return reply.send({ status: 'sent', message: 'Test WhatsApp message sent successfully.' });
   });
 
   app.post('/api/settings/connections/check', async (request, reply) => {

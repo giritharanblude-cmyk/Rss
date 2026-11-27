@@ -140,12 +140,6 @@ describe('API request validation', () => {
         headers,
       }),
       await context.app.inject({
-        method: 'POST',
-        url: '/api/settings/email/test',
-        headers,
-        payload: { to: 'invalid' },
-      }),
-      await context.app.inject({
         method: 'PUT',
         url: '/api/settings/email',
         headers,
@@ -157,9 +151,7 @@ describe('API request validation', () => {
       }),
     ];
 
-    expect(responses.map((response) => response.statusCode)).toEqual([
-      400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400,
-      400, 400, 404,
-    ]);
+    expect(responses.slice(0, -1).every((response) => response.statusCode === 400)).toBe(true);
+    expect(responses.at(-1)?.statusCode).toBe(404);
   });
 });

@@ -573,6 +573,115 @@ describe('delivery pipeline', () => {
     expect(await context.connections.list()).toHaveLength(2);
   });
 
+  it('sends an email test only to the signed-in user and returns the completed result', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/email/test',
+      headers: { cookie },
+      payload: { to: member.email },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      status: 'sent',
+      message: 'Test email sent successfully.',
+    });
+    expect(context.email.sent.at(-1)?.to).toBe(context.master.email);
+    expect(response.body).not.toContain(context.master.email);
+    expect(response.body).not.toContain(member.email);
+  });
+
+  it('sends a WhatsApp test only to the signed-in user and returns the completed result', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const ownPhone = '+14155550123';
+    const otherPhone = '+14155550124';
+    await context.users.updateContacts(context.master.id, context.master.email, ownPhone);
+    await context.users.updateContacts(member.id, member.email, otherPhone);
+    context.whatsapp.connected = true;
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/whatsapp/test',
+      headers: { cookie },
+      payload: { number: otherPhone },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      status: 'sent',
+      message: 'Test WhatsApp message sent successfully.',
+    });
+    expect(context.whatsapp.sent).toHaveLength(1);
+    expect(context.whatsapp.sent[0]?.number).toBe(ownPhone);
+    expect(response.body).not.toContain(ownPhone);
+    expect(response.body).not.toContain(otherPhone);
+  });
+
+  it('returns clear reasons when a test channel is disconnected or its contact is missing', async () => {
+    context = await createTestContext();
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      'Admin',
+      'master-password-1',
+    );
+    context.email.verifyStatus = { ok: false, detail: 'SMTP failed for admin@example.com' };
+    const emailDisconnected = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/email/test',
+      headers: { cookie },
+    });
+    const phoneMissing = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/whatsapp/test',
+      headers: { cookie },
+    });
+    await context.users.updateContacts(context.master.id, context.master.email, '+14155550123');
+    const whatsappDisconnected = await context.app.inject({
+      method: 'POST',
+      url: '/api/settings/whatsapp/test',
+      headers: { cookie },
+    });
+
+    expect(emailDisconnected.statusCode).toBe(503);
+    expect(emailDisconnected.json().error).toBe(
+      'Email is not connected. Check SMTP settings and try again.',
+    );
+    expect(emailDisconnected.body).not.toContain('admin@example.com');
+    expect(emailDisconnected.body).not.toContain('SMTP failed');
+    expect(phoneMissing.statusCode).toBe(400);
+    expect(phoneMissing.json().error).toBe('No WhatsApp number is saved for your account.');
+    expect(whatsappDisconnected.statusCode).toBe(503);
+    expect(whatsappDisconnected.json().error).toBe(
+      'WhatsApp is not connected. Connect OpenWA and try again.',
+    );
+    expect(whatsappDisconnected.body).not.toContain('+14155550123');
+  });
+
   it('probes connections on read and returns actual failures instead of stored status', async () => {
     context = await createTestContext();
     const { cookie } = await loginAndVerify(
