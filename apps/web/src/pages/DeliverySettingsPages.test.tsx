@@ -173,6 +173,18 @@ describe('Phase 5 pages', () => {
             passwordConfigured: true,
           });
         }
+        if (path === '/api/settings/email/test') {
+          return jsonResponse(200, {
+            status: 'sent',
+            message: 'Test email sent successfully.',
+          });
+        }
+        if (path === '/api/settings/whatsapp/test') {
+          return jsonResponse(200, {
+            status: 'sent',
+            message: 'Test WhatsApp message sent successfully.',
+          });
+        }
         if (path === '/api/settings/connections/check') {
           return jsonResponse(200, {
             connections: [
@@ -195,6 +207,17 @@ describe('Phase 5 pages', () => {
     expect(storageWarning).toHaveTextContent('Storage has passed the 70% warning threshold.');
     expect(storageWarning).toHaveTextContent('710.0 MB');
     expect(screen.getAllByText(/Checked /)).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send test email' }));
+    expect(await screen.findByText('Test email sent successfully.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Send test WhatsApp' }));
+    expect(await screen.findByText('Test WhatsApp message sent successfully.')).toBeInTheDocument();
+    expect(
+      calls.find(({ path }) => path === '/api/settings/email/test')?.init?.body,
+    ).toBeUndefined();
+    expect(
+      calls.find(({ path }) => path === '/api/settings/whatsapp/test')?.init?.body,
+    ).toBeUndefined();
 
     fireEvent.change(await screen.findByLabelText('SMTP host'), {
       target: { value: 'smtp.example.test' },

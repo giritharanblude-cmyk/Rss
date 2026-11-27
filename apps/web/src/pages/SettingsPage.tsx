@@ -18,6 +18,32 @@ const emptySettings: SmtpSettings = {
   fromEmail: '',
 };
 
+async function sendChannelTest(channel: 'email' | 'whatsapp'): Promise<{ message: string }> {
+  const response = await fetch(`/api/settings/${channel}/test`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const result: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      result && typeof result === 'object' && 'error' in result && typeof result.error === 'string'
+        ? result.error
+        : 'The test message could not be sent.';
+    throw new Error(message);
+  }
+  if (
+    !result ||
+    typeof result !== 'object' ||
+    !('status' in result) ||
+    result.status !== 'sent' ||
+    !('message' in result) ||
+    typeof result.message !== 'string'
+  ) {
+    throw new Error('The test send could not be confirmed.');
+  }
+  return { message: result.message };
+}
+
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
@@ -42,7 +68,6 @@ export function SettingsPage() {
   });
   const [settings, setSettings] = useState<SmtpSettings>(emptySettings);
   const [password, setPassword] = useState('');
-  const [testTo, setTestTo] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: () => api.saveEmailSettings({ ...settings, password }),
@@ -53,9 +78,13 @@ export function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: ['connection-settings'] });
     },
   });
-  const test = useMutation({
-    mutationFn: () => api.testEmailSettings(testTo),
-    onSuccess: () => setNotice(`Test email sent to ${maskEmail(testTo)}.`),
+  const testEmail = useMutation({
+    mutationFn: () => sendChannelTest('email'),
+    onSuccess: (result) => setNotice(result.message),
+  });
+  const testWhatsApp = useMutation({
+    mutationFn: () => sendChannelTest('whatsapp'),
+    onSuccess: (result) => setNotice(result.message),
   });
   const check = useMutation({
     mutationFn: api.checkConnections,
@@ -99,14 +128,13 @@ export function SettingsPage() {
     setNotice(null);
     save.mutate();
   }
-  function sendTest(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setNotice(null);
-    test.mutate();
-  }
-
   const mutationError =
-    save.error ?? test.error ?? check.error ?? connectWhatsApp.error ?? logoutWhatsApp.error;
+    save.error ??
+    testEmail.error ??
+    testWhatsApp.error ??
+    check.error ??
+    connectWhatsApp.error ??
+    logoutWhatsApp.error;
   const connectionByService = new Map(
     (connections.isSuccess && !connections.isFetching ? connections.data.connections : []).map(
       (connection) => [connection.service, connection],
@@ -232,20 +260,17 @@ export function SettingsPage() {
               Save email settings
             </button>
           </form>
-          <form className="settings-inline-form" onSubmit={sendTest}>
-            <label>
-              Send test email to
-              <input
-                required
-                type="email"
-                value={testTo}
-                onChange={(event) => setTestTo(event.target.value)}
-              />
-            </label>
-            <button type="submit" className="button-secondary" disabled={test.isPending}>
-              Send test
-            </button>
-          </form>
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={testEmail.isPending}
+            onClick={() => {
+              setNotice(null);
+              testEmail.mutate();
+            }}
+          >
+            Send test email
+          </button>
         </section>
         <section className="settings-section">
           <div className="section-heading">
@@ -257,6 +282,17 @@ export function SettingsPage() {
               </p>
             </div>
             <div className="source-actions">
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={testWhatsApp.isPending}
+                onClick={() => {
+                  setNotice(null);
+                  testWhatsApp.mutate();
+                }}
+              >
+                Send test WhatsApp
+              </button>
               <button
                 type="button"
                 className="button-secondary"
