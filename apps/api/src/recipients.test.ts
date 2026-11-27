@@ -365,11 +365,27 @@ describe('recipient management and public preferences', () => {
       headers: { cookie: masterCookie },
       payload: { status: 'granted', note: 'Master confirmed' },
     });
+    const masterRecipientUpdate = await context.app.inject({
+      method: 'PATCH',
+      url: `/api/recipients/${memberRecipient.id}`,
+      headers: { cookie: masterCookie },
+      payload: recipientInput,
+    });
+    const masterRecipientDelete = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/recipients/${memberRecipient.id}`,
+      headers: { cookie: masterCookie },
+    });
     const masterRuleUpdate = await context.app.inject({
       method: 'PATCH',
       url: `/api/alert-rules/${memberRule.id}`,
       headers: { cookie: masterCookie },
       payload: digestRule,
+    });
+    const masterRuleDelete = await context.app.inject({
+      method: 'DELETE',
+      url: `/api/alert-rules/${memberRule.id}`,
+      headers: { cookie: masterCookie },
     });
     expect(empty.json()).toMatchObject({ recipients: [], total: 0 });
     expect(create.statusCode).toBe(201);
@@ -397,21 +413,24 @@ describe('recipient management and public preferences', () => {
     expect(createRule.statusCode).toBe(201);
     expect(rules.json()).toMatchObject({ rules: [{ id: memberRule.id }], total: 1 });
     expect(masterList.json()).toMatchObject({
-      recipients: [{ id: masterRecipient.id }, { id: memberRecipient.id }],
-      total: 2,
+      recipients: [{ id: masterRecipient.id }],
+      total: 1,
     });
     expect(updateOtherRule.statusCode).toBe(404);
     expect(deleteOtherRule.statusCode).toBe(404);
     expect(masterRules.json()).toMatchObject({
-      rules: [{ id: masterRule.id }, { id: memberRule.id }],
-      total: 2,
+      rules: [{ id: masterRule.id }],
+      total: 1,
     });
     expect(masterDeliveries.json().total).toBe(2);
-    expect(
-      masterDeliveries.json().items.map((delivery: { id: string }) => delivery.id),
-    ).toEqual(expect.arrayContaining([masterDelivery.id, memberDelivery.id]));
-    expect(masterConsent.statusCode).toBe(200);
-    expect(masterRuleUpdate.statusCode).toBe(200);
+    expect(masterDeliveries.json().items.map((delivery: { id: string }) => delivery.id)).toEqual(
+      expect.arrayContaining([masterDelivery.id, memberDelivery.id]),
+    );
+    expect(masterConsent.statusCode).toBe(404);
+    expect(masterRecipientUpdate.statusCode).toBe(404);
+    expect(masterRecipientDelete.statusCode).toBe(404);
+    expect(masterRuleUpdate.statusCode).toBe(404);
+    expect(masterRuleDelete.statusCode).toBe(404);
     expect(await context.recipients.listAlertRules(context.master.id)).toMatchObject([
       { id: masterRule.id },
     ]);
@@ -558,5 +577,108 @@ describe('alerts and schedule', () => {
     expect(created.json()).toMatchObject({
       rule: { kind: 'instant', timeLocal: '00:00', active: true },
     });
+  });
+
+  it('previews recipients using only the signed-in owner’s alert rules', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      member.name,
+      'member-password-1',
+    );
+
+    await context.recipients.createAlertRule(
+      { ...digestRule, topics: ['Outbreaks and public health'] },
+      context.master.id,
+    );
+    await context.recipients.createAlertRule(
+      { ...digestRule, topics: ['Hospitals and industry'] },
+      member.id,
+    );
+    const memberRecipient = await context.recipients.createRecipient(
+      { ...recipientInput, topics: ['Hospitals and industry'] },
+      'f'.repeat(64),
+      member.id,
+    );
+    await context.recipients.setConsent(
+      memberRecipient.id,
+      'granted',
+      context.clock.now(),
+      'Consent recorded',
+    );
+    const source = await context.feeds.createSource(
+      {
+        name: 'Member News',
+        website: 'https://member.example.test',
+        rssUrl: 'https://member.example.test/feed.xml',
+        mode: 'all',
+        topics: [],
+        region: null,
+        intervalMinutes: 60,
+        active: true,
+      },
+      member.id,
+    );
+    await context.feeds.addNewsForTest(
+      {
+        sourceId: source.id,
+        headline: 'Member hospital update',
+        summary: 'A member-owned news item',
+        category: 'Hospitals and industry',
+        publishedAt: context.clock.now(),
+      },
+      context.clock.now(),
+    );
+
+    const preview = await context.app.inject({
+      method: 'POST',
+      url: '/api/alert-rules/preview',
+      headers: { cookie },
+      payload: { kind: 'digest', limit: 10 },
+    });
+
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json()).toMatchObject({
+      recipientCount: 1,
+      groups: [{ recipientName: 'Asha' }],
+    });
+  });
+
+  it('rejects topics outside the fixed category list', async () => {
+    context = await createTestContext();
+    const cookie = await masterCookie();
+    const recipient = await context.recipients.createRecipient(
+      recipientInput,
+      'e'.repeat(64),
+      context.master.id,
+    );
+
+    const createRecipient = await context.app.inject({
+      method: 'POST',
+      url: '/api/recipients',
+      headers: { cookie },
+      payload: { ...recipientInput, topics: ['not a supported category'] },
+    });
+    const createRule = await context.app.inject({
+      method: 'POST',
+      url: '/api/alert-rules',
+      headers: { cookie },
+      payload: { ...digestRule, topics: ['not a supported category'] },
+    });
+    const updatePreferences = await context.app.inject({
+      method: 'PATCH',
+      url: `/api/public/preferences/${recipient.unsubscribeToken}`,
+      payload: { topics: ['not a supported category'] },
+    });
+
+    expect(createRecipient.statusCode).toBe(400);
+    expect(createRule.statusCode).toBe(400);
+    expect(updatePreferences.statusCode).toBe(400);
   });
 });
