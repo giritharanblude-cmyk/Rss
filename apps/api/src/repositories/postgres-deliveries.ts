@@ -1,23 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import {
-  and,
-  arrayContains,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNull,
-  lt,
-  lte,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, arrayContains, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { deliveries, jobs, newsItems, recipients, sources } from '../db/schema';
 import { decryptRecipientContact, validateSettingsEncryptionKey } from '../settings/secrets';
 import type { NewsCategory } from '../rss/categories';
 import type {
   DeliveryContext,
+  DeliveryEnqueueResult,
   DeliveryFilters,
   DeliveryInput,
   DeliveryNewsItem,
@@ -79,6 +68,10 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
   }
 
   async enqueue(input: DeliveryInput, now: Date): Promise<DeliveryRecord> {
+    return (await this.enqueueIfNew(input, now)).record;
+  }
+
+  async enqueueIfNew(input: DeliveryInput, now: Date): Promise<DeliveryEnqueueResult> {
     return this.db.transaction(async (tx) => {
       const ownerRows = await tx
         .select({ ownerUserId: recipients.ownerUserId })
@@ -110,16 +103,19 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
           .where(eq(recipients.id, existing[0].recipientId))
           .limit(1);
         const recipient = recipientsRows[0];
-        return toRecord(
-          existing[0],
-          recipient?.name ?? 'Unknown recipient',
-          deliveryContact(
-            input.channel,
-            recipient?.email ?? null,
-            recipient?.phone ?? null,
-            this.encryptionKey,
+        return {
+          record: toRecord(
+            existing[0],
+            recipient?.name ?? 'Unknown recipient',
+            deliveryContact(
+              input.channel,
+              recipient?.email ?? null,
+              recipient?.phone ?? null,
+              this.encryptionKey,
+            ),
           ),
-        );
+          created: false,
+        };
       }
       const rows = await tx
         .insert(deliveries)
@@ -168,16 +164,19 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
             .where(eq(recipients.id, raced[0].recipientId))
             .limit(1);
           const recipient = recipientRows[0];
-          return toRecord(
-            raced[0],
-            recipient?.name ?? 'Unknown recipient',
-            deliveryContact(
-              input.channel,
-              recipient?.email ?? null,
-              recipient?.phone ?? null,
-              this.encryptionKey,
+          return {
+            record: toRecord(
+              raced[0],
+              recipient?.name ?? 'Unknown recipient',
+              deliveryContact(
+                input.channel,
+                recipient?.email ?? null,
+                recipient?.phone ?? null,
+                this.encryptionKey,
+              ),
             ),
-          );
+            created: false,
+          };
         }
         throw new Error('Delivery was not created');
       }
@@ -193,16 +192,19 @@ export class PostgresDeliveryRepository implements DeliveryRepository {
         .where(eq(recipients.id, row.recipientId))
         .limit(1);
       const recipient = recipientRows[0];
-      return toRecord(
-        row,
-        recipient?.name ?? 'Unknown recipient',
-        deliveryContact(
-          input.channel,
-          recipient?.email ?? null,
-          recipient?.phone ?? null,
-          this.encryptionKey,
+      return {
+        record: toRecord(
+          row,
+          recipient?.name ?? 'Unknown recipient',
+          deliveryContact(
+            input.channel,
+            recipient?.email ?? null,
+            recipient?.phone ?? null,
+            this.encryptionKey,
+          ),
         ),
-      );
+        created: true,
+      };
     });
   }
 
