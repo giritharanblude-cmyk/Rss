@@ -287,6 +287,17 @@ describe('sign in with name, password and emailed code', () => {
     });
     expect(verified.statusCode).toBe(204);
     expect(await context.users.findById(user.id)).toMatchObject(contacts);
+    expect(await context.otps.findLatest(user.id, 'contact_change')).toMatchObject({
+      usedAt: expect.any(Date),
+    });
+
+    const reused = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/verify',
+      headers: { cookie },
+      payload: { ...contacts, code },
+    });
+    expect(reused.statusCode).toBe(400);
 
     const profile = await context.app.inject({
       method: 'GET',
@@ -294,6 +305,80 @@ describe('sign in with name, password and emailed code', () => {
       headers: { cookie },
     });
     expect(profile.json()).toMatchObject({ user: contacts });
+  });
+
+  it('logs update errors without contact values and restores a member OTP for retry', async () => {
+    context = await createTestContext();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      member.name,
+      'member-password-1',
+    );
+    const contacts = {
+      email: 'mina-new@example.test',
+      phone: '+14155552672',
+    };
+    const request = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/request',
+      headers: { cookie },
+      payload: contacts,
+    });
+    expect(request.statusCode).toBe(202);
+
+    const code = latestOtpCode(context.email);
+    const otp = await context.otps.findLatest(member.id, 'contact_change');
+    if (!otp) throw new Error('Expected the contact-change OTP to be stored.');
+
+    vi.spyOn(context.users, 'updateContacts').mockRejectedValueOnce(
+      new Error('Simulated contact update failure'),
+    );
+    const logError = vi.spyOn(context.app.log, 'error');
+    const failed = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/verify',
+      headers: { cookie },
+      payload: { ...contacts, code },
+    });
+
+    expect(failed.statusCode).toBe(500);
+    expect(failed.json().error).toBe('Something went wrong. Please try again.');
+    expect(await context.otps.findLatest(member.id, 'contact_change')).toMatchObject({
+      id: otp.id,
+      usedAt: null,
+    });
+    expect(logError).toHaveBeenCalledWith(
+      {
+        err: expect.objectContaining({ message: 'Simulated contact update failure' }),
+        route: '/api/auth/contact-change/verify',
+      },
+      'Unhandled request error',
+    );
+    const logged = JSON.stringify(logError.mock.calls, (_key, value) =>
+      value instanceof Error ? { message: value.message } : value,
+    );
+    expect(logged).not.toContain(contacts.email);
+    expect(logged).not.toContain(contacts.phone);
+    expect(logged).not.toContain(code);
+    expect(logged).not.toContain(otp.codeHash);
+
+    const retry = await context.app.inject({
+      method: 'POST',
+      url: '/api/auth/contact-change/verify',
+      headers: { cookie },
+      payload: { ...contacts, code },
+    });
+    expect(retry.statusCode).toBe(204);
+    expect(context.users.updateContacts).toHaveBeenCalledTimes(2);
+    expect(await context.otps.findLatest(member.id, 'contact_change')).toMatchObject({
+      usedAt: expect.any(Date),
+    });
   });
 
   it('keeps an active session valid by refreshing its last-active time', async () => {

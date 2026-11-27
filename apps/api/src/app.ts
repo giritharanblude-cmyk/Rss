@@ -260,7 +260,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return healthResponseSchema.parse(payload);
   });
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof HttpError) {
       return reply.code(error.statusCode).send({ error: error.message });
     }
@@ -275,6 +275,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (statusCode < 500) {
       return reply.code(statusCode).send({ error: failure.message ?? 'Request rejected.' });
     }
+    app.log.error({ err: error, route: request.url }, 'Unhandled request error');
     return reply.code(500).send({ error: 'Something went wrong. Please try again.' });
   });
 

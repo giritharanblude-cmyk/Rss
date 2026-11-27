@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { otpCodes, userSessions, users } from '../db/schema';
 import { DuplicateContactError, DuplicateMasterError } from '../errors';
@@ -361,6 +361,13 @@ export class PostgresOtpRepository implements OtpRepository {
 
   async markUsed(id: string, when: Date): Promise<void> {
     await this.db.update(otpCodes).set({ usedAt: when }).where(eq(otpCodes.id, id));
+  }
+
+  async restoreUsed(id: string): Promise<void> {
+    await this.db
+      .update(otpCodes)
+      .set({ usedAt: null })
+      .where(and(eq(otpCodes.id, id), isNotNull(otpCodes.usedAt)));
   }
 
   async invalidateActive(userId: string, purpose: OtpPurpose, when: Date): Promise<void> {

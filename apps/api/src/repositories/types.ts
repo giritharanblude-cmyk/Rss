@@ -75,5 +75,6 @@ export type OtpRepository = {
   incrementAttempts(id: string, maxAttempts: number): Promise<number>;
   consumeIfActive(id: string, now: Date, maxAttempts: number): Promise<boolean>;
   markUsed(id: string, when: Date): Promise<void>;
+  restoreUsed(id: string): Promise<void>;
   invalidateActive(userId: string, purpose: OtpPurpose, when: Date): Promise<void>;
 };
