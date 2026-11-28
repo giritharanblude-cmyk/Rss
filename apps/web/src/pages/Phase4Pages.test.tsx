@@ -36,8 +36,188 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+afterEach(() => vi.restoreAllMocks());
 
 describe('Phase 4 pages', () => {
+  it('lets a member create and delete their own topic set', async () => {
+    const member = { ...user, name: 'Mina', role: 'member' };
+    let topicSets: {
+      id: string;
+      name: string;
+      categoryKeys: string[];
+      createdAt: string;
+      updatedAt: string;
+    }[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/auth/me') return jsonResponse(200, { user: member });
+      if (path === '/api/topic-sets' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as {
+          name: string;
+          categoryKeys: string[];
+        };
+        topicSets = [
+          {
+            id: '00000000-0000-4000-8000-000000000020',
+            ...body,
+            createdAt: '2026-11-04T08:00:00.000Z',
+            updatedAt: '2026-11-04T08:00:00.000Z',
+          },
+        ];
+        return jsonResponse(201, { topicSet: topicSets[0] });
+      }
+      if (path.startsWith('/api/topic-sets/') && init?.method === 'DELETE') {
+        topicSets = [];
+        return jsonResponse(204, {});
+      }
+      if (path === '/api/topic-sets') return jsonResponse(200, { topicSets });
+      if (path.startsWith('/api/recipients')) {
+        return jsonResponse(200, { recipients: [], page: 1, pageSize: 25, total: 0 });
+      }
+      return jsonResponse(204, {});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Topic sets' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Custom names are labels; matching uses the fixed categories.'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create topic set' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mina updates' } });
+    fireEvent.click(screen.getByLabelText('Drugs and approvals'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save topic set' }));
+
+    expect(await screen.findByRole('heading', { name: 'Mina updates' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/topic-sets',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Mina updates',
+          categoryKeys: ['Drugs and approvals'],
+        }),
+      }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByText('Topic set deleted.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Mina updates' })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/topic-sets/00000000-0000-4000-8000-000000000020',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('shows only topic sets returned for the signed-in member', async () => {
+    const member = { ...user, name: 'Mina', role: 'member' };
+    const memberSet = {
+      id: '00000000-0000-4000-8000-000000000021',
+      name: 'Mina topics',
+      categoryKeys: ['Hospitals and industry'],
+      createdAt: '2026-11-04T08:00:00.000Z',
+      updatedAt: '2026-11-04T08:00:00.000Z',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') return jsonResponse(200, { user: member });
+        if (path === '/api/topic-sets') return jsonResponse(200, { topicSets: [memberSet] });
+        if (path.startsWith('/api/recipients')) {
+          return jsonResponse(200, { recipients: [], page: 1, pageSize: 25, total: 0 });
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Mina topics' })).toBeInTheDocument();
+    expect(screen.queryByText('Admin topics')).not.toBeInTheDocument();
+  });
+
+  it("applies a topic set to a recipient's topics", async () => {
+    const member = { ...user, name: 'Mina', role: 'member' };
+    const memberSet = {
+      id: '00000000-0000-4000-8000-000000000022',
+      name: 'Hospital updates',
+      categoryKeys: ['Hospitals and industry', 'Drugs and approvals'],
+      createdAt: '2026-11-04T08:00:00.000Z',
+      updatedAt: '2026-11-04T08:00:00.000Z',
+    };
+    let createdRecipient: Record<string, unknown> | null = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') return jsonResponse(200, { user: member });
+        if (path === '/api/topic-sets') return jsonResponse(200, { topicSets: [memberSet] });
+        if (path.startsWith('/api/recipients') && init?.method === 'POST') {
+          createdRecipient = JSON.parse(String(init.body)) as Record<string, unknown>;
+          return jsonResponse(201, { recipient });
+        }
+        if (path.startsWith('/api/recipients')) {
+          return jsonResponse(200, { recipients: [], page: 1, pageSize: 25, total: 0 });
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add recipient' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mina contact' } });
+    fireEvent.change(screen.getByLabelText('Email id'), {
+      target: { value: 'contact@example.test' },
+    });
+    fireEvent.change(screen.getByLabelText('Use a topic set'), {
+      target: { value: memberSet.id },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Use this set' }));
+
+    expect(screen.getByLabelText('Hospitals and industry')).toBeChecked();
+    expect(screen.getByLabelText('Drugs and approvals')).toBeChecked();
+    expect(screen.getByLabelText('Outbreaks and public health')).not.toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Save recipient' }));
+
+    await waitFor(() =>
+      expect(createdRecipient).toMatchObject({
+        name: 'Mina contact',
+        topics: ['Hospitals and industry', 'Drugs and approvals'],
+      }),
+    );
+  });
+
+  it('rejects topic sets with invalid category keys in the UI', async () => {
+    const invalidSet = {
+      id: '00000000-0000-4000-8000-000000000023',
+      name: 'Invalid set',
+      categoryKeys: ['Custom category'],
+      createdAt: '2026-11-04T08:00:00.000Z',
+      updatedAt: '2026-11-04T08:00:00.000Z',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') return jsonResponse(200, { user });
+        if (path === '/api/topic-sets') return jsonResponse(200, { topicSets: [invalidSet] });
+        if (path.startsWith('/api/recipients')) {
+          return jsonResponse(200, { recipients: [], page: 1, pageSize: 25, total: 0 });
+        }
+        return jsonResponse(204, {});
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Topic sets could not be loaded.')).toBeInTheDocument();
+    expect(screen.queryByText('Invalid set')).not.toBeInTheDocument();
+  });
+
   it('lets members add and manage their recipients', async () => {
     const member = { ...user, name: 'Mina', role: 'member' };
     let createdRecipient: unknown;
