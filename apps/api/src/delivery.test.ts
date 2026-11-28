@@ -9,7 +9,10 @@ import { decryptSettings } from './settings/secrets';
 import { createTestContext, loginAndVerify, seedMember, type TestContext } from './test/helpers';
 
 let context: TestContext;
-afterEach(async () => context.app.close());
+afterEach(async () => {
+  await context.app.close();
+  vi.restoreAllMocks();
+});
 
 function workbookText(buffer: Buffer): string {
   const contents: string[] = [];
@@ -550,6 +553,7 @@ describe('delivery pipeline', () => {
   });
 
   it('catches up a missed digest idempotently and records successful delivery', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
     const { recipient } = await setupEmailDelivery();
     const rule = await createDailyDigestRule(context.master.id);
     const baseTime = new Date(
@@ -557,9 +561,18 @@ describe('delivery pipeline', () => {
     );
     const occurrence = nextUtcMidnightAfter(baseTime);
     advanceClockTo(new Date(occurrence.getTime() + 60_000));
+    const dateKey = occurrence.toISOString().slice(0, 10);
 
     expect(await context.deliveryService.scheduleDigests()).toBe(1);
+    expect(log).toHaveBeenNthCalledWith(
+      1,
+      `digest catch-up: sent, ruleId=${rule.id}, occurrence=${dateKey}, itemCount=1`,
+    );
     expect(await context.deliveryService.scheduleDigests()).toBe(1);
+    expect(log).toHaveBeenNthCalledWith(
+      2,
+      `digest catch-up: skipped, already sent, ruleId=${rule.id}, occurrence=${dateKey}, itemCount=1`,
+    );
     expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(1);
     await context.deliveryService.runPending();
 
@@ -571,6 +584,22 @@ describe('delivery pipeline', () => {
     });
     expect(await context.deliveryService.scheduleDigests()).toBe(1);
     expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(1);
+  });
+
+  it('logs when a missed digest has no items', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    context = await createTestContext();
+    const rule = await createDailyDigestRule(context.master.id);
+    const baseTime = new Date(
+      Math.max(context.clock.now().getTime(), rule.createdAt.getTime()),
+    );
+    const occurrence = nextUtcMidnightAfter(baseTime);
+    advanceClockTo(new Date(occurrence.getTime() + 60_000));
+
+    expect(await context.deliveryService.scheduleDigests()).toBe(0);
+    expect(log).toHaveBeenCalledWith(
+      `digest catch-up: skipped, no items, ruleId=${rule.id}, occurrence=${occurrence.toISOString().slice(0, 10)}, itemCount=0`,
+    );
   });
 
   it('catches up only the most recent occurrence after a long outage', async () => {
