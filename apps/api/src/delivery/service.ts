@@ -70,10 +70,13 @@ export class DeliveryService {
   async sendNow(
     newsItemId: string,
     channel: 'email' | 'whatsapp',
-    user: Pick<UserRecord, 'id' | 'name' | 'email' | 'phone'>,
-  ): Promise<number> {
-    const item = await this.deliveries.findNewsItem(newsItemId, user.id);
-    if (!item) return 0;
+    user: Pick<UserRecord, 'id' | 'name' | 'email' | 'phone' | 'role'>,
+  ): Promise<number | null> {
+    const item = await this.deliveries.findNewsItem(
+      newsItemId,
+      user.role === 'master' ? undefined : user.id,
+    );
+    if (!item) return null;
     const now = this.options.now();
     const recipient = await this.recipients.ensureAccountDeliveryRecipient(
       {

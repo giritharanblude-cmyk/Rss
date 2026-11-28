@@ -264,7 +264,45 @@ describe('delivery pipeline', () => {
     ]);
   });
 
-  it("does not send a member's manual delivery to the master's contact", async () => {
+  it("lets a master manually send a member-owned item to the master's contact", async () => {
+    const { cookie } = await setupEmailDelivery();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const item = await createNewsForOwner(member.id, '00000000-0000-4000-8000-000000000126');
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toEqual({ queued: 1 });
+    const sentBeforeDelivery = context.email.sent.length;
+    await context.deliveryService.runPending();
+
+    const queued = await context.deliveries.list({
+      ownerUserId: context.master.id,
+      page: 1,
+      pageSize: 10,
+    });
+    expect(queued.items).toMatchObject([
+      {
+        recipientId: context.master.id,
+        kind: 'manual',
+        newsItemIds: [item.id],
+        recipientContact: context.master.email,
+      },
+    ]);
+    expect(context.email.sent.slice(sentBeforeDelivery).map((message) => message.to)).toEqual([
+      context.master.email,
+    ]);
+  });
+
+  it('lets a member manually send a visible item only to the member contact', async () => {
     context = await createTestContext();
     const member = await seedMember(context.users, {
       name: 'Mina',
@@ -316,6 +354,33 @@ describe('delivery pipeline', () => {
     expect(queued.items[0]?.recipientId).not.toBe(masterRecipient.id);
     expect(context.email.sent.at(-1)?.to).toBe(member.email);
     expect(context.email.sent.at(-1)?.to).not.toBe(context.master.email);
+  });
+
+  it('returns 404 when a member manually sends an item outside their News Feed', async () => {
+    const { item } = await setupEmailDelivery();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const { cookie } = await loginAndVerify(
+      context.app,
+      context.email,
+      member.name,
+      'member-password-1',
+    );
+
+    const response = await context.app.inject({
+      method: 'POST',
+      url: `/api/news/${item.id}/send`,
+      headers: { cookie },
+      payload: { channel: 'email' },
+    });
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error).toBe('This news item is not available to send.');
+    expect(
+      await context.deliveries.list({ ownerUserId: member.id, page: 1, pageSize: 10 }),
+    ).toMatchObject({ items: [], total: 0 });
   });
 
   it('does not duplicate repeated manual sends and reports missing contacts', async () => {

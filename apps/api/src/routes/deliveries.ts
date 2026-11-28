@@ -191,6 +191,9 @@ export function registerDeliveryRoutes(app: FastifyInstance, options: DeliveryRo
       body.data.channel,
       user,
     );
+    if (queued === null) {
+      throw new HttpError(404, 'This news item is not available to send.');
+    }
     return reply.code(202).send({ queued });
   });
 }
