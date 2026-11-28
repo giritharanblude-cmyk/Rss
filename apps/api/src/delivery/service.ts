@@ -212,12 +212,13 @@ export class DeliveryService {
     const rules = await this.rules.listAlertRules();
     let queued = 0;
     for (const rule of rules) {
-      if (rule.kind !== 'digest' || !rule.active || !isRuleDue(rule, now)) continue;
-      const dateKey = localDateKey(now, rule.timezone);
+      if (rule.kind !== 'digest' || !rule.active) continue;
+      const occurrence = mostRecentDigestOccurrence(rule, now);
+      if (!occurrence) continue;
       queued += await this.enqueuePreview(
         'digest',
         rule.id,
-        `digest:${rule.id}:${dateKey}`,
+        `digest:${rule.id}:${occurrence.dateKey}`,
         rule.ownerUserId,
       );
     }
@@ -318,25 +319,80 @@ function localDateKey(date: Date, timezone: string): string {
   return `${values.get('year')}-${values.get('month')}-${values.get('day')}`;
 }
 
-function isRuleDue(
-  rule: { daysOfWeek: number[]; timeLocal: string; timezone: string },
+export function mostRecentDigestOccurrence(
+  rule: {
+    daysOfWeek: number[];
+    timeLocal: string;
+    timezone: string;
+    createdAt: Date;
+  },
   now: Date,
-): boolean {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: rule.timezone,
-    weekday: 'short',
+): { at: Date; dateKey: string } | null {
+  const today = localDateKey(now, rule.timezone);
+  let latest: { at: Date; dateKey: string } | null = null;
+
+  for (let daysBack = 0; daysBack <= 7; daysBack += 1) {
+    const dateKey = shiftLocalDate(today, -daysBack);
+    const weekday = new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
+    if (!rule.daysOfWeek.includes(weekday)) continue;
+
+    const at = resolveLocalDateTime(dateKey, rule.timeLocal, rule.timezone);
+    if (!at || at > now || at < rule.createdAt) continue;
+    if (!latest || at > latest.at) latest = { at, dateKey };
+  }
+
+  return latest;
+}
+
+function shiftLocalDate(dateKey: string, days: number): string {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(
+    date.getUTCDate(),
+  ).padStart(2, '0')}`;
+}
+
+function resolveLocalDateTime(dateKey: string, timeLocal: string, timezone: string): Date | null {
+  const wallClock = new Date(`${dateKey}T${timeLocal}:00.000Z`);
+  if (!Number.isFinite(wallClock.getTime())) return null;
+  const wallTime = wallClock.getTime();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(now);
-  const values = new Map(parts.map(({ type, value }) => [type, value]));
-  const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
-    values.get('weekday') ?? '',
-  );
-  return (
-    rule.daysOfWeek.includes(weekday) &&
-    `${values.get('hour')}:${values.get('minute')}` === rule.timeLocal
-  );
+  });
+  const toLocalWallTime = (instant: number): number => {
+    const values = new Map(
+      formatter.formatToParts(new Date(instant)).map(({ type, value }) => [type, value]),
+    );
+    return Date.UTC(
+      Number(values.get('year')),
+      Number(values.get('month')) - 1,
+      Number(values.get('day')),
+      Number(values.get('hour')),
+      Number(values.get('minute')),
+    );
+  };
+  const offsets = new Set<number>();
+  for (const hours of [-36, -24, -12, 0, 12, 24, 36]) {
+    const probe = wallTime + hours * 60 * 60 * 1000;
+    offsets.add(toLocalWallTime(probe) - probe);
+  }
+
+  const candidates = [...offsets].map((offset) => wallTime - offset);
+  const exact = candidates.filter((candidate) => toLocalWallTime(candidate) === wallTime);
+  // The earlier exact instant resolves overlaps; the next wall time resolves gaps.
+  if (exact.length) return new Date(Math.min(...exact));
+
+  const afterGap = candidates
+    .map((candidate) => ({ candidate, localTime: toLocalWallTime(candidate) }))
+    .filter(({ localTime }) => localTime > wallTime)
+    .sort((a, b) => a.localTime - b.localTime || a.candidate - b.candidate)[0];
+  return afterGap ? new Date(afterGap.candidate) : null;
 }
 
 export type DeliveryPublicRecord = Pick<

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { inflateRawSync } from 'node:zlib';
 import { AlertPreviewService } from './alerts/preview';
 import { buildEmailDigest, buildWhatsAppDigest } from './delivery/message';
-import { DeliveryService } from './delivery/service';
+import { DeliveryService, mostRecentDigestOccurrence } from './delivery/service';
 import type { Database } from './db/client';
 import { PostgresSettingsRepository } from './repositories/postgres-settings';
 import { decryptSettings } from './settings/secrets';
@@ -100,6 +100,30 @@ async function createNewsForOwner(ownerUserId: string, id: string) {
   };
   await context.feeds.addNewsForTest(item, context.clock.now());
   return item;
+}
+
+async function createDailyDigestRule(ownerUserId: string, active = true) {
+  return context.recipients.createAlertRule(
+    {
+      kind: 'digest',
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+      timeLocal: '00:00',
+      timezone: 'UTC',
+      topics: [],
+      channels: ['email'],
+      active,
+    },
+    ownerUserId,
+  );
+}
+
+function nextUtcMidnightAfter(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1));
+}
+
+function advanceClockTo(date: Date): void {
+  const milliseconds = date.getTime() - context.clock.now().getTime();
+  if (milliseconds > 0) context.clock.advance(milliseconds);
 }
 
 describe('delivery pipeline', () => {
@@ -525,17 +549,14 @@ describe('delivery pipeline', () => {
     });
   });
 
-  it('schedules due digests idempotently and records successful delivery', async () => {
+  it('catches up a missed digest idempotently and records successful delivery', async () => {
     const { recipient } = await setupEmailDelivery();
-    await context.recipients.createAlertRule({
-      kind: 'digest',
-      daysOfWeek: [2],
-      timeLocal: '13:30',
-      timezone: 'Asia/Kolkata',
-      topics: ['Outbreaks and public health'],
-      channels: ['email'],
-      active: true,
-    });
+    const rule = await createDailyDigestRule(context.master.id);
+    const baseTime = new Date(
+      Math.max(context.clock.now().getTime(), rule.createdAt.getTime()),
+    );
+    const occurrence = nextUtcMidnightAfter(baseTime);
+    advanceClockTo(new Date(occurrence.getTime() + 60_000));
 
     expect(await context.deliveryService.scheduleDigests()).toBe(1);
     expect(await context.deliveryService.scheduleDigests()).toBe(1);
@@ -547,6 +568,145 @@ describe('delivery pipeline', () => {
       recipientId: recipient.id,
       kind: 'digest',
       status: 'delivered',
+    });
+    expect(await context.deliveryService.scheduleDigests()).toBe(1);
+    expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(1);
+  });
+
+  it('catches up only the most recent occurrence after a long outage', async () => {
+    const { recipient } = await setupEmailDelivery();
+    const rule = await createDailyDigestRule(context.master.id);
+    const baseTime = new Date(
+      Math.max(context.clock.now().getTime(), rule.createdAt.getTime()),
+    );
+    const firstOccurrence = nextUtcMidnightAfter(baseTime);
+    const now = new Date(firstOccurrence.getTime() + 5 * 24 * 60 * 60 * 1000 + 60_000);
+    advanceClockTo(now);
+
+    await context.deliveryService.scheduleDigests();
+    await context.deliveryService.scheduleDigests();
+
+    const deliveries = (await context.deliveries.list({ page: 1, pageSize: 10 })).items;
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.subjectOrRef).toBe(
+      `digest:${rule.id}:${now.toISOString().slice(0, 10)}:${recipient.id}:email`,
+    );
+    const sentBeforeDelivery = context.email.sent.length;
+    await context.deliveryService.runPending();
+    expect(context.email.sent).toHaveLength(sentBeforeDelivery + 1);
+  });
+
+  it('does not catch up a digest while its rule is disabled', async () => {
+    await setupEmailDelivery();
+    const rule = await createDailyDigestRule(context.master.id, false);
+    const baseTime = new Date(
+      Math.max(context.clock.now().getTime(), rule.createdAt.getTime()),
+    );
+    const occurrence = nextUtcMidnightAfter(baseTime);
+    advanceClockTo(new Date(occurrence.getTime() + 60_000));
+
+    expect(await context.deliveryService.scheduleDigests()).toBe(0);
+    expect((await context.deliveries.list({ page: 1, pageSize: 10 })).items).toHaveLength(0);
+  });
+
+  it("catches up each owner's rule only for that owner's recipients", async () => {
+    const { recipient: masterRecipient } = await setupEmailDelivery();
+    const member = await seedMember(context.users, {
+      name: 'Mina',
+      email: 'mina@example.test',
+      password: 'member-password-1',
+    });
+    const memberRecipient = await context.recipients.createRecipient(
+      {
+        name: 'Member recipient',
+        whatsappE164: null,
+        email: 'member-recipient@example.test',
+        topics: ['Drugs and approvals'],
+        channel: 'email',
+      },
+      'e'.repeat(64),
+      member.id,
+    );
+    await context.recipients.setConsent(
+      memberRecipient.id,
+      'granted',
+      context.clock.now(),
+      'Agreed',
+      member.id,
+    );
+    await createNewsForOwner(member.id, '00000000-0000-4000-8000-000000000127');
+    const masterRule = await createDailyDigestRule(context.master.id);
+    const memberRule = await createDailyDigestRule(member.id);
+    const baseTime = new Date(
+      Math.max(
+        context.clock.now().getTime(),
+        masterRule.createdAt.getTime(),
+        memberRule.createdAt.getTime(),
+      ),
+    );
+    const occurrence = nextUtcMidnightAfter(baseTime);
+    advanceClockTo(new Date(occurrence.getTime() + 60_000));
+
+    expect(await context.deliveryService.scheduleDigests()).toBe(2);
+    const deliveries = (await context.deliveries.list({ page: 1, pageSize: 10 })).items;
+    expect(deliveries).toHaveLength(2);
+    expect(deliveries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ownerUserId: context.master.id,
+          recipientId: masterRecipient.id,
+          subjectOrRef: expect.stringContaining(`digest:${masterRule.id}:`),
+        }),
+        expect.objectContaining({
+          ownerUserId: member.id,
+          recipientId: memberRecipient.id,
+          subjectOrRef: expect.stringContaining(`digest:${memberRule.id}:`),
+        }),
+      ]),
+    );
+  });
+
+  it('does not schedule an occurrence before rule creation or before its local time', () => {
+    const rule = {
+      daysOfWeek: [0],
+      timeLocal: '00:00',
+      timezone: 'UTC',
+      createdAt: new Date('2026-11-01T00:01:00.000Z'),
+    };
+
+    expect(
+      mostRecentDigestOccurrence(rule, new Date('2026-11-01T23:59:00.000Z')),
+    ).toBeNull();
+  });
+
+  it('resolves nonexistent and repeated local times using the agreed DST policy', () => {
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    const springGap = mostRecentDigestOccurrence(
+      {
+        daysOfWeek: [0],
+        timeLocal: '02:30',
+        timezone: 'America/New_York',
+        createdAt,
+      },
+      new Date('2026-03-08T07:31:00.000Z'),
+    );
+    const fallOverlap = mostRecentDigestOccurrence(
+      {
+        daysOfWeek: [0],
+        timeLocal: '01:30',
+        timezone: 'America/New_York',
+        createdAt,
+      },
+      new Date('2026-11-01T07:00:00.000Z'),
+    );
+
+    expect(springGap).toEqual({
+      at: new Date('2026-03-08T07:30:00.000Z'),
+      dateKey: '2026-03-08',
+    });
+    expect(fallOverlap).toEqual({
+      at: new Date('2026-11-01T05:30:00.000Z'),
+      dateKey: '2026-11-01',
     });
   });
 
