@@ -6,10 +6,15 @@ import {
   maskEmail,
   maskPhone,
   recipientInputSchema,
+  topicSetInputSchema,
   type Recipient,
   type RecipientInput,
+  type TopicCategory,
+  type TopicSet,
+  type TopicSetInput,
 } from '@healthcare/shared';
 import { api, ApiError } from '../api/client';
+import { createTopicSet, deleteTopicSet, listTopicSets, updateTopicSet } from '../api/topic-sets';
 import { AppHeader } from '../components/AppHeader';
 import { LoadingState } from '../components/LoadingState';
 import { Toast } from '../components/Toast';
@@ -25,6 +30,8 @@ const blankRecipient: RecipientInput = {
   channel: 'email',
 };
 
+const blankTopicSet: TopicSetInput = { name: '', categoryKeys: [] };
+
 function messageOf(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
@@ -32,14 +39,17 @@ function messageOf(error: unknown): string {
 
 function RecipientForm({
   initial,
+  topicSets,
   onSave,
   onCancel,
 }: {
   initial: RecipientInput;
+  topicSets: TopicSet[];
   onSave: (value: RecipientInput) => Promise<void>;
   onCancel: () => void;
 }) {
   const [values, setValues] = useState(initial);
+  const [selectedTopicSetId, setSelectedTopicSetId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -73,6 +83,11 @@ function RecipientForm({
         ? values.topics.filter((value) => value !== topic)
         : [...values.topics, topic],
     });
+  }
+
+  function applyTopicSet() {
+    const topicSet = topicSets.find((set) => set.id === selectedTopicSetId);
+    if (topicSet) setValues({ ...values, topics: [...topicSet.categoryKeys] });
   }
 
   return (
@@ -124,6 +139,22 @@ function RecipientForm({
       </select>
       <fieldset className="topic-options">
         <legend>Topics they want</legend>
+        <label htmlFor="recipient-topic-set">Use a topic set</label>
+        <select
+          id="recipient-topic-set"
+          value={selectedTopicSetId}
+          onChange={(event) => setSelectedTopicSetId(event.target.value)}
+        >
+          <option value="">Choose a topic set</option>
+          {topicSets.map((topicSet) => (
+            <option key={topicSet.id} value={topicSet.id}>
+              {topicSet.name}
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={!selectedTopicSetId} onClick={applyTopicSet}>
+          Use this set
+        </button>
         {TOPIC_CATEGORIES.map((topic) => (
           <label className="check-option" key={topic}>
             <input
@@ -157,13 +188,23 @@ export function RecipientsPage() {
   const [consentNote, setConsentNote] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [topicSetFormOpen, setTopicSetFormOpen] = useState(false);
+  const [editingTopicSetId, setEditingTopicSetId] = useState<string | null>(null);
+  const [topicSetValues, setTopicSetValues] = useState<TopicSetInput>(blankTopicSet);
+  const [topicSetError, setTopicSetError] = useState<string | null>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
   const list = useQuery({
     queryKey: ['recipients', search, page],
     queryFn: () => api.recipients(search, { page, pageSize }),
     retry: false,
   });
+  const topicSets = useQuery({
+    queryKey: ['topic-sets'],
+    queryFn: listTopicSets,
+    retry: false,
+  });
   const refresh = () => client.invalidateQueries({ queryKey: ['recipients'] });
+  const refreshTopicSets = () => client.invalidateQueries({ queryKey: ['topic-sets'] });
   const create = useMutation({ mutationFn: api.createRecipient, onSuccess: refresh });
   const update = useMutation({
     mutationFn: ({ id, body }: { id: string; body: RecipientInput }) =>
@@ -182,6 +223,15 @@ export function RecipientsPage() {
       note?: string;
     }) => api.setConsent(id, { status, ...(note ? { note } : {}) }),
     onSuccess: refresh,
+  });
+  const saveTopicSet = useMutation({
+    mutationFn: ({ id, input }: { id: string | null; input: TopicSetInput }) =>
+      id ? updateTopicSet(id, input) : createTopicSet(input),
+    onSuccess: refreshTopicSets,
+  });
+  const removeTopicSet = useMutation({
+    mutationFn: deleteTopicSet,
+    onSuccess: refreshTopicSets,
   });
 
   if (me.isLoading || list.isLoading)
@@ -259,6 +309,59 @@ export function RecipientsPage() {
     }
   }
 
+  function editTopicSet(topicSet: TopicSet) {
+    setEditingTopicSetId(topicSet.id);
+    setTopicSetValues({ name: topicSet.name, categoryKeys: [...topicSet.categoryKeys] });
+    setTopicSetFormOpen(true);
+    setTopicSetError(null);
+  }
+
+  function toggleTopicSetCategory(category: TopicCategory) {
+    setTopicSetValues((current) => ({
+      ...current,
+      categoryKeys: current.categoryKeys.includes(category)
+        ? current.categoryKeys.filter((value) => value !== category)
+        : [...current.categoryKeys, category],
+    }));
+  }
+
+  async function submitTopicSet(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = topicSetInputSchema.safeParse(topicSetValues);
+    if (!parsed.success) {
+      setTopicSetError(parsed.error.issues[0]?.message ?? 'Check the topic set details.');
+      return;
+    }
+    setTopicSetError(null);
+    try {
+      await saveTopicSet.mutateAsync({ id: editingTopicSetId, input: parsed.data });
+      setTopicSetValues(blankTopicSet);
+      setEditingTopicSetId(null);
+      setTopicSetFormOpen(false);
+      setNotice(editingTopicSetId ? 'Topic set renamed.' : 'Topic set created.');
+    } catch (caught) {
+      setTopicSetError(messageOf(caught));
+    }
+  }
+
+  function cancelTopicSetForm() {
+    setTopicSetFormOpen(false);
+    setEditingTopicSetId(null);
+    setTopicSetValues(blankTopicSet);
+    setTopicSetError(null);
+  }
+
+  async function removeTopicSetById(topicSet: TopicSet) {
+    if (!window.confirm(`Delete the "${topicSet.name}" topic set?`)) return;
+    setTopicSetError(null);
+    try {
+      await removeTopicSet.mutateAsync(topicSet.id);
+      setNotice('Topic set deleted.');
+    } catch (caught) {
+      setTopicSetError(messageOf(caught));
+    }
+  }
+
   return (
     <div className="app-frame">
       <AppHeader user={me.data.user} />
@@ -281,6 +384,103 @@ export function RecipientsPage() {
           </button>
         </div>
         <Toast message={notice} onDismiss={() => setNotice(null)} />
+        <section className="settings-section" aria-labelledby="topic-sets-heading">
+          <div className="section-heading">
+            <div>
+              <h2 id="topic-sets-heading">Topic sets</h2>
+              <p className="form-hint">
+                Custom names are labels; matching uses the fixed categories.
+              </p>
+            </div>
+            {!topicSetFormOpen ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTopicSetValues(blankTopicSet);
+                  setEditingTopicSetId(null);
+                  setTopicSetError(null);
+                  setTopicSetFormOpen(true);
+                }}
+              >
+                Create topic set
+              </button>
+            ) : null}
+          </div>
+          {topicSetError ? (
+            <p className="banner banner-error" role="alert">
+              {topicSetError}
+            </p>
+          ) : null}
+          {topicSets.isLoading ? <LoadingState label="Loading topic sets…" /> : null}
+          {topicSets.isError ? (
+            <p className="banner banner-error" role="alert">
+              Topic sets could not be loaded.
+            </p>
+          ) : null}
+          {topicSetFormOpen ? (
+            <form className="source-form" onSubmit={(event) => void submitTopicSet(event)}>
+              <h3>{editingTopicSetId ? 'Rename topic set' : 'New topic set'}</h3>
+              <label htmlFor="topic-set-name">Name</label>
+              <input
+                id="topic-set-name"
+                value={topicSetValues.name}
+                maxLength={80}
+                onChange={(event) =>
+                  setTopicSetValues({ ...topicSetValues, name: event.target.value })
+                }
+                required
+              />
+              <fieldset className="topic-options">
+                <legend>Fixed categories</legend>
+                {TOPIC_CATEGORIES.map((category) => (
+                  <label className="check-option" key={category}>
+                    <input
+                      type="checkbox"
+                      checked={topicSetValues.categoryKeys.includes(category)}
+                      onChange={() => toggleTopicSetCategory(category)}
+                    />
+                    {category}
+                  </label>
+                ))}
+              </fieldset>
+              <div className="source-form-actions">
+                <button type="submit" disabled={saveTopicSet.isPending}>
+                  {saveTopicSet.isPending ? 'Saving…' : 'Save topic set'}
+                </button>
+                <button type="button" className="button-secondary" onClick={cancelTopicSetForm}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : null}
+          {topicSets.data?.length === 0 ? (
+            <p className="empty-state">No topic sets saved yet.</p>
+          ) : null}
+          <div className="source-list">
+            {topicSets.data?.map((topicSet) => (
+              <article className="source-card" key={topicSet.id}>
+                <h3>{topicSet.name}</h3>
+                <p>{topicSet.categoryKeys.join(', ') || 'No categories selected'}</p>
+                <div className="source-actions">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => editTopicSet(topicSet)}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    onClick={() => void removeTopicSetById(topicSet)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
         <label htmlFor="recipient-search">Search recipients</label>
         <input
           id="recipient-search"
@@ -310,6 +510,7 @@ export function RecipientsPage() {
                   }
                 : blankRecipient
             }
+            topicSets={topicSets.data ?? []}
             onSave={save}
             onCancel={() => {
               setAdding(false);
