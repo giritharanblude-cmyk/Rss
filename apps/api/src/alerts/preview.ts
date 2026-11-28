@@ -54,6 +54,7 @@ export class AlertPreviewService {
       };
     }
 
+    const allCategoriesDigest = input.kind === 'digest' && effectiveRule.topics.length === 0;
     const categories = effectiveRule.topics.length ? effectiveRule.topics : [...NEWS_CATEGORIES];
     const recipients = await this.recipients.listRecipients(undefined, ownerUserId);
     const groups = [];
@@ -63,9 +64,11 @@ export class AlertPreviewService {
         effectiveRule.channels.includes(channel),
       );
       if (!channels.length) continue;
-      const recipientCategories = recipient.topics.filter((category) =>
-        categories.includes(category),
-      );
+      const recipientCategories: (typeof NEWS_CATEGORIES)[number][] = allCategoriesDigest
+        ? recipient.topics.length
+          ? [...recipient.topics, 'Uncategorized']
+          : categories
+        : recipient.topics.filter((category) => categories.includes(category));
       if (!recipientCategories.length) continue;
       const since = input.kind === 'digest' ? await this.preview.lastDigestAt(recipient.id) : null;
       const items = await this.preview.listPreviewNews({

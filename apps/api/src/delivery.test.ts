@@ -75,7 +75,11 @@ async function setupEmailDelivery() {
   return { cookie, recipient, item };
 }
 
-async function createNewsForOwner(ownerUserId: string, id: string) {
+async function createNewsForOwner(
+  ownerUserId: string,
+  id: string,
+  category: 'Drugs and approvals' | 'Uncategorized' = 'Drugs and approvals',
+) {
   const source = await context.feeds.createSource(
     {
       name: 'Owner News',
@@ -95,7 +99,7 @@ async function createNewsForOwner(ownerUserId: string, id: string) {
     headline: 'Unmatched topic advisory',
     summary: 'Guidance',
     link: 'https://owner-news.example.test/advisory',
-    category: 'Drugs and approvals' as const,
+    category,
     publishedAt: context.clock.now(),
     fetchedAt: context.clock.now(),
     important: false,
@@ -103,6 +107,16 @@ async function createNewsForOwner(ownerUserId: string, id: string) {
   };
   await context.feeds.addNewsForTest(item, context.clock.now());
   return item;
+}
+
+async function buildDigestPreview(ruleId: string, ownerUserId: string) {
+  const preview = new AlertPreviewService(
+    context.recipients,
+    context.recipients,
+    context.recipients,
+    context.clock.now,
+  );
+  return preview.build({ kind: 'digest', ruleId, limit: 10 }, ownerUserId);
 }
 
 async function createDailyDigestRule(ownerUserId: string, active = true) {
@@ -550,6 +564,91 @@ describe('delivery pipeline', () => {
       status: 'failed',
       lastError: 'Consent is no longer active; message not sent.',
     });
+  });
+
+  it('includes Uncategorized items for an all-categories digest', async () => {
+    const { recipient } = await setupEmailDelivery();
+    const item = await createNewsForOwner(
+      context.master.id,
+      '00000000-0000-4000-8000-000000000128',
+      'Uncategorized',
+    );
+    const rule = await createDailyDigestRule(context.master.id);
+
+    const preview = await buildDigestPreview(rule.id, context.master.id);
+    const itemIds = preview.groups.flatMap((group) =>
+      group.itemsByCategory.flatMap((category) => category.items.map((entry) => entry.id)),
+    );
+
+    expect(preview.groups[0]?.recipientId).toBe(recipient.id);
+    expect(itemIds).toContain(item.id);
+  });
+
+  it('does not include Uncategorized items for a topic-restricted digest', async () => {
+    const { recipient, item: categorizedItem } = await setupEmailDelivery();
+    const uncategorizedItem = await createNewsForOwner(
+      context.master.id,
+      '00000000-0000-4000-8000-000000000129',
+      'Uncategorized',
+    );
+    const rule = await context.recipients.createAlertRule(
+      {
+        kind: 'digest',
+        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+        timeLocal: '00:00',
+        timezone: 'UTC',
+        topics: ['Outbreaks and public health'],
+        channels: ['email'],
+        active: true,
+      },
+      context.master.id,
+    );
+
+    const preview = await buildDigestPreview(rule.id, context.master.id);
+    const itemIds = preview.groups.flatMap((group) =>
+      group.itemsByCategory.flatMap((category) => category.items.map((entry) => entry.id)),
+    );
+
+    expect(preview.groups[0]?.recipientId).toBe(recipient.id);
+    expect(itemIds).toContain(categorizedItem.id);
+    expect(itemIds).not.toContain(uncategorizedItem.id);
+  });
+
+  it('includes Uncategorized items for an all-categories digest with an empty-topics recipient', async () => {
+    context = await createTestContext();
+    const item = await createNewsForOwner(
+      context.master.id,
+      '00000000-0000-4000-8000-000000000130',
+      'Uncategorized',
+    );
+    const recipient = await context.recipients.createRecipient(
+      {
+        name: 'No topic selection',
+        whatsappE164: null,
+        email: 'no-topics@example.test',
+        topics: [],
+        channel: 'email',
+      },
+      'f'.repeat(64),
+      context.master.id,
+    );
+    await context.recipients.setConsent(
+      recipient.id,
+      'granted',
+      context.clock.now(),
+      'Agreed',
+      context.master.id,
+    );
+    const rule = await createDailyDigestRule(context.master.id);
+
+    const preview = await buildDigestPreview(rule.id, context.master.id);
+    const itemIds = preview.groups.flatMap((group) =>
+      group.itemsByCategory.flatMap((category) => category.items.map((entry) => entry.id)),
+    );
+
+    expect(preview.groups).toHaveLength(1);
+    expect(preview.groups[0]?.recipientId).toBe(recipient.id);
+    expect(itemIds).toContain(item.id);
   });
 
   it('catches up a missed digest idempotently and records successful delivery', async () => {
