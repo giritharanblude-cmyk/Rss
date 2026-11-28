@@ -108,15 +108,16 @@ export class DeliveryService {
     ruleId: string,
     idempotencyPrefix: string,
     ownerUserId: string,
-  ): Promise<number> {
+  ): Promise<{ queued: number; created: number; itemCount: number }> {
     const preview = await this.previews.build({ kind, ruleId, limit: 10 }, ownerUserId);
     let queued = 0;
+    let created = 0;
     for (const group of preview.groups) {
       const itemIds = group.itemsByCategory.flatMap((category) =>
         category.items.map((item) => item.id),
       );
       for (const channel of group.channels) {
-        await this.deliveries.enqueue(
+        const result = await this.deliveries.enqueueIfNew(
           {
             recipientId: group.recipientId,
             channel,
@@ -127,9 +128,10 @@ export class DeliveryService {
           this.options.now(),
         );
         queued += 1;
+        if (result.created) created += 1;
       }
     }
-    return queued;
+    return { queued, created, itemCount: preview.itemCount };
   }
 
   async sendInstantForItem(itemId: string): Promise<number> {
@@ -215,14 +217,29 @@ export class DeliveryService {
       if (rule.kind !== 'digest' || !rule.active) continue;
       const occurrence = mostRecentDigestOccurrence(rule, now);
       if (!occurrence) continue;
-      queued += await this.enqueuePreview(
+      const result = await this.enqueuePreview(
         'digest',
         rule.id,
         `digest:${rule.id}:${occurrence.dateKey}`,
         rule.ownerUserId,
       );
+      queued += result.queued;
+      const outcome =
+        result.itemCount === 0
+          ? 'skipped, no items'
+          : result.created === 0
+            ? 'skipped, already sent'
+            : 'sent';
+      this.logDigestCatchup(
+        `digest catch-up: ${outcome}, ruleId=${rule.id}, occurrence=${occurrence.dateKey}, itemCount=${result.itemCount}`,
+      );
     }
     return queued;
+  }
+
+  private logDigestCatchup(message: string): void {
+    if (this.options.log) this.options.log(message, undefined);
+    else console.info(message);
   }
 
   private async deliver(jobId: string, deliveryId: string): Promise<void> {
